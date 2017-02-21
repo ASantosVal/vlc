@@ -26,7 +26,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-@interface VLCOpenWindowController : NSWindowController
+@interface VLCOpenWindowController : NSWindowController <NSTabViewDelegate>
 
 @property (readwrite, weak) IBOutlet NSTextField *mrlTextField;
 @property (readwrite, weak) IBOutlet NSTextField *mrlLabel;
@@ -152,10 +152,7 @@
 @property (readwrite, weak) IBOutlet NSBox *fileSubFileBox;
 
 /* generic capturing stuff */
-@property (readwrite, weak) IBOutlet NSTextField *captureLabel;
-@property (readwrite, weak) IBOutlet NSTextField *captureLongLabel;
 @property (readwrite, weak) IBOutlet NSPopUpButton *captureModePopup;
-@property (readwrite, weak) IBOutlet NSView *captureView;
 
 /* screen support */
 @property (readwrite, weak) IBOutlet NSView *screenView;
@@ -233,5 +230,6 @@
 - (IBAction)panelCancel:(id)sender;
 - (IBAction)panelOk:(id)sender;
 
-- (void)openFile;
+- (void)openFileWithAction:(void (^)(NSArray *files))action;
+
 @end

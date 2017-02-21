@@ -65,16 +65,16 @@ httpd_file_t *httpd_FileNew (httpd_host_t *host,
     vlc_assert_unreachable ();
 }
 
-httpd_handler_sys_t *httpd_HandlerDelete (httpd_handler_t *handler)
+void *httpd_HandlerDelete(httpd_handler_t *handler)
 {
     (void) handler;
     vlc_assert_unreachable ();
 }
 
-httpd_handler_t *httpd_HandlerNew (httpd_host_t *host, const char *url,
-                                   const char *login, const char *password,
-                                   httpd_handler_callback_t cb,
-                                   httpd_handler_sys_t *data)
+httpd_handler_t *httpd_HandlerNew(httpd_host_t *host, const char *url,
+                                  const char *login, const char *password,
+                                  httpd_handler_callback_t cb,
+                                  void *data)
 {
     (void) host; (void) url;
     (void) login; (void) password;
@@ -402,3 +402,43 @@ vlm_t *vlm_New (vlc_object_t *obj)
      return NULL;
 }
 #endif /* !ENABLE_VLM */
+
+#ifndef UPDATE_CHECK
+# include <vlc_update.h>
+
+update_t *(update_New)(vlc_object_t *obj)
+{
+    (void) obj;
+    return NULL;
+}
+
+void update_Delete(update_t *u)
+{
+    (void) u;
+    vlc_assert_unreachable();
+}
+
+void update_Check(update_t *u, void (*cb)(void *, bool), void *opaque)
+{
+    (void) u; (void) cb; (void) opaque;
+    vlc_assert_unreachable();
+}
+
+bool update_NeedUpgrade(update_t *u)
+{
+    (void) u;
+    vlc_assert_unreachable();
+}
+
+void update_Download(update_t *u, const char *dir)
+{
+    (void) u; (void) dir;
+    vlc_assert_unreachable();
+}
+
+update_release_t *update_GetRelease(update_t *u)
+{
+    (void) u;
+    vlc_assert_unreachable();
+}
+#endif /* !UPDATE_CHECK */

@@ -233,6 +233,10 @@ libtelx_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'
 EXTRA_LTLIBRARIES += libtelx_plugin.la
 codec_LTLIBRARIES += $(LTLIBtelx)
 
+libtextst_plugin_la_SOURCES = codec/textst.c
+libtextst_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'
+codec_LTLIBRARIES += libtextst_plugin.la
+
 libzvbi_plugin_la_SOURCES = codec/zvbi.c
 libzvbi_plugin_la_CFLAGS = $(AM_CFLAGS) $(ZVBI_CFLAGS) $(CFLAGS_zvbi)
 libzvbi_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'
@@ -317,6 +321,12 @@ libvideotoolbox_plugin_la_SOURCES = video_chroma/copy.c video_chroma/copy.h code
 if HAVE_OSX
 libvideotoolbox_plugin_la_OBJCFLAGS = $(AM_CFLAGS) -mmacosx-version-min=10.8
 endif
+if HAVE_IOS
+libvideotoolbox_plugin_la_OBJCFLAGS = $(AM_CFLAGS) -miphoneos-version-min=8.0
+endif
+if HAVE_TVOS
+libvideotoolbox_plugin_la_OBJCFLAGS = $(AM_CFLAGS) -mtvos-version-min=10.2
+endif
 libvideotoolbox_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)' -Wl,-framework,Foundation -Wl,-framework,VideoToolbox -Wl,-framework,CoreMedia -Wl,-framework,CoreVideo
 EXTRA_LTLIBRARIES += libvideotoolbox_plugin.la
 codec_LTLIBRARIES += $(LTLIBvideotoolbox)
@@ -392,7 +402,7 @@ endif
 
 libd3d11va_plugin_la_SOURCES = \
 	codec/avcodec/d3d11va.c codec/avcodec/directx_va.c codec/avcodec/directx_va.h \
-	video_chroma/dxgi_fmt.c video_chroma/dxgi_fmt.h \
+	video_chroma/d3d11_fmt.h video_chroma/dxgi_fmt.c video_chroma/dxgi_fmt.h \
 	packetizer/h264_nal.c packetizer/h264_nal.h \
 	packetizer/hevc_nal.c packetizer/hevc_nal.h
 libd3d11va_plugin_la_LIBADD = $(LIBCOM) -luuid

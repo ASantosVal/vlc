@@ -375,6 +375,7 @@ void BDAOutput::Empty()
 * Constructor
 *****************************************************************************/
 BDAGraph::BDAGraph( vlc_object_t *p_this ):
+    ul_cbrc( 0 ),
     p_access( p_this ),
     guid_network_type(GUID_NULL),
     l_tuner_used(-1),
@@ -1801,6 +1802,7 @@ HRESULT BDAGraph::SetUpTuner( REFCLSID guid_this_network_type )
             p_tuning_space->Release();
         p_tuning_space = NULL;
         SysFreeString( l.bstr_name );
+        l.bstr_name = NULL;
         msg_Dbg( p_access, "SetUpTuner: need good TS enum" );
         if( !l.p_tuning_space_enum ) break;
         msg_Dbg( p_access, "SetUpTuner: next tuning space" );
@@ -2556,7 +2558,6 @@ HRESULT BDAGraph::FindFilter( REFCLSID this_clsid, long* i_moniker_used,
         IBindCtx*      p_bind_context;
         IPropertyBag*  p_property_bag;
         char*          psz_upstream;
-        int            i_upstream_len;
 
         char*          psz_downstream;
         VARIANT        var_bstr;

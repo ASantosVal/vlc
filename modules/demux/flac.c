@@ -61,7 +61,7 @@ vlc_module_end ()
 static int Demux  ( demux_t * );
 static int Control( demux_t *, int, va_list );
 
-static int  ReadMeta( demux_t *, uint8_t **pp_streaminfo, int *pi_streaminfo );
+static int  ParseHeaders( demux_t *, es_format_t * );
 
 typedef struct
 {
@@ -72,7 +72,9 @@ typedef struct
 struct demux_sys_t
 {
     bool  b_start;
+    int   i_next_block_flags;
     es_out_id_t *p_es;
+    block_t *p_current_block;
 
     /* Packetizer */
     decoder_t *p_packetizer;
@@ -110,8 +112,6 @@ static int Open( vlc_object_t * p_this )
     demux_t     *p_demux = (demux_t*)p_this;
     demux_sys_t *p_sys;
     const uint8_t *p_peek;
-    uint8_t     *p_streaminfo;
-    int         i_streaminfo;
     es_format_t fmt;
 
     /* Have a peep at the show. */
@@ -136,27 +136,34 @@ static int Open( vlc_object_t * p_this )
     p_demux->pf_control = Control;
     p_demux->p_sys      = p_sys;
     p_sys->b_start = true;
+    p_sys->i_next_block_flags = 0;
     p_sys->p_packetizer = NULL;
     p_sys->p_meta = NULL;
     p_sys->i_length = 0;
-    p_sys->i_pts = 0;
+    p_sys->i_pts = VLC_TS_INVALID;
     p_sys->p_es = NULL;
+    p_sys->p_current_block = NULL;
     TAB_INIT( p_sys->i_seekpoint, p_sys->seekpoint );
     TAB_INIT( p_sys->i_attachments, p_sys->attachments);
     TAB_INIT( p_sys->i_title_seekpoints, p_sys->pp_title_seekpoints );
     p_sys->i_cover_idx = 0;
     p_sys->i_cover_score = 0;
 
-    /* We need to read and store the STREAMINFO metadata */
-    if( ReadMeta( p_demux, &p_streaminfo, &i_streaminfo ) )
+    es_format_Init( &fmt, AUDIO_ES, VLC_CODEC_FLAC );
+    fmt.b_packetized = true;
+
+    /* We need to read and store the STREAMINFO metadata into fmt extra */
+    if( ParseHeaders( p_demux, &fmt ) )
         goto error;
 
-    /* Load the FLAC packetizer */
-    /* Store STREAMINFO for the decoder and packetizer */
-    es_format_Init( &fmt, AUDIO_ES, VLC_CODEC_FLAC );
-    fmt.i_extra = i_streaminfo;
-    fmt.p_extra = p_streaminfo;
+    p_sys->p_es = es_out_Add( p_demux->out, &fmt );
+    if( !p_sys->p_es )
+    {
+        es_format_Clean( &fmt );
+        goto error;
+    }
 
+    /* Load the FLAC packetizer */
     p_sys->p_packetizer = demux_PacketizerNew( p_demux, &fmt, "flac" );
     if( !p_sys->p_packetizer )
         goto error;
@@ -183,6 +190,9 @@ static void Close( vlc_object_t * p_this )
 {
     demux_t     *p_demux = (demux_t*)p_this;
     demux_sys_t *p_sys = p_demux->p_sys;
+
+    if( p_sys->p_current_block )
+        block_Release( p_sys->p_current_block );
 
     for( int i = 0; i < p_sys->i_seekpoint; i++ )
         free(p_sys->seekpoint[i]);
@@ -215,41 +225,48 @@ static int Demux( demux_t *p_demux )
     demux_sys_t *p_sys = p_demux->p_sys;
     block_t *p_block_out;
 
-    block_t *p_block_in = vlc_stream_Block( p_demux->s, FLAC_PACKET_SIZE );
-    bool b_eof = p_block_in == NULL;
-
-    if ( p_block_in )
+    bool b_eof = false;
+    if( p_sys->p_current_block == NULL )
     {
-        p_block_in->i_pts = p_block_in->i_dts = p_sys->b_start ? VLC_TS_0 : VLC_TS_INVALID;
-        p_sys->b_start = false;
+        p_sys->p_current_block = vlc_stream_Block( p_demux->s, FLAC_PACKET_SIZE );
+        b_eof = (p_sys->p_current_block == NULL);
     }
 
-    while( (p_block_out = p_sys->p_packetizer->pf_packetize(
-                p_sys->p_packetizer, (p_block_in) ? &p_block_in : NULL )) )
+    if ( p_sys->p_current_block )
     {
+        p_sys->p_current_block->i_flags = p_sys->i_next_block_flags;
+        p_sys->i_next_block_flags = 0;
+        p_sys->p_current_block->i_pts =
+        p_sys->p_current_block->i_dts = p_sys->b_start ? VLC_TS_0 : VLC_TS_INVALID;
+    }
+
+    while( (p_block_out = p_sys->p_packetizer->pf_packetize( p_sys->p_packetizer,
+                            (p_sys->p_current_block) ? &p_sys->p_current_block : NULL )) )
+    {
+        /* Only clear on output when packet is accepted as sync #17111 */
+        p_sys->b_start = false;
         while( p_block_out )
         {
             block_t *p_next = p_block_out->p_next;
 
             p_block_out->p_next = NULL;
 
-            if( p_sys->p_es == NULL )
-            {
-                p_sys->p_packetizer->fmt_out.b_packetized = true;
-                p_sys->p_es = es_out_Add( p_demux->out, &p_sys->p_packetizer->fmt_out);
-            }
+            /* set PCR */
+            if( unlikely(p_sys->i_pts == VLC_TS_INVALID) )
+                es_out_Control( p_demux->out, ES_OUT_SET_PCR, __MAX(p_block_out->i_dts - 1, VLC_TS_0) );
 
             p_sys->i_pts = p_block_out->i_dts;
 
-            /* set PCR */
-            es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_block_out->i_dts );
-
             es_out_Send( p_demux->out, p_sys->p_es, p_block_out );
+
+            es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_sys->i_pts );
 
             p_block_out = p_next;
         }
+        break;
     }
-    return !b_eof;
+
+    return b_eof ? VLC_DEMUXER_EOF : VLC_DEMUXER_SUCCESS;
 }
 
 /*****************************************************************************
@@ -346,6 +363,8 @@ static int ControlSetTime( demux_t *p_demux, int64_t i_time )
         if( vlc_stream_Seek( p_demux->s, p_sys->seekpoint[i]->i_byte_offset+p_sys->i_data_pos + i_delta_offset ) )
             return VLC_EGENERIC;
     }
+    p_sys->i_pts = VLC_TS_INVALID;
+    p_sys->i_next_block_flags |= BLOCK_FLAG_DISCONTINUITY;
     return VLC_SUCCESS;
 }
 
@@ -488,22 +507,19 @@ static inline int Get24bBE( const uint8_t *p )
     return (p[0] << 16)|(p[1] << 8)|(p[2]);
 }
 
-static void ParseStreamInfo( int *pi_rate, int64_t *pi_count, uint8_t *p_data );
-static void ParseSeekTable( demux_t *p_demux, const uint8_t *p_data, int i_data,
-                            int i_sample_rate );
-static void ParseComment( demux_t *, const uint8_t *p_data, int i_data );
-static void ParsePicture( demux_t *, const uint8_t *p_data, int i_data );
+static void ParseStreamInfo( es_format_t *, uint64_t *pi_count );
+static void ParseSeekTable( demux_t *p_demux, const uint8_t *p_data, size_t i_data,
+                            unsigned i_sample_rate );
+static void ParseComment( demux_t *, const uint8_t *p_data, size_t i_data );
+static void ParsePicture( demux_t *, const uint8_t *p_data, size_t i_data );
 
-static int  ReadMeta( demux_t *p_demux, uint8_t **pp_streaminfo, int *pi_streaminfo )
+static int  ParseHeaders( demux_t *p_demux, es_format_t *p_fmt )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
-    int     i_peek;
+    ssize_t i_peek;
     const uint8_t *p_peek;
     bool b_last;
-    int i_sample_rate = 0;
-    int64_t i_sample_count;
-
-    *pp_streaminfo = NULL;
+    uint64_t i_sample_count;
 
     /* Be sure we have seekpoint 0 */
     flac_seekpoint_t *s = xmalloc( sizeof (*s) );
@@ -531,42 +547,42 @@ static int  ReadMeta( demux_t *p_demux, uint8_t **pp_streaminfo, int *pi_streami
         i_type = p_peek[0]&0x7f;
         i_len  = Get24bBE( &p_peek[1] );
 
-        if( i_type == META_STREAMINFO && !*pp_streaminfo )
+        if( i_type == META_STREAMINFO && p_fmt->p_extra == NULL )
         {
             if( i_len != STREAMINFO_SIZE ) {
                 msg_Err( p_demux, "invalid size %d for a STREAMINFO metadata block", i_len );
                 return VLC_EGENERIC;
             }
 
-            *pi_streaminfo = STREAMINFO_SIZE;
-            *pp_streaminfo = malloc( STREAMINFO_SIZE);
-            if( *pp_streaminfo == NULL )
+            p_fmt->p_extra = malloc( STREAMINFO_SIZE);
+            if( p_fmt->p_extra == NULL )
                 return VLC_EGENERIC;
 
             if( vlc_stream_Read( p_demux->s, NULL, 4) < 4)
             {
-                free( *pp_streaminfo );
+                FREENULL( p_fmt->p_extra );
                 return VLC_EGENERIC;
             }
-            if( vlc_stream_Read( p_demux->s, *pp_streaminfo,
+            if( vlc_stream_Read( p_demux->s, p_fmt->p_extra,
                                  STREAMINFO_SIZE ) != STREAMINFO_SIZE )
             {
                 msg_Err( p_demux, "failed to read STREAMINFO metadata block" );
-                free( *pp_streaminfo );
+                FREENULL( p_fmt->p_extra );
                 return VLC_EGENERIC;
             }
+            p_fmt->i_extra = STREAMINFO_SIZE;
 
             /* */
-            ParseStreamInfo( &i_sample_rate, &i_sample_count, *pp_streaminfo );
-            if( i_sample_rate > 0 )
-                p_sys->i_length = i_sample_count * CLOCK_FREQ /i_sample_rate;
+            ParseStreamInfo( p_fmt, &i_sample_count );
+            if( p_fmt->audio.i_rate > 0 )
+                p_sys->i_length = i_sample_count * CLOCK_FREQ / p_fmt->audio.i_rate;
             continue;
         }
         else if( i_type == META_SEEKTABLE )
         {
             i_peek = vlc_stream_Peek( p_demux->s, &p_peek, 4+i_len );
             if( i_peek == 4+i_len )
-                ParseSeekTable( p_demux, p_peek, i_peek, i_sample_rate );
+                ParseSeekTable( p_demux, p_peek, i_peek, p_fmt->audio.i_rate );
         }
         else if( i_type == META_COMMENT )
         {
@@ -588,25 +604,28 @@ static int  ReadMeta( demux_t *p_demux, uint8_t **pp_streaminfo, int *pi_streami
     /* */
     p_sys->i_data_pos = vlc_stream_Tell( p_demux->s );
 
-    if (!*pp_streaminfo)
+    if ( p_fmt->p_extra == NULL )
         return VLC_EGENERIC;
 
     return VLC_SUCCESS;
 }
-static void ParseStreamInfo( int *pi_rate, int64_t *pi_count, uint8_t *p_data )
+static void ParseStreamInfo( es_format_t *p_fmt, uint64_t *pi_count )
 {
-    *pi_rate = GetDWBE(&p_data[4+6]) >> 12;
+    uint8_t *p_data = p_fmt->p_extra;
+    p_fmt->audio.i_rate = GetDWBE(&p_data[4+6]) >> 12;
+    p_fmt->audio.i_channels = (p_data[12] & 0x0F >> 1) + 1;
+    p_fmt->audio.i_bitspersample = ((p_data[12] & 0x01) << 4) | p_data[13] >> 4;
     *pi_count = GetQWBE(&p_data[4+6]) &  ((INT64_C(1)<<36)-1);
 }
 
-static void ParseSeekTable( demux_t *p_demux, const uint8_t *p_data, int i_data,
-                            int i_sample_rate )
+static void ParseSeekTable( demux_t *p_demux, const uint8_t *p_data, size_t i_data,
+                            unsigned i_sample_rate )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
     flac_seekpoint_t *s;
-    int i;
+    size_t i;
 
-    if( i_sample_rate <= 0 )
+    if( i_sample_rate == 0 )
         return;
 
     /* */
@@ -641,7 +660,7 @@ static void ParseSeekTable( demux_t *p_demux, const uint8_t *p_data, int i_data,
     /* TODO sort it by size and remove wrong seek entry (time not increasing) */
 }
 
-static void ParseComment( demux_t *p_demux, const uint8_t *p_data, int i_data )
+static void ParseComment( demux_t *p_demux, const uint8_t *p_data, size_t i_data )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
 
@@ -654,7 +673,7 @@ static void ParseComment( demux_t *p_demux, const uint8_t *p_data, int i_data )
         &p_sys->i_title_seekpoints, &p_sys->pp_title_seekpoints, NULL, NULL );
 }
 
-static void ParsePicture( demux_t *p_demux, const uint8_t *p_data, int i_data )
+static void ParsePicture( demux_t *p_demux, const uint8_t *p_data, size_t i_data )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
 

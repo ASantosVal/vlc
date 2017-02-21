@@ -161,7 +161,7 @@ static inline int vlc_a52_header_ParseAc3( vlc_a52_header_t *p_header,
     p_header->i_channels = popcount(p_header->i_channels_conf
                                     & AOUT_CHAN_PHYSMASK);
 
-    const unsigned i_rate_shift = __MAX(i_bsid, 8) - 8;
+    const unsigned i_rate_shift = VLC_CLIP(i_bsid, 8, 11) - 8;
     p_header->i_bitrate = (pi_frmsizcod_bitrates[i_frmsizcod >> 1] * 1000)
                         >> i_rate_shift;
     p_header->i_rate = pi_fscod_samplerates[i_fscod] >> i_rate_shift;
@@ -260,12 +260,14 @@ static inline int vlc_a52_header_Parse( vlc_a52_header_t *p_header,
     const int bsid = p_buffer[5] >> 3;
 
     /* cf. Annex E 2.3.1.6 of AC3 spec */
-    if( bsid > 10 && bsid <= 16 )
+    if( bsid <= 10 )
+        return vlc_a52_header_ParseAc3( p_header, p_buffer,
+                                        p_acmod, pi_fscod_samplerates );
+    else if( bsid <= 16 )
         return vlc_a52_header_ParseEac3( p_header, p_buffer,
                                          p_acmod, pi_fscod_samplerates );
     else
-        return vlc_a52_header_ParseAc3( p_header, p_buffer,
-                                        p_acmod, pi_fscod_samplerates );
+        return VLC_EGENERIC;
 }
 
 #endif

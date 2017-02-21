@@ -278,6 +278,7 @@ static int Open( vlc_object_t* p_this )
 
         default:
             msg_Err( p_access, "Host uses unrecognized session-key algorithm" );
+            libssh2_knownhost_free( ssh_knownhosts );
             goto error;
 
     }
@@ -309,6 +310,9 @@ static int Open( vlc_object_t* p_this )
     char* psz_userauthlist = NULL;
     do
     {
+        if (!credential.psz_username || !credential.psz_username[0])
+            continue;
+
         psz_userauthlist = libssh2_userauth_list( p_sys->ssh_session, credential.psz_username, strlen( credential.psz_username ) );
 
         /* TODO: Follow PreferredAuthentications in ssh_config */
@@ -423,7 +427,6 @@ static int Open( vlc_object_t* p_this )
 error:
     free( psz_home );
     free( psz_remote_home );
-    free( psz_userauthlist );
     vlc_UrlClean( &url );
     vlc_credential_clean( &credential );
     vlc_UrlClean( &credential_url );

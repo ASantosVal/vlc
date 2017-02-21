@@ -41,12 +41,40 @@
 struct decoder_owner_sys_t
 {
     sout_stream_sys_t *p_sys;
+    sout_stream_t *p_stream;
+    sout_stream_id_sys_t *id;
 };
 
 static int video_update_format_decoder( decoder_t *p_dec )
 {
-    p_dec->fmt_out.video.i_chroma = p_dec->fmt_out.i_codec;
-    return 0;
+    decoder_owner_sys_t  *owner  = p_dec->p_owner;
+    sout_stream_sys_t    *sys    = owner->p_sys;
+    sout_stream_t        *stream = owner->p_stream;
+    sout_stream_id_sys_t *id     = owner->id;
+    filter_chain_t       *test_chain;
+
+    filter_owner_t filter_owner = {
+        .sys = sys,
+    };
+
+    if( !id->b_transcode )
+        return 0;
+
+    if( id->p_encoder->fmt_in.i_codec == p_dec->fmt_out.i_codec )
+        return 0;
+
+    msg_Dbg( stream, "Checking if filter chain %4.4s -> %4.4s is possible",
+                 (char *)&p_dec->fmt_out.i_codec, (char*)&id->p_encoder->fmt_in.i_codec );
+    test_chain = filter_chain_NewVideo( stream, false, &filter_owner );
+    filter_chain_Reset( test_chain, &p_dec->fmt_out, &p_dec->fmt_out );
+
+    int chain_works = filter_chain_AppendConverter( test_chain, &p_dec->fmt_out,
+                                  &id->p_encoder->fmt_in );
+    filter_chain_Delete( test_chain );
+    msg_Dbg( stream, "Filter chain testing done, input chroma %4.4s seems to be %s for transcode",
+                     (char *)&p_dec->fmt_out.video.i_chroma,
+                     chain_works == 0 ? "possible" : "not possible");
+    return chain_works;
 }
 
 static picture_t *video_new_buffer_decoder( decoder_t *p_dec )
@@ -120,6 +148,33 @@ static void* EncoderThread( void *obj )
     return NULL;
 }
 
+static int decoder_queue_video( decoder_t *p_dec, picture_t *p_pic,
+                                block_t *p_cc, bool p_cc_present[4] )
+{
+    sout_stream_id_sys_t *id = p_dec->p_queue_ctx;
+
+    (void) p_cc_present;
+    if( unlikely( p_cc != NULL ) )
+        block_Release( p_cc );
+
+    vlc_mutex_lock(&id->fifo.lock);
+    *id->fifo.pic.last = p_pic;
+    id->fifo.pic.last = &p_pic->p_next;
+    vlc_mutex_unlock(&id->fifo.lock);
+    return 0;
+}
+
+static picture_t *transcode_dequeue_all_pics( sout_stream_id_sys_t *id )
+{
+    vlc_mutex_lock(&id->fifo.lock);
+    picture_t *p_pics = id->fifo.pic.first;
+    id->fifo.pic.first = NULL;
+    id->fifo.pic.last = &id->fifo.pic.first;
+    vlc_mutex_unlock(&id->fifo.lock);
+
+    return p_pics;
+}
+
 int transcode_video_new( sout_stream_t *p_stream, sout_stream_id_sys_t *id )
 {
     sout_stream_sys_t *p_sys = p_stream->p_sys;
@@ -131,7 +186,9 @@ int transcode_video_new( sout_stream_t *p_stream, sout_stream_id_sys_t *id )
     id->p_decoder->fmt_out.i_extra = 0;
     id->p_decoder->fmt_out.p_extra = NULL;
     id->p_decoder->fmt_out.psz_language = NULL;
-    id->p_decoder->pf_decode_video = NULL;
+    id->p_decoder->pf_decode = NULL;
+    id->p_decoder->pf_queue_video = decoder_queue_video;
+    id->p_decoder->p_queue_ctx = id;
     id->p_decoder->pf_get_cc = NULL;
     id->p_decoder->pf_vout_format_update = video_update_format_decoder;
     id->p_decoder->pf_vout_buffer_new = video_new_buffer_decoder;
@@ -140,7 +197,8 @@ int transcode_video_new( sout_stream_t *p_stream, sout_stream_id_sys_t *id )
         return VLC_EGENERIC;
 
     id->p_decoder->p_owner->p_sys = p_sys;
-    /* id->p_decoder->p_cfg = p_sys->p_video_cfg; */
+    id->p_decoder->p_owner->p_stream = p_stream;
+    id->p_decoder->p_owner->id = id;
 
     id->p_decoder->p_module =
         module_need( id->p_decoder, "decoder", "$codec", false );
@@ -651,7 +709,6 @@ void transcode_video_close( sout_stream_t *p_stream,
 static void OutputFrame( sout_stream_t *p_stream, picture_t *p_pic, sout_stream_id_sys_t *id, block_t **out )
 {
     sout_stream_sys_t *p_sys = p_stream->p_sys;
-    picture_t *p_pic2 = NULL;
 
     /*
      * Encoding
@@ -712,9 +769,7 @@ static void OutputFrame( sout_stream_t *p_stream, picture_t *p_pic, sout_stream_
         vlc_mutex_unlock( &p_sys->lock_out );
     }
 
-    if( p_sys->i_threads && p_pic2 )
-        picture_Release( p_pic2 );
-    else if ( p_sys->i_threads == 0 )
+    if ( p_sys->i_threads == 0 )
         picture_Release( p_pic );
 }
 
@@ -722,41 +777,28 @@ int transcode_video_process( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
                                     block_t *in, block_t **out )
 {
     sout_stream_sys_t *p_sys = p_stream->p_sys;
-    picture_t *p_pic = NULL;
     *out = NULL;
+    bool b_error = false;
 
-    if( unlikely( in == NULL ) )
+    int ret = id->p_decoder->pf_decode( id->p_decoder, in );
+    if( ret != VLCDEC_SUCCESS )
+        return VLC_EGENERIC;
+
+    picture_t *p_pics = transcode_dequeue_all_pics( id );
+    if( p_pics == NULL )
+        goto end;
+
+    do
     {
-        if( p_sys->i_threads == 0 )
+        picture_t *p_pic = p_pics;
+        p_pics = p_pics->p_next;
+        p_pic->p_next = NULL;
+
+        if( b_error )
         {
-            block_t *p_block;
-            do {
-                p_block = id->p_encoder->pf_encode_video(id->p_encoder, NULL );
-                block_ChainAppend( out, p_block );
-            } while( p_block );
+            picture_Release( p_pic );
+            continue;
         }
-        else
-        {
-            msg_Dbg( p_stream, "Flushing thread and waiting that");
-            vlc_mutex_lock( &p_stream->p_sys->lock_out );
-            p_stream->p_sys->b_abort = true;
-            vlc_cond_signal( &p_stream->p_sys->cond );
-            vlc_mutex_unlock( &p_stream->p_sys->lock_out );
-
-            vlc_join( p_stream->p_sys->thread, NULL );
-            vlc_mutex_lock( &p_sys->lock_out );
-            *out = p_sys->p_buffers;
-            p_sys->p_buffers = NULL;
-            vlc_mutex_unlock( &p_sys->lock_out );
-
-            msg_Dbg( p_stream, "Flushing done");
-        }
-        return VLC_SUCCESS;
-    }
-
-
-    while( (p_pic = id->p_decoder->pf_decode_video( id->p_decoder, &in )) )
-    {
 
         if( unlikely (
              id->p_encoder->p_module &&
@@ -781,8 +823,8 @@ int transcode_video_process( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
             id->p_encoder->fmt_out.video.i_visible_height = p_sys->i_height & ~1;
             id->p_encoder->fmt_out.video.i_sar_num = id->p_encoder->fmt_out.video.i_sar_den = 0;
 
-            transcode_video_filter_init( p_stream, id );
             transcode_video_encoder_init( p_stream, id );
+            transcode_video_filter_init( p_stream, id );
             conversion_video_filter_append( id );
             memcpy( &id->fmt_input_video, &id->p_decoder->fmt_out.video, sizeof(video_format_t));
         }
@@ -796,18 +838,18 @@ int transcode_video_process( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
                 filter_chain_Delete( id->p_uf_chain );
             id->p_f_chain = id->p_uf_chain = NULL;
 
-            transcode_video_filter_init( p_stream, id );
             transcode_video_encoder_init( p_stream, id );
+            transcode_video_filter_init( p_stream, id );
             conversion_video_filter_append( id );
             memcpy( &id->fmt_input_video, &id->p_decoder->fmt_out.video, sizeof(video_format_t));
 
             if( transcode_video_encoder_open( p_stream, id ) != VLC_SUCCESS )
             {
                 picture_Release( p_pic );
-                block_Release( in );
                 transcode_video_close( p_stream, id );
                 id->b_transcode = false;
-                return VLC_EGENERIC;
+                b_error = true;
+                continue;
             }
         }
 
@@ -840,7 +882,7 @@ int transcode_video_process( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
 
             p_pic = NULL;
         }
-    }
+    } while( p_pics );
 
     if( p_sys->i_threads >= 1 )
     {
@@ -851,7 +893,36 @@ int transcode_video_process( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
         vlc_mutex_unlock( &p_sys->lock_out );
     }
 
-    return VLC_SUCCESS;
+end:
+    if( unlikely( in == NULL ) )
+    {
+        if( p_sys->i_threads == 0 )
+        {
+            block_t *p_block;
+            do {
+                p_block = id->p_encoder->pf_encode_video(id->p_encoder, NULL );
+                block_ChainAppend( out, p_block );
+            } while( p_block );
+        }
+        else
+        {
+            msg_Dbg( p_stream, "Flushing thread and waiting that");
+            vlc_mutex_lock( &p_stream->p_sys->lock_out );
+            p_stream->p_sys->b_abort = true;
+            vlc_cond_signal( &p_stream->p_sys->cond );
+            vlc_mutex_unlock( &p_stream->p_sys->lock_out );
+
+            vlc_join( p_stream->p_sys->thread, NULL );
+            vlc_mutex_lock( &p_sys->lock_out );
+            *out = p_sys->p_buffers;
+            p_sys->p_buffers = NULL;
+            vlc_mutex_unlock( &p_sys->lock_out );
+
+            msg_Dbg( p_stream, "Flushing done");
+        }
+    }
+
+    return b_error ? VLC_EGENERIC : VLC_SUCCESS;
 }
 
 bool transcode_video_add( sout_stream_t *p_stream, const es_format_t *p_fmt,
@@ -862,6 +933,9 @@ bool transcode_video_add( sout_stream_t *p_stream, const es_format_t *p_fmt,
     msg_Dbg( p_stream,
              "creating video transcoding from fcc=`%4.4s' to fcc=`%4.4s'",
              (char*)&p_fmt->i_codec, (char*)&p_sys->i_vcodec );
+
+    id->fifo.audio.first = NULL;
+    id->fifo.audio.last = &id->fifo.audio.first;
 
     /* Complete destination format */
     id->p_encoder->fmt_out.i_codec = p_sys->i_vcodec;

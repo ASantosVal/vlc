@@ -397,6 +397,7 @@ $Id$
  * tcp: TCP Network access module
  * tdummy: dummy text renderer
  * telx: teletext subtitles decoder
+ * textst: HDMV text subtitles decoder
  * theora: a theora video decoder/packetizer/encoder using the libtheora
  * timecode: clock/timecode as a subtitle input
  * tizen_audio: audio output for Tizen
@@ -455,7 +456,7 @@ $Id$
  * wingdi: WIN 32 / WIN CE GDI video output
  * winstore: Windows Store App audio output
  * wl_screenshooter: Wayland screen capture input
- * wl_shell_surface: Wayland shell surface window provider
+ * wl_shell: Wayland shell surface window provider
  * wl_shm: Wayland shared memory video output
  * wma_fixed: wma decoder using integer decoder from Rockbox
  * x262: MPEG-2 video encoder using x262
@@ -470,6 +471,7 @@ $Id$
  * xcb_x11: a X11 video output using XCB
  * xcb_xv: a XVideo video output using XCB
  * xdg_screensaver: xdg-utils screensaver inhibition
+ * xdg_shell: XDG shell surface window provider using Wayland-client
  * xml: LibXML xml parser
  * xwd: X Window system raster image dump pseudo-decoder
  * yuv: yuv video output

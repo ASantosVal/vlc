@@ -29,6 +29,7 @@
 # include "config.h"
 #endif
 
+#include <limits.h>
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_demux.h>
@@ -107,7 +108,6 @@ static int Open( vlc_object_t *p_this )
     uint8_t      hdr[20];
     const uint8_t *p_peek;
     int          i_cat;
-    int          i_samples, i_modulo;
 
     if( vlc_stream_Peek( p_demux->s , &p_peek, 4 ) < 4 )
         return VLC_EGENERIC;
@@ -116,7 +116,8 @@ static int Open( vlc_object_t *p_this )
         return VLC_EGENERIC;
 
     /* skip signature */
-    vlc_stream_Read( p_demux->s, NULL, 4 );   /* cannot fail */
+    if( vlc_stream_Read( p_demux->s, NULL, 4 ) < 4 )
+        return VLC_EGENERIC;
 
     /* read header */
     if( vlc_stream_Read( p_demux->s, hdr, 20 ) < 20 )
@@ -131,14 +132,23 @@ static int Open( vlc_object_t *p_this )
         return VLC_EGENERIC;
     }
 
-    DEMUX_INIT_COMMON(); p_sys = p_demux->p_sys;
+    p_sys = malloc( sizeof (*p_sys) );
+    if( unlikely(p_sys == NULL) )
+        return VLC_ENOMEM;
+
     p_sys->i_time = 0;
     p_sys->i_header_size = GetDWBE( &hdr[0] );
 
     /* skip extra header data */
     if( p_sys->i_header_size > 24 )
     {
-        vlc_stream_Read( p_demux->s, NULL, p_sys->i_header_size - 24 );
+#if (SSIZE_MAX <= INT32_MAX)
+        if( p_sys->i_header_size > SSIZE_MAX )
+            goto error;
+#endif
+        size_t skip = p_sys->i_header_size - 24;
+        if( vlc_stream_Read( p_demux->s, NULL, skip ) < (ssize_t)skip )
+            goto error;
     }
 
     /* init fmt */
@@ -253,40 +263,42 @@ static int Open( vlc_object_t *p_this )
 
     if( i_cat == AU_CAT_UNKNOWN || i_cat == AU_CAT_ADPCM )
     {
-        p_sys->i_frame_size = 0;
-        p_sys->i_frame_length = 0;
-
         msg_Err( p_demux, "unsupported codec/type (Please report it)" );
-        free( p_sys );
-        return VLC_EGENERIC;
+        goto error;
     }
 
     if( p_sys->fmt.audio.i_rate == 0 )
     {
         msg_Err( p_demux, "invalid samplerate: 0" );
-        free( p_sys );
-        return VLC_EGENERIC;
+        goto error;
     }
 
     /* add the es */
     p_sys->es = es_out_Add( p_demux->out, &p_sys->fmt );
 
     /* calculate 50ms frame size/time */
-    i_samples = __MAX( p_sys->fmt.audio.i_rate / 20, 1 );
+    unsigned i_samples = __MAX( p_sys->fmt.audio.i_rate / 20, 1 );
     p_sys->i_frame_size = i_samples * p_sys->fmt.audio.i_channels *
                           ( (p_sys->fmt.audio.i_bitspersample + 7) / 8 );
     if( p_sys->fmt.audio.i_blockalign > 0 )
     {
-        if( ( i_modulo = p_sys->i_frame_size % p_sys->fmt.audio.i_blockalign ) != 0 )
+        unsigned mod = p_sys->i_frame_size % p_sys->fmt.audio.i_blockalign;
+        if( mod != 0 )
         {
-            p_sys->i_frame_size += p_sys->fmt.audio.i_blockalign - i_modulo;
+            p_sys->i_frame_size += p_sys->fmt.audio.i_blockalign - mod;
         }
     }
     p_sys->i_frame_length = (mtime_t)1000000 *
                             (mtime_t)i_samples /
                             (mtime_t)p_sys->fmt.audio.i_rate;
 
+    p_demux->p_sys = p_sys;
+    p_demux->pf_demux = Demux;
+    p_demux->pf_control = Control;
     return VLC_SUCCESS;
+error:
+    free( p_sys );
+    return VLC_EGENERIC;
 }
 
 /*****************************************************************************

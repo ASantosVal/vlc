@@ -70,7 +70,7 @@ typedef struct
  *****************************************************************************/
 static int  OpenDecoder( vlc_object_t* );
 static void CloseDecoder( vlc_object_t* );
-static picture_t *DecodeBlock( decoder_t*, block_t** );
+static int  DecodeBlock( decoder_t*, block_t* );
 static void Flush( decoder_t * );
 
 #define MODULE_DESCRIPTION N_( "Uses GStreamer framework's plugins " \
@@ -609,8 +609,8 @@ static int OpenDecoder( vlc_object_t *p_this )
     p_sys->b_running = true;
 
     /* Set callbacks */
-    p_dec->pf_decode_video = DecodeBlock;
-    p_dec->pf_flush        = Flush;
+    p_dec->pf_decode = DecodeBlock;
+    p_dec->pf_flush  = Flush;
 
     return VLC_SUCCESS;
 
@@ -648,21 +648,15 @@ static void Flush( decoder_t *p_dec )
 }
 
 /* Decode */
-static picture_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block )
+static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
 {
-    block_t *p_block;
     picture_t *p_pic = NULL;
     decoder_sys_t *p_sys = p_dec->p_sys;
     GstMessage *p_msg;
     GstBuffer *p_buf;
 
-    if( !pp_block )
-        return NULL;
-
-    p_block = *pp_block;
-
-    if( !p_block )
-        goto check_messages;
+    if( !p_block ) /* No Drain */
+        return VLCDEC_SUCCESS;
 
     if( unlikely( p_block->i_flags & (BLOCK_FLAG_DISCONTINUITY |
                     BLOCK_FLAG_CORRUPTED ) ) )
@@ -686,9 +680,8 @@ static picture_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block )
         if( unlikely( p_buf == NULL ) )
         {
             msg_Err( p_dec, "failed to create input gstbuffer" );
-            p_dec->b_error = true;
             block_Release( p_block );
-            goto done;
+            return VLCDEC_ECRITICAL;
         }
 
         if( p_block->i_dts > VLC_TS_INVALID )
@@ -728,15 +721,13 @@ static picture_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block )
         {
             /* block will be released internally,
              * when gst_buffer_unref() is called */
-            p_dec->b_error = true;
             msg_Err( p_dec, "failed to push buffer" );
-            goto done;
+            return VLCDEC_ECRITICAL;
         }
     }
     else
         block_Release( p_block );
 
-check_messages:
     /* Poll for any messages, errors */
     p_msg = gst_bus_pop_filtered( p_sys->p_bus,
             GST_MESSAGE_ASYNC_DONE | GST_MESSAGE_ERROR |
@@ -756,11 +747,10 @@ check_messages:
             msg_Dbg( p_dec, "Pipeline is prerolled" );
             break;
         default:
-            p_dec->b_error = default_msg_handler( p_dec, p_msg );
-            if( p_dec->b_error )
+            if( default_msg_handler( p_dec, p_msg ) )
             {
                 gst_message_unref( p_msg );
-                goto done;
+                return VLCDEC_ECRITICAL;
             }
             break;
         }
@@ -795,8 +785,7 @@ check_messages:
             {
                 msg_Err( p_dec, "failed to map gst video frame" );
                 gst_buffer_unref( p_buf );
-                p_dec->b_error = true;
-                goto done;
+                return VLCDEC_ECRITICAL;
             }
 
             gst_CopyPicture( p_pic, &frame );
@@ -813,8 +802,9 @@ check_messages:
     }
 
 done:
-    *pp_block = NULL;
-    return p_pic;
+    if( p_pic != NULL )
+        decoder_QueueVideo( p_dec, p_pic );
+    return VLCDEC_SUCCESS;
 }
 
 /* Close the decoder instance */
@@ -847,9 +837,11 @@ static void CloseDecoder( vlc_object_t *p_this )
                 msg_Dbg( p_dec, "got eos" );
                 break;
             default:
-                p_dec->b_error = default_msg_handler( p_dec, p_msg );
-                if( p_dec->b_error )
+                if( default_msg_handler( p_dec, p_msg ) )
+                {
                     msg_Err( p_dec, "pipeline may not close gracefully" );
+                    return;
+                }
                 break;
             }
 

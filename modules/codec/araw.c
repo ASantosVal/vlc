@@ -66,7 +66,7 @@ vlc_module_end ()
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-static block_t *DecodeBlock( decoder_t *, block_t ** );
+static int DecodeBlock( decoder_t *, block_t * );
 static void Flush( decoder_t * );
 
 struct decoder_sys_t
@@ -244,7 +244,7 @@ static int DecoderOpen( vlc_object_t *p_this )
         return VLC_EGENERIC;
     }
 
-    if( p_dec->fmt_in.audio.i_channels <= 0 ||
+    if( p_dec->fmt_in.audio.i_channels == 0 ||
         p_dec->fmt_in.audio.i_channels > AOUT_CHAN_MAX )
     {
         msg_Err( p_dec, "bad channels count (1-%i): %i",
@@ -252,7 +252,7 @@ static int DecoderOpen( vlc_object_t *p_this )
         return VLC_EGENERIC;
     }
 
-    if( p_dec->fmt_in.audio.i_rate <= 0 )
+    if( p_dec->fmt_in.audio.i_rate == 0 || p_dec->fmt_in.audio.i_rate > 384000 )
     {
         msg_Err( p_dec, "bad samplerate: %d Hz", p_dec->fmt_in.audio.i_rate );
         return VLC_EGENERIC;
@@ -293,8 +293,8 @@ static int DecoderOpen( vlc_object_t *p_this )
     date_Init( &p_sys->end_date, p_dec->fmt_out.audio.i_rate, 1 );
     date_Set( &p_sys->end_date, 0 );
 
-    p_dec->pf_decode_audio = DecodeBlock;
-    p_dec->pf_flush        = Flush;
+    p_dec->pf_decode = DecodeBlock;
+    p_dec->pf_flush  = Flush;
     p_dec->p_sys = p_sys;
 
     return VLC_SUCCESS;
@@ -315,22 +315,18 @@ static void Flush( decoder_t *p_dec )
  ****************************************************************************
  * This function must be fed with whole samples (see nBlockAlign).
  ****************************************************************************/
-static block_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block )
+static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
 {
     decoder_sys_t *p_sys = p_dec->p_sys;
-    if( pp_block == NULL )
-        return NULL;
+    if( p_block == NULL ) /* No Drain */
+        return VLCDEC_SUCCESS;
 
-    block_t *p_block = *pp_block;
-    if( p_block == NULL )
-        return NULL;
-    *pp_block = NULL;
-
-    if( p_block->i_flags & BLOCK_FLAG_CORRUPTED )
-        goto skip;
-
-    if( p_block->i_flags & BLOCK_FLAG_DISCONTINUITY )
+    if( p_block->i_flags & (BLOCK_FLAG_CORRUPTED|BLOCK_FLAG_DISCONTINUITY) )
+    {
         Flush( p_dec );
+        if( p_block->i_flags & BLOCK_FLAG_CORRUPTED )
+            goto skip;
+    }
 
     if( p_block->i_pts > VLC_TS_INVALID &&
         p_block->i_pts != date_Get( &p_sys->end_date ) )
@@ -368,10 +364,11 @@ static block_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block )
     p_block->i_pts = date_Get( &p_sys->end_date );
     p_block->i_length = date_Increment( &p_sys->end_date, samples )
                       - p_block->i_pts;
-    return p_block;
+    decoder_QueueAudio( p_dec, p_block );
+    return VLCDEC_SUCCESS;
 skip:
     block_Release( p_block );
-    return NULL;
+    return VLCDEC_SUCCESS;
 }
 
 static void S8Decode( void *outp, const uint8_t *in, unsigned samples )

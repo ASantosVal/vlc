@@ -58,7 +58,9 @@
 #include <QStatusBar>
 #include <QLabel>
 #include <QStackedWidget>
+#ifdef _WIN32
 #include <QFileInfo>
+#endif
 
 #include <QTimer>
 
@@ -183,12 +185,14 @@ MainInterface::MainInterface( intf_thread_t *_p_intf ) : QVLCMW( _p_intf )
         CONNECT( THEMIM->getIM(), nameChanged( const QString& ),
                  this, setVLCWindowsTitle( const QString& ) );
     }
+    CONNECT( THEMIM, inputChanged( bool ), this, onInputChanged( bool ) );
+
     /* END CONNECTS ON IM */
 
     /* VideoWidget connects for asynchronous calls */
     b_videoFullScreen = false;
-    connect( this, SIGNAL(askGetVideo(WId*, struct vout_window_t*, unsigned, unsigned, bool)),
-             this, SLOT(getVideoSlot(WId*, struct vout_window_t*, unsigned, unsigned, bool)),
+    connect( this, SIGNAL(askGetVideo(struct vout_window_t*, unsigned, unsigned, bool, bool*)),
+             this, SLOT(getVideoSlot(struct vout_window_t*, unsigned, unsigned, bool, bool*)),
              Qt::BlockingQueuedConnection );
     connect( this, SIGNAL(askReleaseVideo( void )),
              this, SLOT(releaseVideoSlot( void )),
@@ -417,6 +421,23 @@ void MainInterface::resumePlayback()
     hideResumePanel();
 }
 
+void MainInterface::onInputChanged( bool hasInput )
+{
+    if( hasInput == false )
+        return;
+    int autoRaise = var_InheritInteger( p_intf, "qt-auto-raise" );
+    if ( autoRaise == MainInterface::RAISE_NEVER )
+        return;
+    if( THEMIM->getIM()->hasVideo() == true )
+    {
+        if( ( autoRaise & MainInterface::RAISE_VIDEO ) == 0 )
+            return;
+    }
+    else if ( ( autoRaise & MainInterface::RAISE_AUDIO ) == 0 )
+        return;
+    emit askRaise();
+}
+
 void MainInterface::createMainWidget( QSettings *creationSettings )
 {
     /* Create the main Widget and the mainLayout */
@@ -588,7 +609,7 @@ void MainInterface::debug()
 #endif
 }
 
-inline void MainInterface::showVideo() { showTab( videoWidget ); setRaise(); }
+inline void MainInterface::showVideo() { showTab( videoWidget ); }
 inline void MainInterface::restoreStackOldWidget()
             { showTab( stackCentralOldWidget ); }
 
@@ -682,32 +703,29 @@ void MainInterface::toggleFSC()
  * All window provider queries must be handled through signals or events.
  * That's why we have all those emit statements...
  */
-WId MainInterface::getVideo( struct vout_window_t *p_wnd,
-                             unsigned int i_width, unsigned int i_height,
-                             bool fullscreen )
+bool MainInterface::getVideo( struct vout_window_t *p_wnd,
+                              unsigned int i_width, unsigned int i_height,
+                              bool fullscreen )
 {
-    if( !videoWidget )
-        return 0;
+    bool result;
 
-    /* This is a blocking call signal. Results are returned through pointers.
-     * Beware of deadlocks! */
-    WId id;
-    emit askGetVideo( &id, p_wnd, i_width, i_height, fullscreen );
-    return id;
+    /* This is a blocking call signal. Results are stored directly in the
+     * vout_window_t and boolean pointers. Beware of deadlocks! */
+    emit askGetVideo( p_wnd, i_width, i_height, fullscreen, &result );
+    return result;
 }
 
-void MainInterface::getVideoSlot( WId *p_id, struct vout_window_t *p_wnd,
+void MainInterface::getVideoSlot( struct vout_window_t *p_wnd,
                                   unsigned i_width, unsigned i_height,
-                                  bool fullscreen )
+                                  bool fullscreen, bool *res )
 {
     /* Hidden or minimized, activate */
     if( isHidden() || isMinimized() )
         toggleUpdateSystrayMenu();
 
     /* Request the videoWidget */
-    WId ret = videoWidget->request( p_wnd );
-    *p_id = ret;
-    if( ret ) /* The videoWidget is available */
+    *res = videoWidget->request( p_wnd );
+    if( *res ) /* The videoWidget is available */
     {
         setVideoFullScreen( fullscreen );
 
@@ -1449,6 +1467,7 @@ void MainInterface::dropEventPlay( QDropEvent *event, bool b_play, bool b_playli
         if( url.isValid() )
         {
             QString mrl = toURI( url.toEncoded().constData() );
+#ifdef _WIN32
             QFileInfo info( url.toLocalFile() );
             if( info.exists() && info.isSymLink() )
             {
@@ -1464,6 +1483,7 @@ void MainInterface::dropEventPlay( QDropEvent *event, bool b_play, bool b_playli
                 }
                 mrl = toURI( url.toEncoded().constData() );
             }
+#endif
             if( mrl.length() > 0 )
             {
                 Open::openMRL( p_intf, mrl, first, b_playlist );

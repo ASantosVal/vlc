@@ -69,7 +69,7 @@ public:
     static const QEvent::Type ToolbarsNeedRebuild;
 
     /* Video requests from core */
-    WId  getVideo( struct vout_window_t *,
+    bool getVideo( struct vout_window_t *,
                    unsigned int i_width, unsigned int i_height, bool );
     void releaseVideo( void );
     int  controlVideo( int i_query, va_list args );
@@ -83,6 +83,13 @@ public:
         CONTROLS_VISIBLE  = 0x1,
         CONTROLS_HIDDEN   = 0x2,
         CONTROLS_ADVANCED = 0x4,
+    };
+    enum
+    {
+        RAISE_NEVER,
+        RAISE_VIDEO,
+        RAISE_AUDIO,
+        RAISE_AUDIOVIDEO,
     };
     int getControlsVisibilityStatus();
     bool isPlDocked() { return ( b_plDocked != false ); }
@@ -199,8 +206,8 @@ public slots:
     void setPlaylistVisibility(bool b_visible);
 
     /* Manage the Video Functions from the vout threads */
-    void getVideoSlot( WId *p_id, struct vout_window_t *,
-                       unsigned pi_width, unsigned pi_height, bool );
+    void getVideoSlot( struct vout_window_t *,
+                       unsigned i_width, unsigned i_height, bool, bool * );
     void releaseVideoSlot( void );
 
     void emitBoss();
@@ -251,9 +258,11 @@ protected slots:
     void showResumePanel( int64_t);
     void hideResumePanel();
     void resumePlayback();
+    void onInputChanged( bool );
 
 signals:
-    void askGetVideo( WId *, struct vout_window_t *, unsigned, unsigned, bool );
+    void askGetVideo( struct vout_window_t *, unsigned, unsigned, bool,
+                      bool * );
     void askReleaseVideo( );
     void askVideoToResize( unsigned int, unsigned int );
     void askVideoSetFullScreen( bool );

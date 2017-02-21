@@ -80,6 +80,12 @@ struct display_info_t
 
 @implementation VLCOpenWindowController
 
+
+static NSString *kFileTabViewId     = @"file";
+static NSString *kDiscTabViewId     = @"disc";
+static NSString *kNetworkTabViewId  = @"network";
+static NSString *kCaptureTabViewId  = @"capture";
+
 #pragma mark -
 #pragma mark Init
 
@@ -373,7 +379,7 @@ struct display_info_t
     }
 }
 
-- (void)openTarget:(int)i_type
+- (void)openTarget:(NSString *)identifier
 {
     /* check whether we already run a modal dialog */
     if ([NSApp modalWindow] != nil)
@@ -382,104 +388,105 @@ struct display_info_t
     // load window
     [self window];
 
-    int i_result;
-
-    [_tabView selectTabViewItemAtIndex: i_type];
+    [_tabView selectTabViewItemWithIdentifier:identifier];
     [_fileSubCheckbox setState: NSOffState];
 
-    i_result = [NSApp runModalForWindow: self.window];
+    int i_result = [NSApp runModalForWindow: self.window];
     [self.window close];
 
-    if (i_result) {
-        NSMutableDictionary *itemOptionsDictionary;
-        NSMutableArray *options = [NSMutableArray array];
+    // Check if dialog was canceled or stopped (NSModalResponseStop)
+    if (i_result <= 0)
+        return;
 
-        itemOptionsDictionary = [NSMutableDictionary dictionaryWithObject: [self MRL] forKey: @"ITEM_URL"];
-        if ([_fileSubCheckbox state] == NSOnState) {
-            module_config_t * p_item;
 
-            [options addObject: [NSString stringWithFormat: @"sub-file=%@", _subPath]];
-            if ([_fileSubOverrideCheckbox state] == NSOnState) {
-                [options addObject: [NSString stringWithFormat: @"sub-delay=%f", ([self fileSubDelay] * 10)]];
-                [options addObject: [NSString stringWithFormat: @"sub-fps=%f", [self fileSubFps]]];
-            }
+    NSMutableDictionary *itemOptionsDictionary;
+    NSMutableArray *options = [NSMutableArray array];
+
+    itemOptionsDictionary = [NSMutableDictionary dictionaryWithObject: [self MRL] forKey: @"ITEM_URL"];
+    if ([_fileSubCheckbox state] == NSOnState) {
+        module_config_t * p_item;
+
+        [options addObject: [NSString stringWithFormat: @"sub-file=%@", _subPath]];
+        if ([_fileSubOverrideCheckbox state] == NSOnState) {
+            [options addObject: [NSString stringWithFormat: @"sub-delay=%f", ([self fileSubDelay] * 10)]];
+            [options addObject: [NSString stringWithFormat: @"sub-fps=%f", [self fileSubFps]]];
+        }
+        [options addObject: [NSString stringWithFormat:
+                             @"subsdec-encoding=%@", [[_fileSubEncodingPopup selectedItem] representedObject]]];
+        [options addObject: [NSString stringWithFormat:
+                             @"subsdec-align=%li", [_fileSubAlignPopup indexOfSelectedItem]]];
+
+        p_item = config_FindConfig(VLC_OBJECT(getIntf()),
+                                   "freetype-rel-fontsize");
+
+        if (p_item) {
             [options addObject: [NSString stringWithFormat:
-                                 @"subsdec-encoding=%@", [[_fileSubEncodingPopup selectedItem] representedObject]]];
-            [options addObject: [NSString stringWithFormat:
-                                 @"subsdec-align=%li", [_fileSubAlignPopup indexOfSelectedItem]]];
-
-            p_item = config_FindConfig(VLC_OBJECT(getIntf()),
-                                       "freetype-rel-fontsize");
-
-            if (p_item) {
-                [options addObject: [NSString stringWithFormat:
-                                       @"freetype-rel-fontsize=%i",
-                                       p_item->list.i[[_fileSubSizePopup indexOfSelectedItem]]]];
-            }
+                                 @"freetype-rel-fontsize=%i",
+                                 p_item->list.i[[_fileSubSizePopup indexOfSelectedItem]]]];
         }
-        if ([_fileCustomTimingCheckbox state] == NSOnState) {
-            NSArray *components = [[_fileStartTimeTextField stringValue] componentsSeparatedByString:@":"];
-            NSUInteger componentCount = [components count];
-            NSInteger tempValue = 0;
-            if (componentCount == 1)
-                tempValue = [[components firstObject] intValue];
-            else if (componentCount == 2)
-                tempValue = [[components firstObject] intValue] * 60 + [[components objectAtIndex:1] intValue];
-            else if (componentCount == 3)
-                tempValue = [[components firstObject] intValue] * 3600 + [[components objectAtIndex:1] intValue] * 60 + [[components objectAtIndex:2] intValue];
-            if (tempValue > 0)
-                [options addObject: [NSString stringWithFormat:@"start-time=%li", tempValue]];
-            components = [[_fileStopTimeTextField stringValue] componentsSeparatedByString:@":"];
-            componentCount = [components count];
-            if (componentCount == 1)
-                tempValue = [[components firstObject] intValue];
-            else if (componentCount == 2)
-                tempValue = [[components firstObject] intValue] * 60 + [[components objectAtIndex:1] intValue];
-            else if (componentCount == 3)
-                tempValue = [[components firstObject] intValue] * 3600 + [[components objectAtIndex:1] intValue] * 60 + [[components objectAtIndex:2] intValue];
-            if (tempValue != 0)
-                [options addObject: [NSString stringWithFormat:@"stop-time=%li", tempValue]];
-        }
-        if ([_outputCheckbox state] == NSOnState) {
-            NSArray *soutMRL = [_output soutMRL];
-            NSUInteger count = [soutMRL count];
-            for (NSUInteger i = 0 ; i < count ; i++)
-                [options addObject: [NSString stringWithString: [soutMRL objectAtIndex:i]]];
-        }
-        if ([_fileSlaveCheckbox state] && _fileSlavePath)
-            [options addObject: [NSString stringWithFormat: @"input-slave=%@", _fileSlavePath]];
-        if ([[[_tabView selectedTabViewItem] label] isEqualToString: _NS("Capture")]) {
-            if ([[[_captureModePopup selectedItem] title] isEqualToString: _NS("Screen")]) {
-                int selected_index = [_screenPopup indexOfSelectedItem];
-                NSValue *v = [_displayInfos objectAtIndex:selected_index];
-                struct display_info_t *item = (struct display_info_t *)[v pointerValue];
+    }
+    if ([_fileCustomTimingCheckbox state] == NSOnState) {
+        NSArray *components = [[_fileStartTimeTextField stringValue] componentsSeparatedByString:@":"];
+        NSUInteger componentCount = [components count];
+        NSInteger tempValue = 0;
+        if (componentCount == 1)
+            tempValue = [[components firstObject] intValue];
+        else if (componentCount == 2)
+            tempValue = [[components firstObject] intValue] * 60 + [[components objectAtIndex:1] intValue];
+        else if (componentCount == 3)
+            tempValue = [[components firstObject] intValue] * 3600 + [[components objectAtIndex:1] intValue] * 60 + [[components objectAtIndex:2] intValue];
+        if (tempValue > 0)
+            [options addObject: [NSString stringWithFormat:@"start-time=%li", tempValue]];
+        components = [[_fileStopTimeTextField stringValue] componentsSeparatedByString:@":"];
+        componentCount = [components count];
+        if (componentCount == 1)
+            tempValue = [[components firstObject] intValue];
+        else if (componentCount == 2)
+            tempValue = [[components firstObject] intValue] * 60 + [[components objectAtIndex:1] intValue];
+        else if (componentCount == 3)
+            tempValue = [[components firstObject] intValue] * 3600 + [[components objectAtIndex:1] intValue] * 60 + [[components objectAtIndex:2] intValue];
+        if (tempValue != 0)
+            [options addObject: [NSString stringWithFormat:@"stop-time=%li", tempValue]];
+    }
+    if ([_outputCheckbox state] == NSOnState) {
+        NSArray *soutMRL = [_output soutMRL];
+        NSUInteger count = [soutMRL count];
+        for (NSUInteger i = 0 ; i < count ; i++)
+            [options addObject: [NSString stringWithString: [soutMRL objectAtIndex:i]]];
+    }
+    if ([_fileSlaveCheckbox state] && _fileSlavePath)
+        [options addObject: [NSString stringWithFormat: @"input-slave=%@", _fileSlavePath]];
+    if ([[[_tabView selectedTabViewItem] identifier] isEqualToString: kCaptureTabViewId]) {
+        if ([[[_captureModePopup selectedItem] title] isEqualToString: _NS("Screen")]) {
+            int selected_index = [_screenPopup indexOfSelectedItem];
+            NSValue *v = [_displayInfos objectAtIndex:selected_index];
+            struct display_info_t *item = (struct display_info_t *)[v pointerValue];
 
-                [options addObject: [NSString stringWithFormat: @"screen-fps=%f", [_screenFPSTextField floatValue]]];
-                [options addObject: [NSString stringWithFormat: @"screen-display-id=%i", item->id]];
-                [options addObject: [NSString stringWithFormat: @"screen-left=%i", [_screenLeftTextField intValue]]];
-                [options addObject: [NSString stringWithFormat: @"screen-top=%i", [_screenTopTextField intValue]]];
-                [options addObject: [NSString stringWithFormat: @"screen-width=%i", [_screenWidthTextField intValue]]];
-                [options addObject: [NSString stringWithFormat: @"screen-height=%i", [_screenHeightTextField intValue]]];
-                if ([_screenFollowMouseCheckbox intValue] == YES)
-                    [options addObject: @"screen-follow-mouse"];
-                else
-                    [options addObject: @"no-screen-follow-mouse"];
-                if ([_screenqtkAudioCheckbox state] && _avCurrentAudioDeviceUID)
+            [options addObject: [NSString stringWithFormat: @"screen-fps=%f", [_screenFPSTextField floatValue]]];
+            [options addObject: [NSString stringWithFormat: @"screen-display-id=%i", item->id]];
+            [options addObject: [NSString stringWithFormat: @"screen-left=%i", [_screenLeftTextField intValue]]];
+            [options addObject: [NSString stringWithFormat: @"screen-top=%i", [_screenTopTextField intValue]]];
+            [options addObject: [NSString stringWithFormat: @"screen-width=%i", [_screenWidthTextField intValue]]];
+            [options addObject: [NSString stringWithFormat: @"screen-height=%i", [_screenHeightTextField intValue]]];
+            if ([_screenFollowMouseCheckbox intValue] == YES)
+                [options addObject: @"screen-follow-mouse"];
+            else
+                [options addObject: @"no-screen-follow-mouse"];
+            if ([_screenqtkAudioCheckbox state] && _avCurrentAudioDeviceUID)
+                [options addObject: [NSString stringWithFormat: @"input-slave=qtsound://%@", _avCurrentAudioDeviceUID]];
+        }
+        else if ([[[_captureModePopup selectedItem] title] isEqualToString: _NS("Input Devices")]) {
+            if ([_qtkVideoCheckbox state]) {
+                if ([_qtkAudioCheckbox state] && _avCurrentAudioDeviceUID)
                     [options addObject: [NSString stringWithFormat: @"input-slave=qtsound://%@", _avCurrentAudioDeviceUID]];
             }
-            else if ([[[_captureModePopup selectedItem] title] isEqualToString: _NS("Input Devices")]) {
-                if ([_qtkVideoCheckbox state]) {
-                    if ([_qtkAudioCheckbox state] && _avCurrentAudioDeviceUID)
-                        [options addObject: [NSString stringWithFormat: @"input-slave=qtsound://%@", _avCurrentAudioDeviceUID]];
-                }
-            }
         }
-
-        /* apply the options to our item(s) */
-        [itemOptionsDictionary setObject: (NSArray *)[options copy] forKey: @"ITEM_OPTIONS"];
-
-        [[[VLCMain sharedInstance] playlist] addPlaylistItems:[NSArray arrayWithObject:itemOptionsDictionary]];
     }
+
+    /* apply the options to our item(s) */
+    [itemOptionsDictionary setObject: (NSArray *)[options copy] forKey: @"ITEM_OPTIONS"];
+
+    [[[VLCMain sharedInstance] playlist] addPlaylistItems:[NSArray arrayWithObject:itemOptionsDictionary]];
 }
 
 - (IBAction)screenChanged:(id)sender
@@ -529,17 +536,18 @@ struct display_info_t
 #pragma mark -
 #pragma mark Main Actions
 
+
 - (void)tabView:(NSTabView *)o_tv didSelectTabViewItem:(NSTabViewItem *)tabViewItem
 {
-    NSString *label = [tabViewItem label];
+    NSString *identifier = [tabViewItem identifier];
 
-    if ([label isEqualToString: _NS("File")])
+    if ([identifier isEqualToString: kFileTabViewId])
         [self openFilePathChanged: nil];
-    else if ([label isEqualToString: _NS("Disc")])
+    else if ([identifier isEqualToString: kDiscTabViewId])
         [self scanOpticalMedia: nil];
-    else if ([label isEqualToString: _NS("Network")])
+    else if ([identifier isEqualToString: kNetworkTabViewId])
         [self openNetInfoChanged: nil];
-    else if ([label isEqualToString: _NS("Capture")])
+    else if ([identifier isEqualToString: kCaptureTabViewId])
         [self openCaptureModeChanged: nil];
 }
 
@@ -577,7 +585,7 @@ struct display_info_t
 - (void)openFileGeneric
 {
     [self openFilePathChanged: nil];
-    [self openTarget: 0];
+    [self openTarget: kFileTabViewId];
 }
 
 - (void)openDisc
@@ -587,22 +595,22 @@ struct display_info_t
     }
 
     [self scanOpticalMedia: nil];
-    [self openTarget: 1];
+    [self openTarget: kDiscTabViewId];
 }
 
 - (void)openNet
 {
     [self openNetInfoChanged: nil];
-    [self openTarget: 2];
+    [self openTarget: kNetworkTabViewId];
 }
 
 - (void)openCapture
 {
     [self openCaptureModeChanged: nil];
-    [self openTarget: 3];
+    [self openTarget: kCaptureTabViewId];
 }
 
-- (void)openFile
+- (void)openFileWithAction:(void (^)(NSArray *files))action;
 {
     NSOpenPanel *openPanel = [NSOpenPanel openPanel];
     [openPanel setAllowsMultipleSelection: YES];
@@ -625,13 +633,11 @@ struct display_info_t
             if (!psz_uri)
                 continue;
             dictionary = [NSDictionary dictionaryWithObject:toNSStr(psz_uri) forKey:@"ITEM_URL"];
-            NSLog(@"dict: %@", dictionary);
             free(psz_uri);
             [array addObject: dictionary];
         }
 
-        NSLog(@"adding %@", array);
-        [[[VLCMain sharedInstance] playlist] addPlaylistItems:array];
+        action(array);
     }
 }
 
@@ -749,11 +755,12 @@ struct display_info_t
     NSRect viewRect = [theView frame];
     [theView setFrame: NSMakeRect(233, 0, viewRect.size.width, viewRect.size.height)];
     [theView setAutoresizesSubviews: YES];
+    NSView *opticalTabView = [[_tabView tabViewItemAtIndex: [_tabView indexOfTabViewItemWithIdentifier:kDiscTabViewId]] view];
     if (_currentOpticalMediaView) {
-        [[[[_tabView tabViewItemAtIndex: [_tabView indexOfTabViewItemWithIdentifier:@"optical"]] view] animator] replaceSubview: _currentOpticalMediaView with: theView];
+        [[opticalTabView animator] replaceSubview: _currentOpticalMediaView with: theView];
     }
     else
-        [[[[_tabView tabViewItemAtIndex: [_tabView indexOfTabViewItemWithIdentifier:@"optical"]] view] animator] addSubview: theView];
+        [[opticalTabView animator] addSubview: theView];
     _currentOpticalMediaView = theView;
 
     NSImageView *imageView = [[NSImageView alloc] init];
@@ -761,15 +768,15 @@ struct display_info_t
     [icon setSize: NSMakeSize(128,128)];
     [imageView setImage: icon];
     if (_currentOpticalMediaIconView) {
-        [[[[_tabView tabViewItemAtIndex: [_tabView indexOfTabViewItemWithIdentifier:@"optical"]] view] animator] replaceSubview: _currentOpticalMediaIconView with: imageView];
+        [[opticalTabView animator] replaceSubview: _currentOpticalMediaIconView with: imageView];
     }
     else
-        [[[[_tabView tabViewItemAtIndex: [_tabView indexOfTabViewItemWithIdentifier:@"optical"]] view] animator] addSubview: imageView];
+        [[opticalTabView animator] addSubview: imageView];
     _currentOpticalMediaIconView = imageView;
     [_currentOpticalMediaView setNeedsDisplay: YES];
     [_currentOpticalMediaIconView setNeedsDisplay: YES];
-    [[[_tabView tabViewItemAtIndex: [_tabView indexOfTabViewItemWithIdentifier:@"optical"]] view] setNeedsDisplay: YES];
-    [[[_tabView tabViewItemAtIndex: [_tabView indexOfTabViewItemWithIdentifier:@"optical"]] view] displayIfNeeded];
+    [opticalTabView setNeedsDisplay: YES];
+    [opticalTabView displayIfNeeded];
 }
 
 - (void)showOpticalAtPath: (NSDictionary *)valueDictionary
@@ -902,10 +909,13 @@ struct display_info_t
         if (selection && [selection boolValue])
             [_discSelectorPopup selectItemAtIndex: [[_discSelectorPopup itemArray] count] - 1];
 
-        [self discSelectorChanged:nil];
+        // only trigger MRL update if the tab view is active
+        if ([[[_tabView selectedTabViewItem] identifier] isEqualToString:kDiscTabViewId])
+            [self discSelectorChanged:nil];
     } else {
         msg_Dbg(getIntf(), "no optical media found");
         [_discSelectorPopup setHidden: YES];
+        [self setMRL:@""];
         [self showOpticalMediaView: _discNoDiscView withIcon: [NSImage imageNamed: @"NSApplicationIcon"]];
     }
 

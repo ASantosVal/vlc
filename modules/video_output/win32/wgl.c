@@ -58,6 +58,16 @@ vlc_module_end()
  * Local prototypes.
  *****************************************************************************/
 
+struct vout_display_sys_t
+{
+    vout_display_sys_win32_t sys;
+
+    HDC                   hGLDC;
+    HGLRC                 hGLRC;
+    vlc_gl_t              *gl;
+    HDC                   affinityHDC; // DC for the selected GPU
+};
+
 static void          Swap(vlc_gl_t *);
 static void          *OurGetProcAddress(vlc_gl_t *, const char *);
 static int           MakeCurrent(vlc_gl_t *gl);
@@ -79,7 +89,7 @@ static void CreateGPUAffinityDC(vlc_gl_t *gl, UINT nVidiaAffinity) {
     pfd.iLayerType = PFD_MAIN_PLANE;
 
     /* create a temporary GL context */
-    HDC winDC = GetDC(sys->hvideownd);
+    HDC winDC = GetDC(sys->sys.hvideownd);
     SetPixelFormat(winDC, ChoosePixelFormat(winDC, &pfd), &pfd);
     HGLRC hGLRC = wglCreateContext(winDC);
     wglMakeCurrent(winDC, hGLRC);
@@ -128,7 +138,7 @@ static void DestroyGPUAffinityDC(vlc_gl_t *gl) {
     pfd.iLayerType = PFD_MAIN_PLANE;
 
     /* create a temporary GL context */
-    HDC winDC = GetDC(sys->hvideownd);
+    HDC winDC = GetDC(sys->sys.hvideownd);
     SetPixelFormat(winDC, ChoosePixelFormat(winDC, &pfd), &pfd);
     HGLRC hGLRC = wglCreateContext(winDC);
     wglMakeCurrent(winDC, hGLRC);
@@ -161,7 +171,7 @@ static int Open(vlc_object_t *object)
     if (nVidiaAffinity >= 0) CreateGPUAffinityDC(gl, nVidiaAffinity);
 
     vout_window_t *wnd = gl->surface;
-    sys->hvideownd = wnd->handle.hwnd;
+    sys->sys.hvideownd = wnd->handle.hwnd;
     if (wnd->type != VOUT_WINDOW_TYPE_HWND)
         goto error;
 
@@ -225,7 +235,7 @@ static void Close(vlc_object_t *object)
     if (sys->hGLRC)
         wglDeleteContext(sys->hGLRC);
     if (sys->hGLDC)
-        ReleaseDC(sys->hvideownd, sys->hGLDC);
+        ReleaseDC(sys->sys.hvideownd, sys->hGLDC);
 
     DestroyGPUAffinityDC(gl);
 

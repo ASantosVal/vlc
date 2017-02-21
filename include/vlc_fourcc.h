@@ -362,7 +362,10 @@
 #define VLC_CODEC_D3D11_OPAQUE_10B      VLC_FOURCC('D','X','1','0') /* 4:2:0 10 bpc */
 
 /* CVPixelBuffer opaque buffer type */
-#define VLC_CODEC_CVPX_OPAQUE     VLC_FOURCC('C','V','P','X')
+#define VLC_CODEC_CVPX_NV12       VLC_FOURCC('C','V','P','N')
+#define VLC_CODEC_CVPX_UYVY       VLC_FOURCC('C','V','P','Y')
+#define VLC_CODEC_CVPX_I420       VLC_FOURCC('C','V','P','I')
+#define VLC_CODEC_CVPX_BGRA       VLC_FOURCC('C','V','P','B')
 
 /* Image codec (video) */
 #define VLC_CODEC_PNG             VLC_FOURCC('p','n','g',' ')
@@ -524,6 +527,7 @@
 #define VLC_CODEC_ARIB_C    VLC_FOURCC('a','r','b','c')
 /* Blu-ray Presentation Graphics */
 #define VLC_CODEC_BD_PG     VLC_FOURCC('b','d','p','g')
+#define VLC_CODEC_BD_TEXT   VLC_FOURCC('b','d','t','x')
 /* EBU STL (TECH. 3264-E) */
 #define VLC_CODEC_EBU_STL   VLC_FOURCC('S','T','L',' ')
 #define VLC_CODEC_SCTE_18   VLC_FOURCC('S','C','1','8')

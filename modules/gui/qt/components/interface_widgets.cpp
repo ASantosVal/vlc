@@ -54,6 +54,10 @@
 # include <X11/Xlib.h>
 # include <QX11Info>
 #endif
+#ifdef QT5_HAS_WAYLAND
+# include QPNI_HEADER
+# include <QWindow>
+#endif
 
 #include <math.h>
 #include <assert.h>
@@ -100,12 +104,12 @@ void VideoWidget::sync( void )
 /**
  * Request the video to avoid the conflicts
  **/
-WId VideoWidget::request( struct vout_window_t *p_wnd )
+bool VideoWidget::request( struct vout_window_t *p_wnd )
 {
     if( stable )
     {
         msg_Dbg( p_intf, "embedded video already in use" );
-        return 0;
+        return false;
     }
     assert( !p_window );
 
@@ -134,7 +138,42 @@ WId VideoWidget::request( struct vout_window_t *p_wnd )
 
     sync();
     p_window = p_wnd;
-    return stable->winId();
+
+    p_wnd->type = p_intf->p_sys->voutWindowType;
+    switch( p_wnd->type )
+    {
+        case VOUT_WINDOW_TYPE_XID:
+            p_wnd->handle.xid = stable->winId();
+            p_wnd->display.x11 = NULL;
+            break;
+        case VOUT_WINDOW_TYPE_HWND:
+            p_wnd->handle.hwnd = (void *)stable->winId();
+            break;
+        case VOUT_WINDOW_TYPE_NSOBJECT:
+            p_wnd->handle.nsobject = (void *)stable->winId();
+            break;
+#ifdef QT5_HAS_WAYLAND
+        case VOUT_WINDOW_TYPE_WAYLAND:
+        {
+            QWindow *window = stable->windowHandle();
+            assert(window != NULL);
+            window->create();
+
+            QPlatformNativeInterface *qni = qApp->platformNativeInterface();
+            assert(qni != NULL);
+
+            p_wnd->handle.wl = reinterpret_cast<wl_surface*>(
+                qni->nativeResourceForWindow(QByteArrayLiteral("surface"),
+                                             window));
+            p_wnd->display.wl = reinterpret_cast<wl_display*>(
+                qni->nativeResourceForIntegration(QByteArrayLiteral("wl_display")));
+            break;
+        }
+#endif
+        default:
+            vlc_assert_unreachable();
+    }
+    return true;
 }
 
 /* Set the Widget to the correct Size */

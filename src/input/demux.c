@@ -26,6 +26,7 @@
 #endif
 
 #include <assert.h>
+#include <limits.h>
 
 #include "demux.h"
 #include <libvlc.h>
@@ -503,9 +504,7 @@ decoder_t *demux_PacketizerNew( demux_t *p_demux, es_format_t *p_fmt, const char
     }
     p_fmt->b_packetized = false;
 
-    p_packetizer->pf_decode_audio = NULL;
-    p_packetizer->pf_decode_video = NULL;
-    p_packetizer->pf_decode_sub = NULL;
+    p_packetizer->pf_decode = NULL;
     p_packetizer->pf_packetize = NULL;
 
     p_packetizer->fmt_in = *p_fmt;
@@ -570,9 +569,6 @@ static bool SkipID3Tag( demux_t *p_demux )
 static bool SkipAPETag( demux_t *p_demux )
 {
     const uint8_t *p_peek;
-    int i_version;
-    int i_size;
-    uint32_t flags;
 
     if( !p_demux->s )
         return false;
@@ -584,19 +580,23 @@ static bool SkipAPETag( demux_t *p_demux )
     if( memcmp( p_peek, "APETAGEX", 8 ) )
         return false;
 
-    i_version = GetDWLE( &p_peek[8] );
-    flags = GetDWLE( &p_peek[8+4+4] );
-    if( ( i_version != 1000 && i_version != 2000 ) || !( flags & (1<<29) ) )
+    uint_fast32_t version = GetDWLE( &p_peek[8] );
+    uint_fast32_t size = GetDWLE( &p_peek[8+4] );
+    uint_fast32_t flags = GetDWLE( &p_peek[8+4+4] );
+
+    if( (version != 1000 && version != 2000) || !(flags & (1u << 29))
+     || (size > SSIZE_MAX - 32u) )
         return false;
 
-    i_size = GetDWLE( &p_peek[8+4] ) + ( (flags&(1<<30)) ? 32 : 0 );
+    if( flags & (1u << 30) )
+        size += 32;
 
     /* Skip the entire tag */
-    if( vlc_stream_Read( p_demux->s, NULL, i_size ) < i_size )
+    if( vlc_stream_Read( p_demux->s, NULL, size ) < (ssize_t)size )
         return false;
 
-    msg_Dbg( p_demux, "AP2 v%d tag found, skipping %d bytes",
-             i_version/1000, i_size );
+    msg_Dbg( p_demux, "AP2 v%"PRIuFAST32" tag found, "
+             "skipping %"PRIuFAST32" bytes", version / 1000, size );
     return true;
 }
 

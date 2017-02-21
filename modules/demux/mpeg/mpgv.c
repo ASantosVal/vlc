@@ -67,6 +67,18 @@ static int Control( demux_t *, int, va_list );
 #define MPGV_PACKET_SIZE 4096
 
 /*****************************************************************************
+ * Close: frees unused data
+ *****************************************************************************/
+static void Close( vlc_object_t * p_this )
+{
+    demux_t     *p_demux = (demux_t*)p_this;
+    demux_sys_t *p_sys = p_demux->p_sys;
+
+    demux_PacketizerDestroy( p_sys->p_packetizer );
+    free( p_sys );
+}
+
+/*****************************************************************************
  * Open: initializes demux structures
  *****************************************************************************/
 static int Open( vlc_object_t * p_this )
@@ -119,20 +131,13 @@ static int Open( vlc_object_t * p_this )
     /* create the output */
     es_format_Init( &fmt, VIDEO_ES, VLC_CODEC_MPGV );
     p_sys->p_es = es_out_Add( p_demux->out, &fmt );
+    if( p_sys->p_es == NULL )
+    {
+        Close( p_this );
+        return VLC_EGENERIC;
+    }
 
     return VLC_SUCCESS;
-}
-
-/*****************************************************************************
- * Close: frees unused data
- *****************************************************************************/
-static void Close( vlc_object_t * p_this )
-{
-    demux_t     *p_demux = (demux_t*)p_this;
-    demux_sys_t *p_sys = p_demux->p_sys;
-
-    demux_PacketizerDestroy( p_sys->p_packetizer );
-    free( p_sys );
 }
 
 /*****************************************************************************
@@ -144,24 +149,21 @@ static int Demux( demux_t *p_demux )
 {
     demux_sys_t  *p_sys = p_demux->p_sys;
     block_t *p_block_in, *p_block_out;
+    bool b_eof = false;
 
     if( ( p_block_in = vlc_stream_Block( p_demux->s, MPGV_PACKET_SIZE ) ) == NULL )
     {
-        return 0;
+        b_eof = true;
     }
 
-    if( p_sys->b_start )
+    if( p_block_in )
     {
         p_block_in->i_pts =
-        p_block_in->i_dts = VLC_TS_0;
-    }
-    else
-    {
-        p_block_in->i_pts =
-        p_block_in->i_dts = VLC_TS_INVALID;
+        p_block_in->i_dts = ( p_sys->b_start ) ? VLC_TS_0 : VLC_TS_INVALID;
     }
 
-    while( (p_block_out = p_sys->p_packetizer->pf_packetize( p_sys->p_packetizer, &p_block_in )) )
+    while( (p_block_out = p_sys->p_packetizer->pf_packetize( p_sys->p_packetizer,
+                                                             p_block_in ? &p_block_in : NULL )) )
     {
         p_sys->b_start = false;
 
@@ -177,7 +179,7 @@ static int Demux( demux_t *p_demux )
             p_block_out = p_next;
         }
     }
-    return 1;
+    return (b_eof) ? VLC_DEMUXER_EOF : VLC_DEMUXER_SUCCESS;
 }
 
 /*****************************************************************************

@@ -302,7 +302,7 @@ static void dirac_RecoverTimestamps ( decoder_t *p_dec, size_t i_length )
     block_t *p_block = p_sys->bytestream.p_block;
 
     /* Find the block with first non-flushed data */
-    size_t i_offset = p_sys->bytestream.i_offset;
+    size_t i_offset = p_sys->bytestream.i_block_offset;
     for(; p_block != NULL; p_block = p_block->p_next )
     {
         if( i_offset < p_block->i_buffer )
@@ -677,7 +677,8 @@ static block_t *dirac_DoSync( decoder_t *p_dec )
         case NOT_SYNCED:
         {
             if( VLC_SUCCESS !=
-                block_FindStartcodeFromOffset( &p_sys->bytestream, &p_sys->i_offset, p_parsecode, 4, NULL ) )
+                block_FindStartcodeFromOffset( &p_sys->bytestream, &p_sys->i_offset,
+                                               p_parsecode, 4, NULL, NULL ) )
             {
                 /* p_sys->i_offset will have been set to:
                  *   end of bytestream - amount of prefix found

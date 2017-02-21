@@ -347,7 +347,15 @@ static block_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block )
             if( p_sys->i_pts > VLC_TS_INVALID &&
                 p_sys->i_pts != date_Get( &p_sys->end_date ) )
             {
-                date_Set( &p_sys->end_date, p_sys->i_pts );
+                if( p_dec->fmt_in.i_original_fourcc == VLC_FOURCC( 'D','V','R',' ') )
+                {
+                    if( date_Get( &p_sys->end_date ) == VLC_TS_INVALID )
+                        date_Set( &p_sys->end_date, p_sys->i_pts );
+                }
+                else if ( p_sys->i_pts != date_Get( &p_sys->end_date ) )
+                {
+                    date_Set( &p_sys->end_date, p_sys->i_pts );
+                }
             }
             p_sys->i_state = STATE_HEADER;
 
@@ -535,7 +543,6 @@ static block_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block )
         case STATE_SEND_DATA:
             if( !(p_buf = GetOutBuffer( p_dec, &p_out_buffer )) )
             {
-                //p_dec->b_error = true;
                 return NULL;
             }
 

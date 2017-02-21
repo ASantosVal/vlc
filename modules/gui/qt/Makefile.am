@@ -14,6 +14,7 @@ guidir = $(pluginsdir)/gui
 
 SUFFIXES += .ui .h .hpp .moc.cpp
 
+libqt_plugin_la_CPPFLAGS = $(AM_CPPFLAGS)
 libqt_plugin_la_CXXFLAGS = $(AM_CXXFLAGS) $(QT_CFLAGS) $(CXXFLAGS_qt)
 libqt_plugin_la_LIBADD = $(QT_LIBS) $(LIBS_qt) $(LIBM)
 libqt_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(guidir)'
@@ -25,11 +26,16 @@ libqt_plugin_la_CXXFLAGS += $(QT5_X11_CFLAGS) -DQT5_HAS_X11
 libqt_plugin_la_LIBADD += $(QT5_X11_LIBS) $(X_LIBS) $(X_PRE_LIB) -lX11
 endif
 if HAVE_WAYLAND
-libqt_plugin_la_CXXFLAGS += $(WAYLAND_CLIENT_CFLAGS) -DQT5_HAS_WAYLAND
+libqt_plugin_la_CPPFLAGS += -DQT5_HAS_WAYLAND \
+	-DQPNI_HEADER=\<$(QT_VERSION)/QtGui/qpa/qplatformnativeinterface.h\>
+libqt_plugin_la_CXXFLAGS += $(WAYLAND_CLIENT_CFLAGS)
 libqt_plugin_la_LIBADD += $(WAYLAND_CLIENT_LIBS)
 endif
 if HAVE_WIN32
 libqt_plugin_la_LIBADD += $(LIBCOM) -lcomctl32 -luuid
+endif
+if UPDATE_CHECK
+libqt_plugin_la_CPPFLAGS += -DUPDATE_CHECK
 endif
 
 gui_LTLIBRARIES =  $(LTLIBqt)

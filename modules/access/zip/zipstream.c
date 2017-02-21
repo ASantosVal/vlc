@@ -264,8 +264,7 @@ static ssize_t Read( stream_t *s, void *p_read, size_t i_read )
 
     /* Read the buffer */
     size_t i_len = __MIN( i_read, p_sys->i_len - p_sys->i_pos );
-    if( p_read )
-        memcpy( p_read, p_sys->psz_xspf + p_sys->i_pos, i_len );
+    memcpy( p_read, p_sys->psz_xspf + p_sys->i_pos, i_len );
     p_sys->i_pos += i_len;
 
     return i_len;
@@ -358,7 +357,7 @@ exit:
     unzClose( file );
     p_sys->zipFile = NULL;
 
-    for( int i = 0; i < vlc_array_count( p_filenames ); i++ )
+    for( size_t i = 0; i < vlc_array_count( p_filenames ); i++ )
     {
         free( vlc_array_item_at_index( p_filenames, i ) );
     }
@@ -559,7 +558,7 @@ static int WriteXSPF( char **pp_buffer, vlc_array_t *p_filenames,
     }
 
     int i_track = 0;
-    for( int i = 0; i < vlc_array_count( p_filenames ); ++i )
+    for( size_t i = 0; i < vlc_array_count( p_filenames ); ++i )
     {
         char *psz_name = (char*) vlc_array_item_at_index( p_filenames, i );
         int i_len = strlen( psz_name );

@@ -188,6 +188,10 @@ static void ShowDialog   ( intf_thread_t *, int, int, intf_dialog_args_t * );
 
 #define VOLUME_MAX_TEXT N_( "Maximum Volume displayed" )
 
+#define AUTORAISE_ON_PLAYBACK_TEXT N_( "When to raise the interface" )
+#define AUTORAISE_ON_PLAYBACK_LONGTEXT N_( "This option allows the interface to be raised automatically " \
+    "when a video/audio playback starts, or never" )
+
 #define FULLSCREEN_CONTROL_PIXELS N_( "Fullscreen controller mouse sensitivity" )
 
 #define CONTINUE_PLAYBACK_TEXT N_("Continue playback?")
@@ -204,6 +208,12 @@ static const int i_continue_list[] =
 static const char *const psz_continue_list_text[] =
     { N_("Never"), N_("Ask"), N_("Always") };
 
+static const int i_raise_list[] =
+    { MainInterface::RAISE_NEVER, MainInterface::RAISE_VIDEO, \
+      MainInterface::RAISE_AUDIO, MainInterface::RAISE_AUDIOVIDEO,  };
+
+static const char *const psz_raise_list_text[] =
+    { N_( "Never" ), N_( "Video" ), N_( "Audio" ), _( "Both" ) };
 
 /**********************************************************************/
 vlc_module_begin ()
@@ -305,6 +315,10 @@ vlc_module_begin ()
     add_obsolete_bool( "qt-adv-options" )     /* Since 2.0.0 */
     add_obsolete_bool( "qt-volume-complete" ) /* Since 2.0.0 */
     add_obsolete_integer( "qt-startvolume" )  /* Since 2.0.0 */
+
+    add_integer( "qt-auto-raise", MainInterface::RAISE_VIDEO, AUTORAISE_ON_PLAYBACK_TEXT,
+                 AUTORAISE_ON_PLAYBACK_LONGTEXT, false )
+            change_integer_list( i_raise_list, psz_raise_list_text )
 
     cannot_unload_broken_library()
 
@@ -591,6 +605,8 @@ static void *ThreadPlatform( void *obj, char *platform_name )
         QString platform = app.platformName();
         if( platform == qfu("xcb") )
             p_sys->voutWindowType = VOUT_WINDOW_TYPE_XID;
+        else if( platform == qfu("wayland") )
+            p_sys->voutWindowType = VOUT_WINDOW_TYPE_WAYLAND;
         else if( platform == qfu("windows") )
             p_sys->voutWindowType = VOUT_WINDOW_TYPE_HWND;
         else if( platform == qfu("cocoa" ) )
@@ -735,27 +751,8 @@ static int WindowOpen( vout_window_t *p_wnd, const vout_window_cfg_t *cfg )
     MainInterface *p_mi = p_intf->p_sys->p_mi;
     msg_Dbg( p_wnd, "requesting video window..." );
 
-    WId wid = p_mi->getVideo( p_wnd, cfg->width, cfg->height, cfg->is_fullscreen );
-    if( !wid )
+    if( !p_mi->getVideo( p_wnd, cfg->width, cfg->height, cfg->is_fullscreen ) )
         return VLC_EGENERIC;
-
-    p_wnd->type = p_intf->p_sys->voutWindowType;
-
-    switch( p_wnd->type )
-    {
-        case VOUT_WINDOW_TYPE_XID:
-            p_wnd->handle.xid = (uintptr_t)wid;
-            p_wnd->display.x11 = NULL;
-            break;
-        case VOUT_WINDOW_TYPE_HWND:
-            p_wnd->handle.hwnd = (void *)wid;
-            break;
-        case VOUT_WINDOW_TYPE_NSOBJECT:
-            p_wnd->handle.nsobject = (void *)wid;
-            break;
-        default:
-            vlc_assert_unreachable();
-    }
 
     p_wnd->control = WindowControl;
     p_wnd->sys = (vout_window_sys_t*)p_mi;

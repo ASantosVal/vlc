@@ -118,6 +118,7 @@ static int Open( vlc_object_t * p_this )
     if( unlikely(!p_sys) )
         return VLC_ENOMEM;
 
+    es_format_Init( &p_sys->fmt, AUDIO_ES, 0 );
     p_sys->p_es           = NULL;
     p_sys->i_data_size    = 0;
     p_sys->i_chans_to_reorder = 0;
@@ -185,7 +186,6 @@ static int Open( vlc_object_t * p_this )
         goto error;
     }
 
-    es_format_Init( &p_sys->fmt, AUDIO_ES, 0 );
     wf_tag_to_fourcc( GetWLE( &p_wf->wFormatTag ), &p_sys->fmt.i_codec,
                       &psz_name );
     p_sys->fmt.audio.i_channels      = GetWLE ( &p_wf->nChannels );
@@ -393,7 +393,7 @@ static int Open( vlc_object_t * p_this )
                                                        p_sys->i_frame_samples );
         goto error;
     }
-    if( p_sys->fmt.audio.i_rate <= 0 )
+    if( p_sys->fmt.audio.i_rate == 0 )
     {
         msg_Dbg( p_demux, "invalid sample rate: %i", p_sys->fmt.audio.i_rate );
         goto error;
@@ -428,6 +428,7 @@ static int Open( vlc_object_t * p_this )
 error:
     msg_Err( p_demux, "An error occurred during wav demuxing" );
     free( p_wf );
+    es_format_Clean( &p_sys->fmt );
     free( p_sys );
     return VLC_EGENERIC;
 }
@@ -488,6 +489,7 @@ static void Close ( vlc_object_t * p_this )
     demux_t     *p_demux = (demux_t*)p_this;
     demux_sys_t *p_sys   = p_demux->p_sys;
 
+    es_format_Clean( &p_sys->fmt );
     free( p_sys );
 }
 
@@ -551,6 +553,11 @@ static int FrameInfo_PCM( unsigned int *pi_size, int *pi_samples,
 {
     int i_bytes;
 
+    if( p_fmt->audio.i_rate > 352800
+     || p_fmt->audio.i_bitspersample > 64
+     || p_fmt->audio.i_channels > AOUT_CHAN_MAX )
+        return VLC_EGENERIC;
+
     /* read samples for 50ms of */
     *pi_samples = __MAX( p_fmt->audio.i_rate / 20, 1 );
 
@@ -571,7 +578,7 @@ static int FrameInfo_PCM( unsigned int *pi_size, int *pi_samples,
 static int FrameInfo_MS_ADPCM( unsigned int *pi_size, int *pi_samples,
                                const es_format_t *p_fmt )
 {
-    if( p_fmt->audio.i_channels <= 0 )
+    if( p_fmt->audio.i_channels == 0 )
         return VLC_EGENERIC;
 
     *pi_samples = 2 + 2 * ( p_fmt->audio.i_blockalign -
@@ -584,7 +591,7 @@ static int FrameInfo_MS_ADPCM( unsigned int *pi_size, int *pi_samples,
 static int FrameInfo_IMA_ADPCM( unsigned int *pi_size, int *pi_samples,
                                 const es_format_t *p_fmt )
 {
-    if( p_fmt->audio.i_channels <= 0 )
+    if( p_fmt->audio.i_channels == 0 )
         return VLC_EGENERIC;
 
     *pi_samples = 2 * ( p_fmt->audio.i_blockalign -
@@ -597,7 +604,7 @@ static int FrameInfo_IMA_ADPCM( unsigned int *pi_size, int *pi_samples,
 static int FrameInfo_Creative_ADPCM( unsigned int *pi_size, int *pi_samples,
                                      const es_format_t *p_fmt )
 {
-    if( p_fmt->audio.i_channels <= 0 )
+    if( p_fmt->audio.i_channels == 0 )
         return VLC_EGENERIC;
 
     /* 4 bits / sample */

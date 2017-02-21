@@ -15,7 +15,7 @@ FunctionEnd
 
 ;; Function that registers one extension for VLC
 Function RegisterExtension
-  WriteRegStr HKCR "VLC$R0" "" "VLC media file ($R0)"
+  WriteRegStr HKCR "VLC$R0" "" "VLC media file"
   WriteRegStr HKCR "VLC$R0\shell" "" "Open"
   WriteRegStr HKCR "VLC$R0\shell\Open" "" $ShellAssociation_Play
   WriteRegStr HKCR "VLC$R0\shell\Open" "MultiSelectModel" "Player"
@@ -59,7 +59,7 @@ NoOwn:
     DeleteRegKey HKLM "Software\Clients\Media\VLC\Capabilities\FileAssociations\VLC$R0" ; for vista
 FunctionEnd
 
-!macro RegisterExtensionSection TYPE EXT
+!macro AssociateExtensionSection TYPE EXT
   ${MementoSection} ${EXT} SEC_EXT_${TYPE}_${EXT}
     SectionIn 1 3
     Push $R0
@@ -69,8 +69,18 @@ FunctionEnd
   ${MementoSectionEnd}
 !macroend
 
-!macro RegisterSkinExtensionSection TYPE EXT
+!macro AssociateSkinExtensionSection TYPE EXT
   ${MementoUnselectedSection} ${EXT} SEC_EXT_SKIN_${EXT}
+    SectionIn 1 3
+    Push $R0
+    StrCpy $R0 ${EXT}
+    Call AssociateExtension
+    Pop $R0
+  ${MementoSectionEnd}
+!macroend
+
+!macro AssociateExtensionUnselectedSection TYPE EXT
+  ${MementoUnselectedSection} ${EXT} SEC_EXT_${TYPE}_${EXT}
     SectionIn 1 3
     Push $R0
     StrCpy $R0 ${EXT}
@@ -168,6 +178,7 @@ FunctionEnd
   !insertmacro ${_action} Video ".divx"
   !insertmacro ${_action} Video ".drc"
   !insertmacro ${_action} Video ".dv"
+  !insertmacro ${_action} Video ".dvr-ms"
   !insertmacro ${_action} Video ".evo"
   !insertmacro ${_action} Video ".f4v"
   !insertmacro ${_action} Video ".flv"
@@ -213,6 +224,7 @@ FunctionEnd
   !insertmacro ${_action} Video ".vro"
   !insertmacro ${_action} Video ".webm"
   !insertmacro ${_action} Video ".wmv"
+  !insertmacro ${_action} Video ".wtv"
   !insertmacro ${_action} Video ".xesc"
 !macroend
 
@@ -231,6 +243,10 @@ FunctionEnd
   !insertmacro ${_action} Other ".xspf"
 !macroend
 
+!macro MacroUnassociatedExtensions _action
+  !insertmacro ${_action} Other ".iso"
+!macroend
+
 !macro MacroSkinExtensions _action
   !insertmacro ${_action} Skin ".vlt"
   !insertmacro ${_action} Skin ".wsz"
@@ -241,6 +257,7 @@ FunctionEnd
   !insertmacro MacroAudioExtensions ${_action}
   !insertmacro MacroVideoExtensions ${_action}
   !insertmacro MacroOtherExtensions ${_action}
+  !insertmacro MacroUnassociatedExtensions ${_action}
 !macroend
 
 ; Generic function for adding the context menu for one ext.

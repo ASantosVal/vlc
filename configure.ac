@@ -399,16 +399,8 @@ AS_IF([test -z "${with_contrib}" || test "${with_contrib}" = "yes"], [
     CONTRIB_DIR="${srcdir}/contrib/`$CC -dumpmachine`"
     AS_IF([test ! -d "${CONTRIB_DIR}"], [
       echo "${CONTRIB_DIR} not found" >&AS_MESSAGE_LOG_FD
-      CONTRIB_DIR="${srcdir}/extras/contrib/hosts/${host}"
-      AS_IF([test ! -d "${CONTRIB_DIR}"], [
-        echo "${CONTRIB_DIR} not found" >&AS_MESSAGE_LOG_FD
-        CONTRIB_DIR="${srcdir}/extras/contrib/hosts/`$CC -dumpmachine`"
-        AS_IF([test ! -d "${CONTRIB_DIR}"], [
-          echo "${CONTRIB_DIR} not found" >&AS_MESSAGE_LOG_FD
-          CONTRIB_DIR=""
-          AC_MSG_RESULT([not found])
-        ])
-      ])
+      CONTRIB_DIR=""
+      AC_MSG_RESULT([not found])
     ])
   ])
 ], [
@@ -434,7 +426,7 @@ AS_IF([test -n "${CONTRIB_DIR}"], [
   CPPFLAGS="${CPPFLAGS} -I${CONTRIB_DIR}/include"
   CFLAGS="${CFLAGS} -I${CONTRIB_DIR}/include"
   CXXFLAGS="${CXXFLAGS} -I${CONTRIB_DIR}/include"
-  OBJCFLAGS="${OBJCFLAGS} -I${CONTRIB_DIR}/include"
+  OBJCFLAGS="${OBJCFLAGS} -I${CONTRIB_DIR}/include -F${CONTRIB_DIR} -F${CONTRIB_DIR}/Frameworks"
   export PKG_CONFIG_PATH="${CONTRIB_DIR}/lib/pkgconfig:$PKG_CONFIG_PATH"
   LDFLAGS="${LDFLAGS} -L${CONTRIB_DIR}/lib"
 
@@ -1824,7 +1816,7 @@ dnl
 dnl  libsmbclient plugin
 dnl
 PKG_ENABLE_MODULES_VLC([SMBCLIENT], [smb], [smbclient], (SMB/CIFS support), [auto])
-AS_IF([test "${SYS}" = "mingw32" -a "${enable_smbclient}" != "no"], [ VLC_ADD_PLUGIN([smb]) ])
+AS_IF([test "${SYS}" = "mingw32" -a "${enable_winstore_app}" != "yes"], [ VLC_ADD_PLUGIN([smb]) ])
 
 dnl
 dnl  liBDSM access module
@@ -2351,7 +2343,7 @@ have_vaapi="no"
 have_vaapi_drm="no"
 have_vaapi_x11="no"
 AS_IF([test "${enable_libva}" != "no"], [
-  PKG_CHECK_MODULES([LIBVA], [libva >= 0.37], [
+  PKG_CHECK_MODULES([LIBVA], [libva >= 0.38], [
     have_vaapi="yes"
   ], [
     AS_IF([test -n "${enable_libva}"], [
@@ -3124,37 +3116,45 @@ dnl
 AC_ARG_ENABLE(wayland,
   [AS_HELP_STRING([--enable-wayland], [Wayland support (default auto)])])
 have_wayland="no"
-AC_ARG_VAR([WAYLAND_SCANNER], [Wayland scanner utility])
+have_wayland_egl="no"
 
 AS_IF([test "${enable_wayland}" != "no"], [
-  AC_MSG_CHECKING([for the Wayland scanner])
-  AS_IF([test -z "$WAYLAND_SCANNER"], [
+  PKG_CHECK_MODULES([WAYLAND_CLIENT], [wayland-client >= 1.5.91], [
+    AC_MSG_CHECKING([for the Wayland protocols])
+    PKG_CHECK_EXISTS([wayland-protocols >= 1.4], [
+      WAYLAND_PROTOCOLS="$(${PKG_CONFIG} wayland-protocols --variable pkgdatadir)"
+      AC_MSG_RESULT([${WAYLAND_PROTOCOLS}])
+    ], [
+      AC_MSG_RESULT([not found])
+      AC_MSG_ERROR([$(${PKG_CONFIG} --print-errors 'wayland-protocols >= 1.4')])
+    ])
+
+    AC_MSG_CHECKING([for the Wayland scanner])
     PKG_CHECK_EXISTS([wayland-scanner], [
       WAYLAND_SCANNER="$(${PKG_CONFIG} wayland-scanner --variable wayland_scanner)"
+      AC_MSG_RESULT([${WAYLAND_SCANNER}])
     ], [
-      WAYLAND_SCANNER="wayland-scanner"
+      AC_MSG_RESULT([not found])
+      AC_MSG_ERROR([$(${PKG_CONFIG} --print-errors wayland-scanner)])
     ])
-  ])
-  AC_MSG_RESULT([$WAYLAND_SCANNER])
 
-  PKG_CHECK_MODULES([WAYLAND_CLIENT], [wayland-client >= 1.5.91], [
     have_wayland="yes"
+
+    AS_IF([test "${have_egl}" = "yes"], [
+      PKG_CHECK_MODULES([WAYLAND_EGL], [wayland-egl], [
+        have_wayland_egl="yes"
+      ], [
+        AC_MSG_ERROR([${WAYLAND_EGL_PKG_ERRORS}.])
+      ])
+    ])
   ], [
     AS_IF([test -n "${enable_wayland}"], [
       AC_MSG_ERROR([${WAYLAND_CLIENT_PKG_ERRORS}.])
     ])
   ])
-
-  AS_IF([test "${have_egl}" = "yes"], [
-    PKG_CHECK_MODULES([WAYLAND_EGL], [wayland-egl], [
-      have_wayland_egl="yes"
-    ], [
-      AS_IF([test -n "${enable_wayland}"], [
-        AC_MSG_ERROR([${WAYLAND_EGL_PKG_ERRORS}.])
-      ])
-    ])
-  ])
 ])
+AC_SUBST([WAYLAND_PROTOCOLS])
+AC_SUBST([WAYLAND_SCANNER])
 AM_CONDITIONAL([HAVE_WAYLAND], [test "${have_wayland}" = "yes"])
 AM_CONDITIONAL([HAVE_WAYLAND_EGL], [test "${have_wayland_egl}" = "yes"])
 
@@ -3753,6 +3753,7 @@ AS_IF([test "${enable_qt}" != "no"], [
       ])
       QT_PATH="$(eval $PKG_CONFIG --variable=exec_prefix Qt5Core)"
       QT_HOST_PATH="$(eval $PKG_CONFIG --variable=host_bins Qt5Core)"
+      QT_VERSION="$(eval $PKG_CONFIG --modversion Qt5Gui)"
       AC_PATH_PROGS(MOC, [moc-qt5 moc], moc, ["${QT_HOST_PATH}" "${QT_PATH}/bin"])
       AC_PATH_PROGS(RCC, [rcc-qt5 rcc], rcc, ["${QT_HOST_PATH}" "${QT_PATH}/bin"])
       AC_PATH_PROGS(UIC, [uic-qt5 uic], uic, ["${QT_HOST_PATH}" "${QT_PATH}/bin"])
@@ -3775,6 +3776,7 @@ AS_IF([test "${enable_qt}" != "no"], [
   VLC_ADD_PLUGIN([qt])
   ALIASES="${ALIASES} qvlc"
 ])
+AC_SUBST(QT_VERSION)
 AM_CONDITIONAL(ENABLE_QT, [test "$enable_qt" != "no"])
 AM_CONDITIONAL([HAVE_QT5_X11], [test "${have_qt5_x11}" = "yes"])
 
@@ -3857,11 +3859,7 @@ AC_ARG_ENABLE(macosx,
 if test "x${enable_macosx}" != "xno" -a "${SYS}" = "darwin"
 then
   VLC_ADD_PLUGIN([macosx])
-
-  if test ! -d ${CONTRIB_DIR}/BGHUDAppKit.framework
-  then
-    AC_MSG_ERROR([BGHUDAppKit framework is required and was not found in ${CONTRIB_DIR}])
-  fi
+  AC_PATH_PROGS(XIB, [ibtool], ibtool, ["/usr/bin"])
 fi
 AM_CONDITIONAL(ENABLE_MACOSX_UI, [test "$enable_macosx" != "no"])
 
@@ -3872,7 +3870,7 @@ AC_ARG_ENABLE(sparkle,
   [  --enable-sparkle        Sparkle update support for OS X (default enabled on Mac OS X)])
 if test "x${enable_sparkle}" != "xno" -a "${HAVE_OSX}" = "1"
 then
-  if test ! -d ${CONTRIB_DIR}/Sparkle.framework
+  if test ! -d ${CONTRIB_DIR}/Sparkle.framework -a ! -d ${CONTRIB_DIR}/Frameworks/Sparkle.framework
   then
     AC_MSG_ERROR([Sparkle framework is required and was not found in ${CONTRIB_DIR}])
   fi
@@ -3880,6 +3878,22 @@ then
   AC_DEFINE([HAVE_SPARKLE], [1], [Define to 1 if sparkle is enabled.])
 fi
 AM_CONDITIONAL(HAVE_SPARKLE, [test "$enable_sparkle" != "no"])
+
+dnl
+dnl  MacOS X breakpad creash reporter support
+dnl
+AC_ARG_ENABLE(breakpad,
+  [  --enable-breakpad       Breakpad crash reporter support for OS X (default enabled on Mac OS X)])
+if test "x${enable_breakpad}" != "xno" -a "${HAVE_OSX}" = "1"
+then
+  if test ! -d ${CONTRIB_DIR}/Breakpad.framework -a ! -d ${CONTRIB_DIR}/Frameworks/Breakpad.framework
+  then
+    AC_MSG_ERROR([Breakpad framework is required and was not found in ${CONTRIB_DIR}])
+  fi
+
+  AC_DEFINE([HAVE_BREAKPAD], [1], [Define to 1 if breakpad is enabled.])
+fi
+AM_CONDITIONAL(HAVE_BREAKPAD, [test "$enable_breakpad" != "no"])
 
 
 dnl
@@ -4107,10 +4121,8 @@ if test "${enable_update_check}" = "yes"
 then
  AS_IF([test "${ac_cv_lib_gcrypt}" != "yes"],[
     AC_MSG_ERROR([libgcrypt is required for update checking system]) ])
-  VLC_ADD_LIBS([libvlccore], [${GCRYPT_LIBS}])
-  VLC_ADD_CFLAGS([libvlccore], [${GCRYPT_CFLAGS}])
-  AC_DEFINE([UPDATE_CHECK], 1, [Define if you want to use the VLC update mechanism])
 fi
+AM_CONDITIONAL(UPDATE_CHECK, [test "${enable_update_check}" = "yes"])
 
 dnl
 dnl OS X notification plugin
@@ -4119,14 +4131,13 @@ AC_ARG_ENABLE(osx_notifications,
   [  --enable-osx-notifications          osx notification plugin (default disabled)],,
   [enable_osx_notifications=no])
 AS_IF([test "${enable_osx_notifications}" != "no"], [
-    AC_CHECK_HEADERS(${CONTRIB_DIR}/Growl.framework/Versions/A/Headers/Growl.h, [
+  if test ! -d ${CONTRIB_DIR}/Growl.framework -a ! -d ${CONTRIB_DIR}/Frameworks/Growl.framework
+  then
       VLC_ADD_PLUGIN([osx_notifications])
-      VLC_ADD_LIBS([osx_notifications], [-F${CONTRIB_DIR} -Wl,-framework,Growl,-framework,Foundation])
-      VLC_ADD_OBJCFLAGS([osx_notifications], [-F${CONTRIB_DIR}])
+      VLC_ADD_LIBS([osx_notifications], [-Wl,-framework,Growl,-framework,Foundation])
       VLC_ADD_OBJCFLAGS([osx_notifications], [-fobjc-exceptions] )
-    ])
-  ]
-)
+  fi
+])
 
 dnl
 dnl Libnotify notification plugin
@@ -4176,11 +4187,6 @@ dnl
 AC_ARG_ENABLE(vlc,
   [  --enable-vlc            build the VLC media player (default enabled)])
 AM_CONDITIONAL(BUILD_VLC, [test "${enable_vlc}" != "no"])
-
-AC_ARG_ENABLE(macosx-vlc-app,
-  [  --enable-macosx-vlc-app build the VLC media player (default enabled on Mac OS X)])
-AM_CONDITIONAL(BUILD_MACOSX_VLC_APP, [test "${enable_macosx_vlc_app}" != "no" &&
-    (test "${SYS}" = "darwin" || test "${enable_macosx_vlc_app}" = "yes") ])
 
 dnl
 dnl  Stuff used by the program
@@ -4257,8 +4263,8 @@ AM_COND_IF([HAVE_WIN32], [
 
 AM_COND_IF([HAVE_DARWIN], [
   AC_CONFIG_FILES([
-    extras/package/macosx/Info.plist
-    extras/package/macosx/Resources/English.lproj/InfoPlist.strings
+    modules/gui/macosx/UI/InfoPlist.strings:modules/gui/macosx/Resources/InfoPlist.strings.in
+    share/macosx/Info.plist:share/Info.plist.in
   ])
 ])
 

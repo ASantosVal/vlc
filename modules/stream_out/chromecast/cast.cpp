@@ -57,8 +57,8 @@ struct sout_stream_sys_t
         delete p_intf;
     }
 
-    bool canDecodeVideo( const es_format_t *p_es ) const;
-    bool canDecodeAudio( const es_format_t *p_es ) const;
+    bool canDecodeVideo( int i_codec ) const;
+    bool canDecodeAudio( int i_codec ) const;
 
     sout_stream_t     *p_out;
     std::string        sout;
@@ -196,25 +196,21 @@ static void Del(sout_stream_t *p_stream, sout_stream_id_sys_t *id)
 }
 
 
-bool sout_stream_sys_t::canDecodeVideo( const es_format_t *p_es ) const
+bool sout_stream_sys_t::canDecodeVideo( int i_codec ) const
 {
-    if (p_es->i_codec == VLC_CODEC_H264 || p_es->i_codec == VLC_CODEC_VP8)
-        return true;
-    return false;
+    return i_codec == VLC_CODEC_H264 || i_codec == VLC_CODEC_VP8;
 }
 
-bool sout_stream_sys_t::canDecodeAudio( const es_format_t *p_es ) const
+bool sout_stream_sys_t::canDecodeAudio( int i_codec ) const
 {
-    if (p_es->i_codec == VLC_CODEC_VORBIS ||
-        p_es->i_codec == VLC_CODEC_MP4A ||
-        p_es->i_codec == VLC_FOURCC('h', 'a', 'a', 'c') ||
-        p_es->i_codec == VLC_FOURCC('l', 'a', 'a', 'c') ||
-        p_es->i_codec == VLC_FOURCC('s', 'a', 'a', 'c') ||
-        p_es->i_codec == VLC_CODEC_MP3 ||
-        p_es->i_codec == VLC_CODEC_A52 ||
-        p_es->i_codec == VLC_CODEC_EAC3)
-        return true;
-    return false;
+    return i_codec == VLC_CODEC_VORBIS ||
+        i_codec == VLC_CODEC_MP4A ||
+        i_codec == VLC_FOURCC('h', 'a', 'a', 'c') ||
+        i_codec == VLC_FOURCC('l', 'a', 'a', 'c') ||
+        i_codec == VLC_FOURCC('s', 'a', 'a', 'c') ||
+        i_codec == VLC_CODEC_MP3 ||
+        i_codec == VLC_CODEC_A52 ||
+        i_codec == VLC_CODEC_EAC3;
 }
 
 int sout_stream_sys_t::UpdateOutput( sout_stream_t *p_stream )
@@ -233,7 +229,7 @@ int sout_stream_sys_t::UpdateOutput( sout_stream_t *p_stream )
             const es_format_t *p_es = &(*it)->fmt;
             if (p_es->i_cat == AUDIO_ES)
             {
-                if (!canDecodeAudio( p_es ))
+                if (!canDecodeAudio( p_es->i_codec ))
                 {
                     msg_Dbg( p_stream, "can't remux audio track %d codec %4.4s", p_es->i_id, (const char*)&p_es->i_codec );
                     canRemux = false;
@@ -243,7 +239,7 @@ int sout_stream_sys_t::UpdateOutput( sout_stream_t *p_stream )
             }
             else if (b_has_video && p_es->i_cat == VIDEO_ES)
             {
-                if (!canDecodeVideo( p_es ))
+                if (!canDecodeVideo( p_es->i_codec ))
                 {
                     msg_Dbg( p_stream, "can't remux video track %d codec %4.4s", p_es->i_id, (const char*)&p_es->i_codec );
                     canRemux = false;
@@ -269,15 +265,19 @@ int sout_stream_sys_t::UpdateOutput( sout_stream_t *p_stream )
                 i_codec_video = DEFAULT_TRANSCODE_VIDEO;
 
             /* TODO: provide audio samplerate and channels */
-            ssout << "transcode{acodec=";
+            ssout << "transcode{";
             char s_fourcc[5];
-            vlc_fourcc_to_char( i_codec_audio, s_fourcc );
-            s_fourcc[4] = '\0';
-            ssout << s_fourcc;
-            if ( b_has_video )
+            if ( canDecodeAudio( i_codec_audio ) == false )
+            {
+                ssout << "acodec=";
+                vlc_fourcc_to_char( i_codec_audio, s_fourcc );
+                s_fourcc[4] = '\0';
+                ssout << s_fourcc << ',';
+            }
+            if ( b_has_video && canDecodeVideo( i_codec_video ) == false )
             {
                 /* TODO: provide maxwidth,maxheight */
-                ssout << ",vcodec=";
+                ssout << "vcodec=";
                 vlc_fourcc_to_char( i_codec_video, s_fourcc );
                 s_fourcc[4] = '\0';
                 ssout << s_fourcc;
@@ -306,24 +306,28 @@ int sout_stream_sys_t::UpdateOutput( sout_stream_t *p_stream )
                 sout = "";
             }
 
-            p_out = sout_StreamChainNew( p_stream->p_sout, ssout.str().c_str(), NULL, NULL);
+            const std::string chain = ssout.str();
+            msg_Dbg( p_stream, "Creating chain %s", chain.c_str() );
+            p_out = sout_StreamChainNew( p_stream->p_sout, chain.c_str(), NULL, NULL);
             if (p_out == NULL) {
-                msg_Dbg(p_stream, "could not create sout chain:%s", ssout.str().c_str());
+                msg_Dbg(p_stream, "could not create sout chain:%s", chain.c_str());
                 return VLC_EGENERIC;
             }
             sout = ssout.str();
         }
 
         /* check the streams we can actually add */
-        for (std::vector<sout_stream_id_sys_t*>::iterator it = streams.begin(); it != streams.end(); ++it)
+        for (std::vector<sout_stream_id_sys_t*>::iterator it = streams.begin(); it != streams.end(); )
         {
             sout_stream_id_sys_t *p_sys_id = *it;
             p_sys_id->p_sub_id = sout_StreamIdAdd( p_out, &p_sys_id->fmt );
             if ( p_sys_id->p_sub_id == NULL )
             {
                 msg_Err( p_stream, "can't handle %4.4s stream", (char *)&p_sys_id->fmt.i_codec );
-                streams.erase( it, it );
+                it = streams.erase( it );
             }
+            else
+                ++it;
         }
 
         if ( !streams.empty() )

@@ -1446,6 +1446,10 @@ static void End( input_thread_t * p_input )
 
     /* Clean up master */
     InputSourceDestroy( priv->master );
+    priv->i_title = 0;
+    priv->title = NULL;
+    priv->i_title_offset = 0;
+    priv->i_seekpoint_offset = 0;
 
     /* Unload all modules */
     if( priv->p_es_out )
@@ -2351,7 +2355,7 @@ static demux_t *InputDemuxNew( input_thread_t *p_input, input_source_t *p_source
 
     /* handle anchors */
     if( InputStreamHandleAnchor( p_source, &p_stream, psz_anchor ) )
-        return NULL;
+        goto error;
 
     /* attach conditional record stream-filter */
     if( var_InheritBool( p_source, "input-record-native" ) )

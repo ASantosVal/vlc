@@ -31,12 +31,26 @@
 
 @interface VLCFSPanelController () {
     BOOL _isCounting;
-    CGDirectDisplayID _displayID;
+
+    // Only used to track changes and trigger centering of FS panel
+    NSRect _associatedVoutFrame;
+    // Used to ask for current constraining rect on movement
+    NSWindow *_associatedVoutWindow;
 }
 
 @end
 
 @implementation VLCFSPanelController
+
+static NSString *kAssociatedFullscreenRect = @"VLCFullscreenAssociatedWindowRect";
+
++ (void)initialize
+{
+    NSDictionary *appDefaults = [NSDictionary dictionaryWithObjectsAndKeys: NSStringFromRect(NSZeroRect), kAssociatedFullscreenRect, nil];
+
+    [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
+}
+
 
 #pragma mark -
 #pragma mark Initialization
@@ -44,6 +58,10 @@
 - (id)init
 {
     self = [super initWithWindowNibName:@"VLCFullScreenPanel"];
+    if (self) {
+        NSString *rectStr = [[NSUserDefaults standardUserDefaults] stringForKey:kAssociatedFullscreenRect];
+        _associatedVoutFrame = NSRectFromString(rectStr);
+    }
     return self;
 }
 
@@ -54,10 +72,13 @@
     /* Do some window setup that is not possible in IB */
     [self.window setOpaque:NO];
     [self.window setAlphaValue:0.0f];
-    [self.window setMovableByWindowBackground:YES];
+    [self.window setMovableByWindowBackground:NO];
     [self.window setLevel:NSModalPanelWindowLevel];
     [self.window setStyleMask:self.window.styleMask | NSResizableWindowMask];
     [self.window setBackgroundColor:[NSColor clearColor]];
+
+    /* Set autosave name after we changed window mask to resizable */
+    [self.window setFrameAutosaveName:@"VLCFullscreenControls"];
 
 #ifdef MAC_OS_X_VERSION_10_10
     /* Inject correct background view depending on OS support */
@@ -166,6 +187,23 @@
 
 - (IBAction)timeSliderUpdate:(id)sender
 {
+    switch([[NSApp currentEvent] type]) {
+        case NSLeftMouseUp:
+            /* Ignore mouse up, as this is a continous slider and
+             * when the user does a single click to a position on the slider,
+             * the action is called twice, once for the mouse down and once
+             * for the mouse up event. This results in two short seeks one
+             * after another to the same position, which results in weird
+             * audio quirks.
+             */
+            return;
+        case NSLeftMouseDown:
+        case NSLeftMouseDragged:
+            break;
+
+        default:
+            return;
+    }
     input_thread_t *p_input;
     p_input = pl_CurrentInput(getIntf());
 
@@ -283,29 +321,41 @@
     [NSAnimationContext endGrouping];
 }
 
-- (void)centerWindowOnScreen:(CGDirectDisplayID)screenID
+- (void)centerPanel
 {
-    /* Find screen by its ID */
-    NSScreen *screen = [NSScreen screenWithDisplayID:screenID];
-
-    /* Check screen validity, fallback to mainScreen */
-    if (!screen)
-        screen = [NSScreen mainScreen];
-
-    NSRect screenFrame = [screen frame];
     NSRect windowFrame = [self.window frame];
+    windowFrame = [self contrainFrameToAssociatedVoutWindow:windowFrame];
 
-    /* Calculate coordinates for new NSWindow position */
-    NSPoint coordinates;
-    coordinates.x = (screenFrame.size.width - windowFrame.size.width) / 2 + screenFrame.origin.x;
-    coordinates.y = (screenFrame.size.height / 3) - windowFrame.size.height + screenFrame.origin.y;
+    /* Calculate coordinates for centered position */
+    NSRect limitFrame = _associatedVoutWindow.frame;
+    windowFrame.origin.x = (limitFrame.size.width - windowFrame.size.width) / 2 + limitFrame.origin.x;
+    windowFrame.origin.y = (limitFrame.size.height / 5) - windowFrame.size.height + limitFrame.origin.y;
 
-    [self.window setFrameTopLeftPoint:coordinates];
+    [self.window setFrame:windowFrame display:YES animate:NO];
 }
 
-- (void)center
+- (NSRect)contrainFrameToAssociatedVoutWindow:(NSRect)frame
 {
-    [self centerWindowOnScreen:_displayID];
+    NSRect limitFrame = _associatedVoutWindow.frame;
+
+    // Limit rect to limitation view
+    if (frame.origin.x < limitFrame.origin.x)
+        frame.origin.x = limitFrame.origin.x;
+    if (frame.origin.y < limitFrame.origin.y)
+        frame.origin.y = limitFrame.origin.y;
+
+    // Limit size (could be needed after resolution changes)
+    if (frame.size.height > limitFrame.size.height)
+        frame.size.height = limitFrame.size.height;
+    if (frame.size.width > limitFrame.size.width)
+        frame.size.width = limitFrame.size.width;
+
+    if (frame.origin.x + frame.size.width > limitFrame.origin.x + limitFrame.size.width)
+        frame.origin.x = limitFrame.origin.x + limitFrame.size.width - frame.size.width;
+    if (frame.origin.y + frame.size.height > limitFrame.origin.y + limitFrame.size.height)
+        frame.origin.y = limitFrame.origin.y + limitFrame.size.height - frame.size.height;
+
+    return frame;
 }
 
 - (void)setNonActive
@@ -316,6 +366,7 @@
 - (void)setActive
 {
     [self.window orderFront:self];
+    [self fadeIn];
 }
 
 #pragma mark -
@@ -328,13 +379,16 @@
 
 - (void)setVoutWasUpdated:(VLCWindow *)voutWindow
 {
-    [_controlsView setLimitWindow:voutWindow];
-    int newDisplayID = [[self.window screen] displayID];
+    _associatedVoutWindow = voutWindow;
 
-    if (_displayID != newDisplayID) {
-        _displayID = newDisplayID;
-        [self center];
+    NSRect voutRect = voutWindow.frame;
+    if (!NSEqualRects(_associatedVoutFrame, voutRect)) {
+        _associatedVoutFrame = voutRect;
+        [[NSUserDefaults standardUserDefaults] setObject:NSStringFromRect(_associatedVoutFrame) forKey:kAssociatedFullscreenRect];
+
+        [self centerPanel];
     }
+
 }
 
 #pragma mark -

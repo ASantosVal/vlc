@@ -378,6 +378,13 @@ static int MP4_ReadBoxContainerChildrenIndexed( stream_t *p_stream,
     return 1;
 }
 
+int MP4_ReadBoxContainerRestricted( stream_t *p_stream, MP4_Box_t *p_container,
+                                    const uint32_t stoplist[], const uint32_t excludelist[] )
+{
+    return MP4_ReadBoxContainerChildrenIndexed( p_stream, p_container,
+                                                stoplist, excludelist, false );
+}
+
 int MP4_ReadBoxContainerChildren( stream_t *p_stream, MP4_Box_t *p_container,
                                   const uint32_t stoplist[] )
 {
@@ -1097,7 +1104,7 @@ static int MP4_ReadBox_tkhd(  stream_t *p_stream, MP4_Box_t *p_box )
     MP4_GET4BYTES( p_box->data.p_tkhd->i_width );
     MP4_GET4BYTES( p_box->data.p_tkhd->i_height );
 
-    double rotation;    //angle in degrees to be rotated clockwise
+    double rotation = 0;//angle in degrees to be rotated clockwise
     double scale[2];    // scale factor; sx = scale[0] , sy = scale[1]
     int32_t *matrix = p_box->data.p_tkhd->i_matrix;
 
@@ -1106,10 +1113,13 @@ static int MP4_ReadBox_tkhd(  stream_t *p_stream, MP4_Box_t *p_box )
     scale[1] = sqrt(conv_fx(matrix[1]) * conv_fx(matrix[1]) +
                     conv_fx(matrix[4]) * conv_fx(matrix[4]));
 
-    rotation = atan2(conv_fx(matrix[1]) / scale[1], conv_fx(matrix[0]) / scale[0]) * 180 / M_PI;
-
-    if (rotation < 0)
-        rotation += 360.;
+    if( likely(scale[0] > 0 && scale[1] > 0) )
+    {
+        rotation = atan2(conv_fx(matrix[1]) / scale[1],
+                         conv_fx(matrix[0]) / scale[0]) * 180 / M_PI;
+        if (rotation < 0)
+            rotation += 360.;
+    }
 
     p_box->data.p_tkhd->f_rotation = rotation;
 
@@ -4636,30 +4646,14 @@ MP4_Box_t *MP4_BoxGetNextChunk( stream_t *s )
 {
     /* p_chunk is a virtual root container for the moof and mdat boxes */
     MP4_Box_t *p_fakeroot;
-    MP4_Box_t *p_tmp_box = MP4_BoxNew( 0 );
-    if( unlikely( p_tmp_box == NULL ) )
-        return NULL;
-
-    /* We might get a ftyp box or a SmooBox */
-    if( MP4_PeekBoxHeader( s, p_tmp_box ) == 0 )
-    {
-        free( p_tmp_box );
-        return NULL;
-    }
-
-    if( p_tmp_box->i_type == ATOM_ftyp )
-    {
-        MP4_BoxFree( p_tmp_box );
-        return MP4_BoxGetRoot( s );
-    }
-    MP4_BoxFree( p_tmp_box );
+    MP4_Box_t *p_tmp_box;
 
     p_fakeroot = MP4_BoxNew( ATOM_root );
     if( unlikely( p_fakeroot == NULL ) )
         return NULL;
     p_fakeroot->i_shortsize = 1;
 
-    const uint32_t stoplist[] = { ATOM_moof, 0 };
+    const uint32_t stoplist[] = { ATOM_moov, ATOM_moof, 0 };
     MP4_ReadBoxContainerChildren( s, p_fakeroot, stoplist );
 
     p_tmp_box = p_fakeroot->p_first;

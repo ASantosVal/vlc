@@ -2209,13 +2209,16 @@ static void Ogg_EndOfStream( demux_t *p_demux )
         vlc_meta_Delete( p_ogg->p_meta );
     p_ogg->p_meta = NULL;
 
+    for(int i=0; i<p_ogg->i_attachments; i++)
+        vlc_input_attachment_Delete( p_ogg->attachments[i] );
+    TAB_CLEAN(p_ogg->i_attachments, p_ogg->attachments);
+
     for ( int i=0; i < p_ogg->i_seekpoints; i++ )
     {
         if ( p_ogg->pp_seekpoints[i] )
             vlc_seekpoint_Delete( p_ogg->pp_seekpoints[i] );
     }
     TAB_CLEAN( p_ogg->i_seekpoints, p_ogg->pp_seekpoints );
-    p_ogg->i_seekpoints = 0;
 }
 
 static void Ogg_CleanSpecificData( logical_stream_t *p_stream )
@@ -2223,9 +2226,11 @@ static void Ogg_CleanSpecificData( logical_stream_t *p_stream )
 #ifdef HAVE_LIBVORBIS
     if ( p_stream->fmt.i_codec == VLC_CODEC_VORBIS )
     {
-        vorbis_info_clear( p_stream->special.vorbis.p_info );
+        if( p_stream->special.vorbis.p_info )
+            vorbis_info_clear( p_stream->special.vorbis.p_info );
         FREENULL( p_stream->special.vorbis.p_info );
-        vorbis_comment_clear( p_stream->special.vorbis.p_comment );
+        if( p_stream->special.vorbis.p_comment )
+            vorbis_comment_clear( p_stream->special.vorbis.p_comment );
         FREENULL( p_stream->special.vorbis.p_comment );
         p_stream->special.vorbis.i_headers_flags = 0;
     }

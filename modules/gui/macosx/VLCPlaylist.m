@@ -232,11 +232,7 @@
     [_recursiveExpandPlaylistMenuItem setTitle: _NS("Expand Node")];
     [_selectAllPlaylistMenuItem setTitle: _NS("Select All")];
     [_infoPlaylistMenuItem setTitle: _NS("Media Information...")];
-    [_downloadCoverArtPlaylistMenuItem setTitle: _NS("Download Cover Art")];
-    [_preparsePlaylistMenuItem setTitle: _NS("Fetch Meta Data")];
     [_revealInFinderPlaylistMenuItem setTitle: _NS("Reveal in Finder")];
-    [_sortNamePlaylistMenuItem setTitle: _NS("Sort Node by Name")];
-    [_sortAuthorPlaylistMenuItem setTitle: _NS("Sort Node by Author")];
     [_addFilesToPlaylistMenuItem setTitle: _NS("Add File...")];
 }
 
@@ -333,59 +329,6 @@
     [[NSWorkspace sharedWorkspace] selectFile: path inFileViewerRootedAtPath: path];
 }
 
-/* When called retrieves the selected outlineview row and plays that node or item */
-- (IBAction)preparseItem:(id)sender
-{
-    int i_count;
-    NSIndexSet *o_selected_indexes;
-    intf_thread_t * p_intf = getIntf();
-    playlist_t * p_playlist = pl_Get(p_intf);
-    playlist_item_t *p_item = NULL;
-
-    o_selected_indexes = [_outlineView selectedRowIndexes];
-    i_count = [o_selected_indexes count];
-
-    NSUInteger indexes[i_count];
-    [o_selected_indexes getIndexes:indexes maxCount:i_count inIndexRange:nil];
-    for (int i = 0; i < i_count; i++) {
-        VLCPLItem *o_item = [_outlineView itemAtRow:indexes[i]];
-        [_outlineView deselectRow: indexes[i]];
-
-        if (![o_item isLeaf]) {
-            msg_Dbg(p_intf, "preparsing nodes not implemented");
-            continue;
-        }
-
-        libvlc_MetadataRequest(p_intf->obj.libvlc, [o_item input], META_REQUEST_OPTION_NONE, -1, NULL);
-
-    }
-    [self playlistUpdated];
-}
-
-- (IBAction)downloadCoverArt:(id)sender
-{
-    int i_count;
-    NSIndexSet *o_selected_indexes;
-    intf_thread_t * p_intf = getIntf();
-    playlist_t * p_playlist = pl_Get(p_intf);
-    playlist_item_t *p_item = NULL;
-
-    o_selected_indexes = [_outlineView selectedRowIndexes];
-    i_count = [o_selected_indexes count];
-
-    NSUInteger indexes[i_count];
-    [o_selected_indexes getIndexes:indexes maxCount:i_count inIndexRange:nil];
-    for (int i = 0; i < i_count; i++) {
-        VLCPLItem *o_item = [_outlineView itemAtRow: indexes[i]];
-
-        if (![o_item isLeaf])
-            continue;
-
-        libvlc_ArtRequest(p_intf->obj.libvlc, [o_item input], META_REQUEST_OPTION_NONE);
-    }
-    [self playlistUpdated];
-}
-
 - (IBAction)selectAll:(id)sender
 {
     [_outlineView selectAll: nil];
@@ -398,46 +341,29 @@
 
 - (IBAction)addFilesToPlaylist:(id)sender
 {
-    [[[VLCMain sharedInstance] open] openFile];
+    NSIndexSet *selectedRows = [_outlineView selectedRowIndexes];
+
+    NSInteger position = -1;
+    VLCPLItem *parentItem = [[self model] rootItem];
+
+    if (selectedRows.count >= 1) {
+        position = selectedRows.firstIndex + 1;
+        parentItem = [_outlineView itemAtRow:selectedRows.firstIndex];
+        if ([parentItem parent] != nil)
+            parentItem = [parentItem parent];
+    }
+
+    [[[VLCMain sharedInstance] open] openFileWithAction:^(NSArray *files) {
+        [self addPlaylistItems:files
+              withParentItemId:[parentItem plItemId]
+                         atPos:position
+                 startPlayback:NO];
+    }];
 }
 
 - (IBAction)deleteItem:(id)sender
 {
     [_model deleteSelectedItem];
-}
-
-- (IBAction)sortNodeByName:(id)sender
-{
-    [self sortNode: SORT_TITLE];
-}
-
-- (IBAction)sortNodeByAuthor:(id)sender
-{
-    [self sortNode: SORT_ARTIST];
-}
-
-- (void)sortNode:(int)i_mode
-{
-    playlist_t * p_playlist = pl_Get(getIntf());
-    playlist_item_t * p_item;
-
-    // TODO why do we need this kind of sort? It looks crap and confusing...
-
-//    if ([_outlineView selectedRow] > -1) {
-//        p_item = [[_outlineView itemAtRow: [_outlineView selectedRow]] pointerValue];
-//        if (!p_item)
-//            return;
-//    } else
-//        p_item = [self currentPlaylistRoot]; // If no item is selected, sort the whole playlist
-//
-//    PL_LOCK;
-//    if (p_item->i_children > -1) // the item is a node
-//        playlist_RecursiveNodeSort(p_playlist, p_item, i_mode, ORDER_NORMAL);
-//    else
-//        playlist_RecursiveNodeSort(p_playlist, p_item->p_parent, i_mode, ORDER_NORMAL);
-//
-//    PL_UNLOCK;
-//    [self playlistUpdated];
 }
 
 // Actions for playlist column selections
@@ -772,11 +698,7 @@
 
     // TODO move other items to menu validation protocol
     [_infoPlaylistMenuItem setEnabled: b_item_sel];
-    [_preparsePlaylistMenuItem setEnabled: b_item_sel];
     [_recursiveExpandPlaylistMenuItem setEnabled: b_item_sel];
-    [_sortNamePlaylistMenuItem setEnabled: b_item_sel];
-    [_sortAuthorPlaylistMenuItem setEnabled: b_item_sel];
-    [_downloadCoverArtPlaylistMenuItem setEnabled: b_item_sel];
 
     return _playlistMenu;
 }

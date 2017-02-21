@@ -42,34 +42,6 @@ struct priv
 };
 
 static int
-tc_anop_gen_textures(const opengl_tex_converter_t *tc,
-                     const GLsizei *tex_width, const GLsizei *tex_height,
-                     GLuint *textures)
-{
-    (void) tex_width; (void) tex_height;
-
-    glActiveTexture(GL_TEXTURE0);
-    glClientActiveTexture(GL_TEXTURE0);
-
-    glGenTextures(1, textures);
-    glBindTexture(tc->tex_target, textures[0]);
-
-    glTexParameteri(tc->tex_target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(tc->tex_target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(tc->tex_target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(tc->tex_target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    return VLC_SUCCESS;
-}
-
-static void
-tc_anop_del_textures(const opengl_tex_converter_t *tc, GLuint *textures)
-{
-    (void) tc;
-    glDeleteTextures(1, textures);
-    textures[0] = 0;
-}
-
-static int
 pool_lock_pic(picture_t *p_pic)
 {
     picture_sys_t *p_picsys = p_pic->p_sys;
@@ -89,19 +61,27 @@ pool_unlock_pic(picture_t *p_pic)
     }
 }
 
-static picture_pool_t *
-tc_anop_get_pool(const opengl_tex_converter_t *tc, const video_format_t *fmt,
-                 unsigned requested_count, GLuint *textures)
+static int
+tc_anop_allocate_textures(const opengl_tex_converter_t *tc, GLuint *textures,
+                          const GLsizei *tex_width, const GLsizei *tex_height)
 {
+    (void) tex_width; (void) tex_height;
     struct priv *priv = tc->priv;
     assert(textures[0] != 0);
-    priv->stex = SurfaceTexture_create(tc->parent, textures[0]);
+    priv->stex = SurfaceTexture_create(VLC_OBJECT(tc->gl), textures[0]);
     if (priv->stex == NULL)
     {
-        msg_Err(tc->parent, "tc_anop_get_pool: SurfaceTexture_create failed");
-        return NULL;
+        msg_Err(tc->gl, "tc_anop_get_pool: SurfaceTexture_create failed");
+        return VLC_EGENERIC;
     }
+    return VLC_SUCCESS;
+}
 
+static picture_pool_t *
+tc_anop_get_pool(const opengl_tex_converter_t *tc, const video_format_t *fmt,
+                 unsigned requested_count)
+{
+    struct priv *priv = tc->priv;
 #define FORCED_COUNT 31
     requested_count = FORCED_COUNT;
     picture_t *picture[FORCED_COUNT] = {NULL, };
@@ -146,16 +126,15 @@ tc_anop_get_pool(const opengl_tex_converter_t *tc, const video_format_t *fmt,
 error:
     for (unsigned i = 0; i < count; i++)
         picture_Release(picture[i]);
-    SurfaceTexture_release(priv->stex);
     return NULL;
 }
 
 static int
 tc_anop_update(const opengl_tex_converter_t *tc, GLuint *textures,
-               unsigned width, unsigned height,
+               const GLsizei *tex_width, const GLsizei *tex_height,
                picture_t *pic, const size_t *plane_offset)
 {
-    (void) width; (void) height; (void) plane_offset;
+    (void) tex_width; (void) tex_height; (void) plane_offset;
     assert(textures[0] != 0);
 
     if (plane_offset != NULL)
@@ -182,7 +161,7 @@ tc_anop_update(const opengl_tex_converter_t *tc, GLuint *textures,
 }
 
 static int
-tc_anop_fetch_locations(const opengl_tex_converter_t *tc, GLuint program)
+tc_anop_fetch_locations(opengl_tex_converter_t *tc, GLuint program)
 {
     struct priv *priv = tc->priv;
     priv->uloc.uSTMatrix = tc->api->GetUniformLocation(program, "uSTMatrix");
@@ -190,9 +169,11 @@ tc_anop_fetch_locations(const opengl_tex_converter_t *tc, GLuint program)
 }
 
 static void
-tc_anop_prepare_shader(const opengl_tex_converter_t *tc, float alpha)
+tc_anop_prepare_shader(const opengl_tex_converter_t *tc,
+                       const GLsizei *tex_width, const GLsizei *tex_height,
+                       float alpha)
 {
-    (void) alpha;
+    (void) tex_width; (void) tex_height; (void) alpha;
     struct priv *priv = tc->priv;
     if (priv->transform_mtx != NULL)
         tc->api->UniformMatrix4fv(priv->uloc.uSTMatrix, 1, GL_FALSE,
@@ -202,8 +183,6 @@ tc_anop_prepare_shader(const opengl_tex_converter_t *tc, float alpha)
 static void
 tc_anop_release(const opengl_tex_converter_t *tc)
 {
-    tc->api->DeleteShader(tc->fragment_shader);
-
     struct priv *priv = tc->priv;
     if (priv->stex != NULL)
         SurfaceTexture_release(priv->stex);
@@ -211,42 +190,32 @@ tc_anop_release(const opengl_tex_converter_t *tc)
     free(priv);
 }
 
-int
+GLuint
 opengl_tex_converter_anop_init(const video_format_t *fmt,
                                opengl_tex_converter_t *tc)
 {
     if (fmt->i_chroma != VLC_CODEC_ANDROID_OPAQUE)
-        return VLC_EGENERIC;
+        return 0;
 
     tc->priv = malloc(sizeof(struct priv));
     if (unlikely(tc->priv == NULL))
-        return VLC_ENOMEM;
+        return 0;
 
     struct priv *priv = tc->priv;
     priv->stex = NULL;
     priv->transform_mtx = NULL;
 
-    tc->pf_gen_textures   = tc_anop_gen_textures;
-    tc->pf_del_textures   = tc_anop_del_textures;
+    tc->pf_allocate_textures = tc_anop_allocate_textures;
     tc->pf_get_pool       = tc_anop_get_pool;
     tc->pf_update         = tc_anop_update;
     tc->pf_fetch_locations = tc_anop_fetch_locations;
     tc->pf_prepare_shader = tc_anop_prepare_shader;
     tc->pf_release        = tc_anop_release;
 
-    /* fake plane_count to 1 */
-    static const vlc_chroma_description_t desc = {
-        .plane_count = 1,
-        .p[0].w.num = 1,
-        .p[0].w.den = 1,
-        .p[0].h.num = 1,
-        .p[0].h.den = 1,
-        .pixel_size = 0,
-        .pixel_bits = 0,
-    };
+    tc->tex_count = 1;
+    tc->texs[0] = (struct opengl_tex_cfg) { { 1, 1 }, { 1, 1 } };
 
     tc->chroma       = VLC_CODEC_ANDROID_OPAQUE;
-    tc->desc         = &desc;
     tc->tex_target   = GL_TEXTURE_EXTERNAL_OES;
 
     /* The transform Matrix (uSTMatrix) given by the SurfaceTexture is not
@@ -284,16 +253,16 @@ opengl_tex_converter_anop_init(const video_format_t *fmt,
         "#version " GLSL_VERSION "\n"
         "#extension GL_OES_EGL_image_external : require\n"
         PRECISION
-        "varying vec4 TexCoord0;"
+        "varying vec2 TexCoord0;"
         "uniform samplerExternalOES sTexture;"
         "uniform mat4 uSTMatrix;"
         "void main()"
         "{ "
-        "  gl_FragColor = texture2D(sTexture, (uSTMatrix * TexCoord0).xy);"
+        "  gl_FragColor = texture2D(sTexture, (uSTMatrix * vec4(TexCoord0, 1, 1)).xy);"
         "}";
-    tc->fragment_shader = tc->api->CreateShader(GL_FRAGMENT_SHADER);
-    tc->api->ShaderSource(tc->fragment_shader, 1, &code, NULL);
-    tc->api->CompileShader(tc->fragment_shader);
+    GLuint fragment_shader = tc->api->CreateShader(GL_FRAGMENT_SHADER);
+    tc->api->ShaderSource(fragment_shader, 1, &code, NULL);
+    tc->api->CompileShader(fragment_shader);
 
-    return VLC_SUCCESS;
+    return fragment_shader;
 }
