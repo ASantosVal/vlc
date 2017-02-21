@@ -6,7 +6,7 @@ function descriptor()
          }
 end
 
-local translation = {
+local txt = {
   int_search_devices = 'Search Devices',
   int_message = 'Message',
   int_help = 'Help',
@@ -34,11 +34,8 @@ local translation = {
   int_streamit = 'Stream It!',
   int_close = 'Close',
   int_renderer_name_dumb = 'render_name_default',
-  int_fileInfo = [[
-    <b><u>Name:</u></b> Blah meh blah <br>
-    <b><u>File location:</u></b> Blah meh blah <br>
-    <b><u>Bibrarte:</u></b> Blah meh blah <br>
-    <b><u>Resolution :</u></b> Blah meh blah  ]],
+  int_fileInfo1 = '<b><u>Name:</u></b>',
+  int_fileInfo2 = '<br><b><u>Duration:</u></b> ',
   int_volumeUp = 'V+',
   int_volumeDown =  'V-',
   int_rendererInfo = [[
@@ -52,6 +49,10 @@ local translation = {
   int_status = 'Reproduction status',
   int_back = 'Go back',
   int_searching = 'Searching...',
+  int_errorNoFile = [[
+    <b><u>Error:</u></b> <br>
+    There is no file in the playlist. Please, 
+    select on file and then launch this extension. ]],
 }
 
 local dlg = nil
@@ -59,7 +60,12 @@ local input_table = {} -- General widget id reference
 
 function activate()    --Initialization
   vlc.msg.dbg('StreamIt init') --Debug message
-  launch_main_menu()
+  if vlc.input.item() == nil then 
+    vlc.msg.dbg('StreamIt error: no file playing') --Debug message
+  	launch_error(txt['int_errorNoFile'])
+  else 
+    launch_main_menu()
+  end
 end
 
 
@@ -88,19 +94,17 @@ function launch_main_menu()
   dlg = vlc.dialog('Stream It!')
   input_table['list_devices'] = dlg:add_list(1, 1, 4, 4) 
 
-  input_table['button_search'] = dlg:add_button(translation['int_search_devices'], search_devices, 5, 1, 2, 1)
-  input_table['button_help'] = dlg:add_button(translation['int_help'], launch_help, 8, 1, 1, 1)
+  input_table['button_search'] = dlg:add_button(txt['int_search_devices'], search_devices, 5, 1, 2, 1)
+  input_table['button_help'] = dlg:add_button(txt['int_help'], launch_help, 8, 1, 1, 1)
 
   input_table['spin'] = dlg:add_spin_icon(5, 2, 1, 1)
-  input_table['label_search'] = dlg:add_label(translation['int_message'], 6, 2, 2, 1)
-  input_table['button_about'] = dlg:add_button(translation['int_about'], launch_about, 8, 2, 1, 1)
+  input_table['label_search'] = dlg:add_label(txt['int_message'], 6, 2, 2, 1)
+  input_table['button_about'] = dlg:add_button(txt['int_about'], launch_about, 8, 2, 1, 1)
 
-  input_table['html_selectedinfo'] = dlg:add_html(translation['int_rendererInfo'], 5, 3, 2, 2) --TODO: extraerlo a un texto/funcion aparte para actualziarlo con facilidad
+  input_table['html_selectedinfo'] = dlg:add_html(txt['int_rendererInfo'], 5, 3, 2, 2) --TODO: extraerlo a un texto/funcion aparte para actualziarlo con facilidad
 
-  input_table['button_streamit'] = dlg:add_button(translation['int_streamit'], launch_control_menu, 1, 5, 4, 1)
-  input_table['button_close'] = dlg:add_button(translation['int_close'], close, 6, 5, 3, 1)
-
-  getFileInfo()
+  input_table['button_streamit'] = dlg:add_button(txt['int_streamit'], launch_control_menu, 1, 5, 4, 1)
+  input_table['button_close'] = dlg:add_button(txt['int_close'], close, 6, 5, 3, 1)
 
   dlg:show()
 end    
@@ -108,31 +112,33 @@ end
 
 function launch_control_menu()
   close_dlg()
-  dlg = vlc.dialog('Streaming to :'..translation['int_renderer_name_dumb'])
+  dlg = vlc.dialog('Streaming to :'..txt['int_renderer_name_dumb'])
+
+  fileInfo = getFileInfo()
   
-  input_table['html_fileInfo'] = dlg:add_html(translation['int_fileInfo'], 1, 1, 6, 4) --TODO: extraerlo a un texto/funcion aparte para actualziarlo con facilidad
+  input_table['html_fileInfo'] = dlg:add_html(fileInfo, 1, 1, 6, 4) --TODO: extraerlo a un texto/funcion aparte para actualziarlo con facilidad
 
-  input_table['button_volumeUp'] = dlg:add_button(translation['int_volumeUp'], dumb, 7, 1, 1, 1)
-  input_table['button_volumeDown'] = dlg:add_button(translation['int_volumeDown'], dumb, 7, 4, 1, 1)
+  input_table['button_volumeUp'] = dlg:add_button(txt['int_volumeUp'], dumb, 7, 1, 1, 1)
+  input_table['button_volumeDown'] = dlg:add_button(txt['int_volumeDown'], dumb, 7, 4, 1, 1)
 
-  input_table['html_rendererInfo'] = dlg:add_html(translation['int_rendererInfo'], 8, 1, 3, 4) --TODO: extraerlo a un texto/funcion aparte para actualziarlo con facilidad
+  input_table['html_rendererInfo'] = dlg:add_html(txt['int_rendererInfo'], 8, 1, 3, 4) --TODO: extraerlo a un texto/funcion aparte para actualziarlo con facilidad
   
-  input_table['button_play'] = dlg:add_button(translation['int_play'], dumb, 1, 5, 2, 1)
-  input_table['button_pause'] = dlg:add_button(translation['int_pause'], dumb, 3, 5, 2, 1)
-  input_table['button_stop'] = dlg:add_button(translation['int_stop'], dumb, 5, 5, 2, 1)
-  input_table['button_back'] = dlg:add_button(translation['int_back'], launch_main_menu, 9, 5, 2, 1)
+  input_table['button_play'] = dlg:add_button(txt['int_play'], dumb, 1, 5, 2, 1)
+  input_table['button_pause'] = dlg:add_button(txt['int_pause'], dumb, 3, 5, 2, 1)
+  input_table['button_stop'] = dlg:add_button(txt['int_stop'], dumb, 5, 5, 2, 1)
+  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 9, 5, 2, 1)
 
-  input_table['label_search'] = dlg:add_label(translation['int_status'], 1, 6, 10, 1)
+  input_table['label_search'] = dlg:add_label(txt['int_status'], 1, 6, 10, 1)
 
   dlg:show()
 end 
 
 function launch_about()
   close_dlg()
-  dlg = vlc.dialog('Stream It! >> '..translation['int_help'])
+  dlg = vlc.dialog('Stream It! >> '..txt['int_help'])
 
-  input_table['html_rendererInfo'] = dlg:add_html(translation['int_helpText'], 1, 1, 8, 8)
-  input_table['button_back'] = dlg:add_button(translation['int_back'], launch_main_menu, 1, 9, 8, 1)
+  input_table['html_rendererInfo'] = dlg:add_html(txt['int_helpText'], 1, 1, 8, 8)
+  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
   
   dlg:show()
 end
@@ -140,19 +146,31 @@ end
 
 function launch_help()
   close_dlg()
-  dlg = vlc.dialog('Stream It! >> '..translation['int_about'])
+  dlg = vlc.dialog('Stream It! >> '..txt['int_about'])
 
-  input_table['html_rendererInfo'] = dlg:add_html(translation['int_aboutText'], 1, 1, 8, 8)   
-  input_table['button_back'] = dlg:add_button(translation['int_back'], launch_main_menu, 1, 9, 8, 1)
+  input_table['html_rendererInfo'] = dlg:add_html(txt['int_aboutText'], 1, 1, 8, 8)   
+  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
 
   dlg:show()
 end
 
 
+function launch_error(text)
+  close_dlg()
+  dlg = vlc.dialog('Error!')
+
+  input_table['html_rendererInfo'] = dlg:add_html(text, 1, 1, 8, 8)
+  input_table['button_close'] = dlg:add_button(txt['int_close'], close, 1, 9, 8, 1)
+  
+  dlg:show()
+end
+
+
+
 function search_devices() --Search devices on the LAN   
     --TODO: develop this 
   services=vlc.sd.get_services_names()
-  input_table['label_search']:set_text(translation['int_searching'])
+  input_table['label_search']:set_text(txt['int_searching'])
 
   input_table['spin']:animate()
 
@@ -173,11 +191,15 @@ end
 function getFileInfo ()
   
   if vlc.input.item() == nil then 
-    text='No file'
+    launch_error(txt['int_errorNoFile']) --TODO: this error doesn't work
   else
-    text = vlc.input.item():name()
+  	title = vlc.input.item():name()
+  	duration = vlc.input.item():duration()/60 
+  	duration_formatted = tonumber(string.format("%.2f", duration)) --this rounds the number
+    return 
+      txt['int_fileInfo1']..title..
+      txt['int_fileInfo2']..duration_formatted
   end
-  input_table['label_search']:set_text(text)
 end
 
 
