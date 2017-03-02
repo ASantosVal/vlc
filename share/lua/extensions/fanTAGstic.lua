@@ -36,6 +36,7 @@ local txt = {
   int_fileInfo1 = '<b><u>Name:</u></b>',
   int_fileInfo2 = '<br><b><u>Duration:</u></b> ',
   int_fileInfo3 = '<br><b><u>Path:</u></b> ',
+  int_fileInfo4 = '<br><b><u>Metas:</u></b> ',
   int_back = 'Go back',
   int_errorNoFile = [[
     <b><u>Error:</u></b> <br>
@@ -45,6 +46,8 @@ local txt = {
 
 local dlg = nil
 local input_table = {} -- General widget id reference
+local meta_image_path = nil --TODO: temporal, hay que repensarlo
+local metas_table = nil --TODO: temporal, hay que repensarlo
 
 function activate()    --Initialization
   vlc.msg.dbg('[StreamIt] init') --Debug message
@@ -82,9 +85,15 @@ function launch_main_menu()
   
   dlg = vlc.dialog(txt['int_extension_name'])
 
-  input_table['button_help'] = dlg:add_button(txt['int_help'], launch_help, 8, 1, 1, 1)
-  input_table['button_about'] = dlg:add_button(txt['int_about'], launch_about, 8, 2, 1, 1)
+  fileInfo = getFileInfoHTML()
+  input_table['html_fileInfo'] = dlg:add_html(fileInfo, 1, 1, 12, 12)
 
+
+  input_table['button_help'] = dlg:add_button(txt['int_help'], launch_help, 13, 1, 1, 1)
+  input_table['button_about'] = dlg:add_button(txt['int_about'], launch_about, 13, 2, 1, 1)
+
+    input_table['img_artwork'] = dlg:add_image( meta_image_path, 14, 1, 8, 8)
+  
   dlg:show()
 end    
 
@@ -97,7 +106,7 @@ function launch_about()
   input_table['html_rendererInfo'] = dlg:add_html(txt['int_helpText'], 1, 1, 8, 8)
   input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
   
-  dlg:show()
+    dlg:show()
 end
 
 
@@ -131,24 +140,37 @@ function dumb()
 end
 
 
-function getFileInfo ()  
+function getFileInfoHTML ()  
   title = vlc.input.item():name()
+  
   duration = vlc.input.item():duration() --this info is in seconds
   duration_hour = string.format("%.0f", duration / 3600) --this gets the hours
   duration_min = string.format("%.0f", (duration - duration_hour*60)  / 60) --this gets the minutes
   duration_secs = string.format("%.0f", duration - (duration_hour*3600) - (duration_min*60)) --this gets the seconds
+  
   uri = vlc.input.item():uri()
-  -- metas = vlc.input.item():metas() --TODO: obtain metadata
-  -- metas_string= '<br>'
-  -- for index, value in ipairs(metas) do
-  -- 	metas_string= metas_string..index..':'..value..'<br>'
-  -- end
   decoded_uri = vlc.strings.url_parse(uri) --Parse URL. Returns a table with fields "protocol", "username", "password", "host", "port", path" and "option".
+  
+  metas_html = getMetasHTML()
+
   return 
     txt['int_fileInfo1']..title..
     txt['int_fileInfo2']..duration_hour..':'..duration_min..':'..duration_secs..
-    txt['int_fileInfo3']..decoded_uri['path'] 
-    --.. metas_string
+    txt['int_fileInfo3']..decoded_uri['path']..
+    txt['int_fileInfo4']..metas_html
+end
+
+function getMetasHTML ()  
+  metas_table = vlc.input.item():metas()
+  metas_html = ''
+  for key,value in pairs(metas_table) do
+    metas_html = metas_html..'<b><u>'..key..'</u></b> --> '..value..'<br>'
+  end
+  undecoded_uri = metas_table['artwork_url']
+  decoded_uri = vlc.strings.url_parse(uri) --Parse URL. Returns a table with fields "protocol", "username", "password", "host", "port", path" and "option".
+  meta_image_path = decoded_uri['path']
+
+  return metas_html
 end
 
 
@@ -156,40 +178,3 @@ function meta_changed()
   return false
 end
 
---[[    
-d:add_button( text, func, , posX, posY, lengthX, lengthY )
-d:add_label( text, ... )
-d:add_html( text, ... )
-d:add_text_input( text, ... )
-d:add_password( text, ... )
-d:add_check_box( text, state, ... )
-d:add_dropdown( ... )
-d:add_list( ... ):        Allows multiple or empty selections.
-d:add_image( path, ... )
-
-Input
------
-input.is_playing(): Return true if input exists.
-input.item(): Get the current input item. Input item methods are:
-  :uri(): Get item's URI.
-  :name(): Get item's name.
-  :duration(): Get item's duration in seconds or negative value if unavailable.
-  :is_preparsed(): Return true if meta data has been preparsed
-  :metas(): Get meta data as a table.
-  :set_meta(key, value): Set meta data.
-  :info(): Get the current input's info. Return value is a table of tables. Keys of the top level table are info category labels.
-  
---]]
-
---    var.libvlc_command( name, argument ): 
---    sd.get_services_names()
-
-
-
- 
--- function deactivate() --TODO: Useful??
---   vlc.msg.dbg('StreamIt closing') --Debug message
---   if dlg then
---     dlg:hide() 
---   end
--- end

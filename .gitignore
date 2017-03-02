@@ -55,3 +55,7 @@ install-*
 
 
 *.po
+
+contrib/win32/config\.mak
+
+contrib/win32/vlc-contrib-x86_64-w64-mingw32-latest\.tar\.bz2
