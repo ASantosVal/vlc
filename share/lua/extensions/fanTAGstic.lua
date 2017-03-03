@@ -42,6 +42,9 @@ local txt = {
     <b><u>Error:</u></b> <br>
     There is no file in the playlist. Please, 
     select on file and then launch this extension. ]],
+  int_filename_analysis = 'Run filename analysis',
+  int_this_is_artist = 'This is the artist',
+  int_this_is_name = 'This is the song',
 }
 
 local dlg = nil
@@ -89,50 +92,104 @@ function launch_main_menu()
   input_table['html_fileInfo'] = dlg:add_html(fileInfo, 1, 1, 12, 12)
 
 
+  input_table['button_filename_analysis'] = dlg:add_button(txt['int_filename_analysis'], launch_filename_analysis, 14, 1, 1, 1)
+  
+  input_table['label_debug'] = dlg:add_label('', 6, 2, 2, 1) --TODO: delete this
+  
+
   input_table['button_help'] = dlg:add_button(txt['int_help'], launch_help, 13, 1, 1, 1)
   input_table['button_about'] = dlg:add_button(txt['int_about'], launch_about, 13, 2, 1, 1)
 
-    input_table['img_artwork'] = dlg:add_image( meta_image_path, 14, 1, 8, 8)
+  input_table['img_artwork'] = dlg:add_image( meta_image_path, 15, 1, 8, 8)
   
   dlg:show()
 end    
 
 
-function launch_about()
+function launch_filename_analysis()
   close_dlg()
-  vlc.msg.dbg('[StreamIt] launching about') --Debug message
-  dlg = vlc.dialog(txt['int_extension_name'].. ' >> '..txt['int_help'])
-
-  input_table['html_rendererInfo'] = dlg:add_html(txt['int_helpText'], 1, 1, 8, 8)
-  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
+  vlc.msg.dbg('[StreamIt] launching filename analysis') --Debug message
   
-    dlg:show()
-end
+  dlg = vlc.dialog(txt['int_extension_name'])
+
+  candidates=filename_analysis()
 
 
-function launch_help()
-  close_dlg()
-  vlc.msg.dbg('[StreamIt] launching help') --Debug message
-  dlg = vlc.dialog(txt['int_extension_name'].. ' >> '..txt['int_about'])
-
-  input_table['html_rendererInfo'] = dlg:add_html(txt['int_aboutText'], 1, 1, 8, 8)   
-  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
+  --TODO: externalice string
+  dlg:add_label('These are the possible artist and song names found:', 1, 1, 1, 1)
+  for key,value in pairs(table_sections) do
+    dlg:add_label(value, key, 2, 1, 1)
+    dlg:add_button(txt['int_this_is_artist'], set_artist, key, 3, 1, 1)
+    dlg:add_button(txt['int_this_is_name'], set_name, key, 4, 1, 1)
+  end
 
   dlg:show()
+
 end
 
-
-function launch_error(text)
-  close_dlg()
-  vlc.msg.err('[StreamIt] ERROR: '..text) --Debug message  
-  dlg = vlc.dialog('Error!')
-
-  input_table['html_rendererInfo'] = dlg:add_html(text, 1, 1, 8, 8)
-  input_table['button_close'] = dlg:add_button(txt['int_close'], close, 1, 9, 8, 1)
-  
-  dlg:show()
+--TODO: no consigo pasar un valor a estos
+function set_name()--(value)
+  vlc.input.item():set_meta('title', 'random') --value)
 end
 
+function set_artist()--(value)
+  vlc.input.item():set_meta('artist', 'random') --value)
+end
+
+function filename_analysis()
+  fileName = GetFileName()
+
+  table_sections = {}
+  int_foundSections = 1
+  bol_spaceFound = false
+  int_spaceCount = 0
+  table_sections[int_foundSections] = ''
+  i = 1
+
+  --now it will look for pisble artist and song-name analysing the filename
+  --a while is needed to be able to modify the index (i) adn jump the space (represented as '%20')'
+  while i < fileName:len() do
+    current_char = fileName:sub(i,i)
+
+    if current_char == "%" then--found space (%20), posible multiple space separator
+      i = i + 3 --jump the '20'
+      bol_spaceFound = true
+      int_spaceCount = int_spaceCount + 1 --start counting spaces
+      if int_spaceCount == 3 then --triple space found, create new section
+        bol_spaceFound = false
+        int_spaceCount = 0
+        int_foundSections = int_foundSections + 1
+        table_sections[int_foundSections] = ''
+      end
+    else
+      --teh follofing means it found a space(%20), but was not a triple-sapce separator, 
+      --so its added to the section
+      if int_spaceCount == 1 then 
+        table_sections[int_foundSections] = table_sections[int_foundSections]..' '
+      end      
+      bol_spaceFound = false
+      int_spaceCount = 0
+
+      if current_char == "-" then --separator found (-), new section inititialized
+        int_foundSections = int_foundSections + 1
+        table_sections[int_foundSections] = ''
+      
+      elseif current_char == "." then --extension starts, ignore the rest
+        break
+      
+      else --normal character, add it to the section
+        table_sections[int_foundSections] = table_sections[int_foundSections]..current_char
+      end
+      i = i + 1      
+    end
+  end
+  return table_sections
+end
+
+function GetFileName() --gets only the filename of the current playing file
+  uri = vlc.input.item():uri()  
+  return uri:match("^.+/(.+)$")
+end
 
 function dumb()    
     --TODO: delete this function
@@ -178,3 +235,38 @@ function meta_changed()
   return false
 end
 
+
+
+function launch_about()
+  close_dlg()
+  vlc.msg.dbg('[StreamIt] launching about') --Debug message
+  dlg = vlc.dialog(txt['int_extension_name'].. ' >> '..txt['int_help'])
+
+  input_table['html_rendererInfo'] = dlg:add_html(txt['int_helpText'], 1, 1, 8, 8)
+  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
+  
+  dlg:show()
+end
+
+
+function launch_help()
+  close_dlg()
+  vlc.msg.dbg('[StreamIt] launching help') --Debug message
+  dlg = vlc.dialog(txt['int_extension_name'].. ' >> '..txt['int_about'])
+
+  input_table['html_rendererInfo'] = dlg:add_html(txt['int_aboutText'], 1, 1, 8, 8)   
+  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
+
+  dlg:show()
+end
+
+function launch_error(text)
+  close_dlg()
+  vlc.msg.err('[StreamIt] ERROR: '..text) --Debug message  
+  dlg = vlc.dialog('Error!')
+
+  input_table['html_rendererInfo'] = dlg:add_html(text, 1, 1, 8, 8)
+  input_table['button_close'] = dlg:add_button(txt['int_close'], close, 1, 9, 8, 1)
+  
+  dlg:show()
+end
