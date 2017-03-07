@@ -52,6 +52,8 @@ local input_table = {} -- General widget id reference
 local meta_image_path = nil --TODO: temporal, hay que repensarlo
 local metas_table = nil --TODO: temporal, hay que repensarlo
 
+require "ID3"
+
 function activate()    --Initialization
   vlc.msg.dbg('[StreamIt] init') --Debug message
   if vlc.input.item() == nil then 
@@ -199,6 +201,7 @@ end
 
 function getFileInfoHTML ()  
   title = vlc.input.item():name()
+
   
   duration = vlc.input.item():duration() --this info is in seconds
   duration_hour = string.format("%.0f", duration / 3600) --this gets the hours
@@ -207,6 +210,7 @@ function getFileInfoHTML ()
   
   uri = vlc.input.item():uri()
   decoded_uri = vlc.strings.url_parse(uri) --Parse URL. Returns a table with fields "protocol", "username", "password", "host", "port", path" and "option".
+  
   
   metas_html = getMetasHTML()
 
@@ -218,7 +222,13 @@ function getFileInfoHTML ()
 end
 
 function getMetasHTML ()  
-  metas_table = vlc.input.item():metas()
+  --metas_table = vlc.input.item():metas() -- via vlc
+  
+  uri = vlc.input.item():uri()
+  decoded_uri = vlc.strings.url_parse(uri) --Parse URL. Returns a table with fields "protocol", "username", "password", "host", "port", path" and "option".
+  metas_table =id3.getV1(decoded_uri['path']) -- via custom libraries
+  vlc.msg.dbg('[StreamIt] '..id3.getV2(decoded_uri['path'], 'artist')) --TODO: delete 
+  
   metas_html = ''
   for key,value in pairs(metas_table) do
     metas_html = metas_html..'<b><u>'..key..'</u></b> --> '..value..'<br>'
