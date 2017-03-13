@@ -12,11 +12,16 @@ id3.getArt(mp3, w, h) - Returns an image of album art, in PNG format.
 ]]--
  
 id3 = {}
+
  
 function id3.getV1(mp3)
-	--vlc.msg.dbg('[StreamIt] lib start') --TODO: delete 
+	vlc.msg.dbg('[StreamIt] lib start') --TODO: delete 
+	--mp3='/home/hal/Downloads/04-%20Poligrafo%20Bakarra.mp3'
+	--mp3 = string.gsub(mp3, '%20+', "%%s")
+	mp3 = unescape(mp3)
 	local name,artist,album,track,genre,year,comment = ""
 	local fbuf = io.open(mp3,"r")
+	local f = assert(io.open(mp3, "r"))
 	if fbuf then
 		fbuf:seek("end",-128)
 		local tag = fbuf:read(3)
