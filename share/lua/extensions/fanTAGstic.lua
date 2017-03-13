@@ -45,6 +45,8 @@ local txt = {
   int_filename_analysis = 'Run filename analysis',
   int_this_is_artist = 'This is the artist',
   int_this_is_name = 'This is the song',
+  int_use_this_artist = 'No, better use this as artist',
+  int_use_this_name = 'No, better use this as song',
 }
 
 local dlg = nil
@@ -124,6 +126,12 @@ function launch_filename_analysis()
     dlg:add_button(txt['int_this_is_artist'], set_artist, key, 3, 1, 1)
     dlg:add_button(txt['int_this_is_name'], set_name, key, 4, 1, 1)
   end
+  dlg:add_label('------------------------------------------------------------', 1, 5, 1, 1)
+  dlg:add_text_input( artist, 1, 6, 1, 1 )
+  dlg:add_button(txt['int_use_this_artist'], set_artist, 2, 6, 1, 1)
+  dlg:add_text_input( name, 1, 7, 1, 1 )
+  dlg:add_button(txt['int_use_this_name'], set_name, 2, 7, 1, 1)
+
 
   dlg:show()
 
@@ -140,21 +148,17 @@ end
 
 function filename_analysis()
   fileName = GetFileName()
-
-  table_sections = {}
-  int_foundSections = 1
   bol_spaceFound = false
   int_spaceCount = 0
+  int_foundSections = 1
+  table_sections = {}
   table_sections[int_foundSections] = ''
-  i = 1
 
   --now it will look for pisble artist and song-name analysing the filename
   --a while is needed to be able to modify the index (i) adn jump the space (represented as '%20')'
-  while i < fileName:len() do
+  for i=1,fileName:len() do
     current_char = fileName:sub(i,i)
-
-    if current_char == "%" then--found space (%20), posible multiple space separator
-      i = i + 3 --jump the '20'
+    if current_char == " " then--found space, posible multiple space separator
       bol_spaceFound = true
       int_spaceCount = int_spaceCount + 1 --start counting spaces
       if int_spaceCount == 3 then --triple space found, create new section
@@ -164,13 +168,13 @@ function filename_analysis()
         table_sections[int_foundSections] = ''
       end
     else
-      --teh follofing means it found a space(%20), but was not a triple-sapce separator, 
-      --so its added to the section
-      if int_spaceCount == 1 then 
-        table_sections[int_foundSections] = table_sections[int_foundSections]..' '
-      end      
-      bol_spaceFound = false
-      int_spaceCount = 0
+      --the follofing means it found a space, but was not a triple-space separator, 
+      --so it's added to the section
+      if bol_spaceFound == true then 
+        table_sections[int_foundSections] = table_sections[int_foundSections]..' '      
+        bol_spaceFound = false
+        int_spaceCount = 0
+      end
 
       if current_char == "-" then --separator found (-), new section inititialized
         int_foundSections = int_foundSections + 1
@@ -181,8 +185,8 @@ function filename_analysis()
       
       else --normal character, add it to the section
         table_sections[int_foundSections] = table_sections[int_foundSections]..current_char
-      end
-      i = i + 1      
+      end 
+
     end
   end
   return table_sections
@@ -190,7 +194,9 @@ end
 
 function GetFileName() --gets only the filename of the current playing file
   uri = vlc.input.item():uri()  
-  return uri:match("^.+/(.+)$")
+  path = uri:match("^.+/(.+)$")
+  return unescape(path) --return unescaped filename to file
+
 end
 
 function dumb()    
@@ -222,12 +228,7 @@ function getFileInfoHTML ()
 end
 
 function getMetasHTML ()  
-  --metas_table = vlc.input.item():metas() -- via vlc
-  
-  uri = vlc.input.item():uri()
-  decoded_uri = vlc.strings.url_parse(uri) --Parse URL. Returns a table with fields "protocol", "username", "password", "host", "port", path" and "option".
-  metas_table =id3.getV1(decoded_uri['path']) -- via custom libraries
-  vlc.msg.dbg('[StreamIt] '..id3.getV2(decoded_uri['path'], 'artist')) --TODO: delete 
+  metas_table = vlc.input.item():metas() -- via vlc
   
   metas_html = ''
   for key,value in pairs(metas_table) do
@@ -279,4 +280,13 @@ function launch_error(text)
   input_table['button_close'] = dlg:add_button(txt['int_close'], close, 1, 9, 8, 1)
   
   dlg:show()
+end
+
+
+function hex_to_char (x)
+  return string.char(tonumber(x, 16))
+end
+
+function unescape (url) --unescape special chars
+  return url:gsub("%%(%x%x)", hex_to_char)
 end
