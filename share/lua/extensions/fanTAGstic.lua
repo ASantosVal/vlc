@@ -55,6 +55,7 @@ local meta_image_path = nil --TODO: temporal, hay que repensarlo
 local metas_table = nil --TODO: temporal, hay que repensarlo
 
 require "ID3"
+require "ID3_editor[2]"
 
 function activate()    --Initialization
   vlc.msg.dbg('[StreamIt] init') --Debug message
@@ -107,6 +108,8 @@ function launch_main_menu()
   input_table['img_artwork'] = dlg:add_image( meta_image_path, 15, 1, 8, 8)
   
   dlg:show()
+
+  set_name()
 end    
 
 
@@ -139,7 +142,14 @@ end
 
 --TODO: no consigo pasar un valor a estos
 function set_name()--(value)
-  vlc.input.item():set_meta('title', 'random') --value)
+  --vlc.input.item():set_meta('title', 'random') --value)
+
+  uri = vlc.input.item():uri()  
+  decoded_uri = vlc.strings.url_parse(uri)
+  path = unescape(decoded_uri['path'])  
+  tags = { title = "random" }
+  edit ( path , tags , false )
+
 end
 
 function set_artist()--(value)
@@ -154,8 +164,8 @@ function filename_analysis()
   table_sections = {}
   table_sections[int_foundSections] = ''
 
-  --now it will look for pisble artist and song-name analysing the filename
-  --a while is needed to be able to modify the index (i) adn jump the space (represented as '%20')'
+  --now it will look for posible artist and song-name analysing the filename
+  --a while is needed to be able to modify the index (i) and jump the space (represented as '%20')'
   for i=1,fileName:len() do
     current_char = fileName:sub(i,i)
     if current_char == " " then--found space, posible multiple space separator
