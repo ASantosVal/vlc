@@ -148,8 +148,8 @@ function set_name()--(value)
   path = unescape(decoded_uri['path'])  
   tags = { artist = "random",title = "random"  }
   --id3.setV1(path, tags)
-  --id3.setV2(path, 'COMM', 'random')
-  id3.edit ( path , tags , false )
+  id3.setV2(path, 'TIT2', 'random')
+  --id3.edit ( path , tags , false )
 
 end
 
