@@ -125,6 +125,7 @@ local function makestring ( str , tolength )
 end
 
 function generatetag ( tags )	
+	vlc.msg.dbg('[StreamIt] Generate tag in lib') --Debug message  
 	local title , artist , album, year , comment , track , genre
 	
 	-- Title
@@ -171,20 +172,21 @@ function generatetag ( tags )
 	-- No one likes 28 character comments
 	comment = makestring ( comment , 28 )
 
-	-- -- Track
+	-- Track
 	-- if type ( tags.track ) == "table" then 
 	-- 	track = tags.tracknumber
 	-- else track = { "" }
 	-- end
-	-- track = ( tonumber ( track [ 1 ] ) or 0 ):char ( )
+--	track = ( tonumber ( track [ 1 ] ) or 0 ):char ( )
+	track = 0
 	
-	-- Genre
-	-- if type ( tags.genre ) == "table" then 
-	-- 	--genre = toid3:iconv ( tags.genre [ 1 ] )
-	-- 	genre = 'undeveloped'
-	-- else 
-	-- 	genre = ""
-	-- end
+	--Genre
+	if type ( tags.genre ) == "table" then 
+		--genre = toid3:iconv ( tags.genre [ 1 ] )
+		genre = 'undeveloped'
+	else 
+		genre = ""
+	end
 	-- do
 	-- 	local t = 12 -- "Other"
 	-- 	for i , v in ipairs ( genreindex ) do
@@ -196,24 +198,26 @@ function generatetag ( tags )
 	-- 	genre = t:char ( )
 	-- end
 	
-	-- local datadiscarded = false
-	-- for k , v in pairs ( tags ) do
-	-- 	if k == "title" or k == "artist" or k == "album" or k == "date" or k == "tracknumber" or k == "genre" then
-	-- 		if v [ 2 ] then
-	-- 			datadiscarded = true
-	-- 			break
-	-- 		end
-	-- 	else
-	-- 		datadiscarded = true
-	-- 		break
-	-- 	end
-	--end
-	local tag = "TAG" .. title .. artist .. album .. year .. comment .. "\0" --.. track .. genre -- String format doesn't like \0. --string.format ( "TAG%s%s%s%s%s\0%s%s" , title , artist , album , year , comment , track , genre)
+	local datadiscarded = false
+	for k , v in pairs ( tags ) do
+		if k == "title" or k == "artist" or k == "album" or k == "date" or k == "tracknumber" or k == "genre" then
+			if v [ 2 ] then
+				datadiscarded = true
+				break
+			end
+		else
+			datadiscarded = true
+			break
+		end
+	end
+	local tag = "TAG" .. title .. artist .. album .. year .. comment .. "\0" .. track .. genre -- String format doesn't like \0. --string.format ( "TAG%s%s%s%s%s\0%s%s" , title , artist , album , year , comment , track , genre)
 	return tag , datadiscarded
 end
 
 
 function edit ( path , tags , inherit )
+	vlc.msg.dbg('[StreamIt] Edit tag in lib') --Debug message  
+
 	local fd , err = io.open ( path , "r+" )
 	--if not fd then return ferror ( err , 3 ) end
 	
@@ -228,7 +232,9 @@ function edit ( path , tags , inherit )
 	
 	local id3 = generatetag ( tags )
 	
-	--if #id3 ~= 128 then return ferror ( "Unknown error" , 3 ) end
+	if #id3 ~= 128 then 
+		vlc.msg.dbg('[StreamIt] tag creation error') --Debug message  
+	end
 	
 	-- Check if file already has an ID3 tag
 	local starttag = find ( fd )
@@ -238,6 +244,8 @@ function edit ( path , tags , inherit )
 	local ok , err = fd:write ( id3 )
 	if not ok then return ok , err end
 	fd:flush ( )
+		vlc.msg.dbg('[StreamIt] asgsavcgxscsdg') --Debug message  
+
 	
 	return 
 end

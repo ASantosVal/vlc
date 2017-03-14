@@ -55,7 +55,6 @@ local meta_image_path = nil --TODO: temporal, hay que repensarlo
 local metas_table = nil --TODO: temporal, hay que repensarlo
 
 require "ID3"
-require "ID3_editor[2]"
 
 function activate()    --Initialization
   vlc.msg.dbg('[StreamIt] init') --Debug message
@@ -147,8 +146,10 @@ function set_name()--(value)
   uri = vlc.input.item():uri()  
   decoded_uri = vlc.strings.url_parse(uri)
   path = unescape(decoded_uri['path'])  
-  tags = { title = "random" }
-  edit ( path , tags , false )
+  tags = { artist = "random",title = "random"  }
+  --id3.setV1(path, tags)
+  --id3.setV2(path, 'COMM', 'random')
+  id3.edit ( path , tags , false )
 
 end
 
