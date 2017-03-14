@@ -6,6 +6,8 @@ function descriptor()
          }
 end
 
+require("./share/lua/extensions/power")
+
 
 local dlg = nil
 
@@ -36,7 +38,8 @@ function launch_main_menu()
   vlc.msg.dbg('[StreamIt] launching main menu') --Debug message
   
   dlg = vlc.dialog('Prueba C + LUA')
-  dlg:add_label('unimplemented', 1, 1, 2, 1)
+  result = square(1.414213598)
+  dlg:add_label('result: '..result, 1, 1, 2, 1)
 
   dlg:show()
 end    
