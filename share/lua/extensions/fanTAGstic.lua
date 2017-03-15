@@ -68,8 +68,12 @@ function activate()    --Initialization
   end
 end
 
+function deactivate() --Closing [triggered by problems]
+  close()
+end
 
-function deactivate()  --Closing
+
+function close() --Closing [triggered by clicking 'X']
   vlc.msg.dbg('[fanTAGstic] closing') --Debug message
   dlg = nil
   collectgarbage() --important
@@ -280,7 +284,7 @@ function launch_error(text)
   dlg = vlc.dialog('Error!')
 
   input_table['html_rendererInfo'] = dlg:add_html(text, 1, 1, 8, 8)
-  input_table['button_close'] = dlg:add_button(txt['int_close'], deactivate, 1, 9, 8, 1)
+  input_table['button_close'] = dlg:add_button(txt['int_close'], close, 1, 9, 8, 1)
   
   dlg:show()
 end
