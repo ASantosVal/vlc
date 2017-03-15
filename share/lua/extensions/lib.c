@@ -23,6 +23,15 @@ static int icube(lua_State *L){                /* Internal name of func */
 	lua_pushnumber(L,rtrn*rtrn*rtrn);      /* Push the return */
 	return 1;                              /* One return value */
 }
+static int same(lua_State *L){                /* Internal name of func */
+	float rtrn = lua_tonumber(L, -1);       /*Get the single number arg */
+	lua_pushnumber(L,rtrn);      /* Push the return */
+	return 1;                              /* One return value */
+}
+static int just_one(lua_State *L){                /* Internal name of func */
+	lua_pushnumber(L,1);      /* Push the return */
+	return 1;                              /* One return value */
+}
 
 
 /* Register this file's functions with the
@@ -38,12 +47,14 @@ static int icube(lua_State *L){                /* Internal name of func */
  * each function you want available from Lua.
  *
 */
-int luaopen_power(lua_State *L){
+int luaopen_share_lua_extensions_lib (lua_State *L){ //name with path of the resulting lib.os file
 	lua_register(
 			L,               /* Lua state variable */
 			"square",        /* func name as known in Lua */
 			isquare          /* func name in this file */
 			);  
 	lua_register(L,"cube",icube);
+	lua_register(L,"return_same",same);
+	lua_register(L,"justOne",just_one);
 	return 0;
 }
