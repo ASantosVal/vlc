@@ -137,33 +137,32 @@ end
 
 
 function id3.setV1(mp3, tags)
+	vlc.msg.dbg('[StreamIt] lib set V1') --TODO: delete 
 	local name,artist,album,track,genre,year,comment = ""
 	local fbuf = io.open(mp3,"r+")
 	local f = assert(io.open(mp3, "r+"))
-	fbuf:seek("end",0)
-	fbuf:write('TAG')
-	if fbuf then		
+
+	if fbuf then
+		vlc.msg.dbg('[StreamIt] fbuf okey') --TODO: delete 
+
 		fbuf:seek("end",-128)
 		local tag = fbuf:read(3)
 		vlc.msg.dbg('[StreamIt] tag:'..tag) --TODO: delete 
+	
+fbuf:seek("end",-125)
+name = fbuf:read(30)
+vlc.msg.dbg('[StreamIt] tag:'..name) --TODO: delete 
 
 		if tag == "TAG" then
-			
 			fbuf:seek("end",-125)
+			--name = fbuf:read(30)
 			fbuf:write(tags.title)
-
-			vlc.msg.dbg('[StreamIt] writing:'..tags.title) --TODO: delete 
-			
-			fbuf:seek("end",-125)			
-			name = fbuf:read(30)
-			vlc.msg.dbg('[StreamIt] wrote:'..name) --TODO: delete 
-			
-
+	vlc.msg.dbg('[StreamIt] wrote'..tags.title) --TODO: delete 
 
 			fbuf:seek("end",-95)
 			--artist = fbuf:read(30)
 			fbuf:write(tags.artist)			
-	--vlc.msg.dbg('[StreamIt] wrote'..tags.artist) --TODO: delete 
+	vlc.msg.dbg('[StreamIt] wrote'..tags.artist) --TODO: delete 
 
 			fbuf:seek("end",-65)
 			album = fbuf:read(30)
@@ -174,7 +173,7 @@ function id3.setV1(mp3, tags)
 			fbuf:seek("end",-31)
 			--comment = fbuf:read(28)
 			fbuf:write('comentario')	
-			--vlc.msg.dbg('[StreamIt] wrote'..'comentario') --TODO: delete 
+			vlc.msg.dbg('[StreamIt] wrote'..'comentario') --TODO: delete 
 
 
 			fbuf:seek("end",-2)
@@ -183,21 +182,21 @@ function id3.setV1(mp3, tags)
 			fbuf:seek("end",-1)
 			genre = fbuf:read(1)
 	 
-			-- for i = 1, string.len(name) do
-			-- 	if string.byte(string.sub(name,-1)) == 0 or string.byte(string.sub(name,-1)) == 32 then
-			-- 		name = string.sub(name,1,-2)
-			-- 	end
-			-- end
-			-- for i = 1, string.len(artist) do
-			-- 	if string.byte(string.sub(artist,-1)) == 0 or string.byte(string.sub(artist,-1)) == 32 then
-			-- 		artist = string.sub(artist,1,-2)
-			-- 	end
-			-- end
-			-- for i = 1, string.len(album) do
-			-- 	if string.byte(string.sub(album,-1)) == 0 or string.byte(string.sub(album,-1)) == 32 then
-			-- 		album = string.sub(album,1,-2)
-			-- 	end
-			-- end
+			for i = 1, string.len(name) do
+				if string.byte(string.sub(name,-1)) == 0 or string.byte(string.sub(name,-1)) == 32 then
+					name = string.sub(name,1,-2)
+				end
+			end
+			for i = 1, string.len(artist) do
+				if string.byte(string.sub(artist,-1)) == 0 or string.byte(string.sub(artist,-1)) == 32 then
+					artist = string.sub(artist,1,-2)
+				end
+			end
+			for i = 1, string.len(album) do
+				if string.byte(string.sub(album,-1)) == 0 or string.byte(string.sub(album,-1)) == 32 then
+					album = string.sub(album,1,-2)
+				end
+			end
 		end
 		fbuf:close()
 	end
@@ -210,15 +209,10 @@ function id3.setV2(mp3,tag, value)
 	if fbuf then
 		fbuf:seek("set")
 		local fdata = fbuf:read(100000)
-		vlc.msg.dbg('[StreamIt] fdata: '..fdata) --TODO: delete 
 		fbuf:close()
 	end
 	if fdata then
 		local fndid = string.find(fdata, tag)
-		--TODO: this is not finished
-		local header = string.sub(fndid,1, 10)--just the header bytes
-		vlc.msg.dbg('[StreamIt] header: '..header) --TODO: delete 
-	
 	end
 	 
 	if fndid then
@@ -249,7 +243,7 @@ function id3.edit ( path , tags , inherit )
 	vlc.msg.dbg('[StreamIt] processed tag :'..id3) --Debug message 
 	
 	if #id3 ~= 128 then 
-		vlc.msg.dbg('[StreamIt] tag creation error, #id3='..#id3) --Debug message  
+		vlc.msg.dbg('[StreamIt] tag creation error') --Debug message  
 	end
 	
 	-- Check if file already has an ID3 tag
@@ -321,7 +315,7 @@ function generatetag ( tags )
 		track = tags.tracknumber
 	else track = { "" }
 	end
-	--track = ( tonumber ( track [ 1 ] ) or 0 ):char ( )
+	track = ( tonumber ( track [ 1 ] ) or 0 ):char ( )
 	track = 0
 	
 	--Genre
@@ -333,13 +327,13 @@ function generatetag ( tags )
 	end
 	do
 		local t = 12 -- "Other"
-		-- for i , v in ipairs ( genreindex ) do
-		-- 	if genre:lower ( ):find ( v:lower ( ):gsub ( "%W" , "." ) ) then
-		-- 		t = i
-		-- 		break
-		-- 	end 
-		-- end
-		genre = t--:char ( )
+		for i , v in ipairs ( genreindex ) do
+			if genre:lower ( ):find ( v:lower ( ):gsub ( "%W" , "." ) ) then
+				t = i
+				break
+			end 
+		end
+		genre = t:char ( )
 	end
 	
 	-- local datadiscarded = false
@@ -355,8 +349,7 @@ function generatetag ( tags )
 	-- 	end
 	-- end
 	vlc.msg.dbg('[StreamIt] tag created ')
-	--local tag = "TAG" .. title .. artist .. album .. year .. comment .. "\0" .. track .. genre -- String format doesn't like \0. --string.format ( "TAG%s%s%s%s%s\0%s%s" , title , artist , album , year , comment , track , genre)
-	local tag = "TAG" .. 'titletitletitletitletitletitle' .. artist .. album .. year .. comment .. "\0" .. '1' .. '1' -- String format doesn't like \0. --string.format ( "TAG%s%s%s%s%s\0%s%s" , title , artist , album , year , comment , track , genre)
+	local tag = "TAG" .. title .. artist .. album .. year .. comment .. "\0" .. track .. genre -- String format doesn't like \0. --string.format ( "TAG%s%s%s%s%s\0%s%s" , title , artist , album , year , comment , track , genre)
 	return tag --, datadiscarded
 end
 
@@ -365,40 +358,49 @@ end
 --local toid3 = iconv.new ( Locale , "UTF-8" )
 
 function makestring ( str , tolength )
-	str = toid3:iconv ( str )
+	vlc.msg.dbg('[StreamIt] makestring')
+	--str = toid3:iconv ( str )
+	str = utf8_to_latin1 ( str )
 	str = str:sub ( 1 , tolength )
 	return str .. ("\0"):rep ( tolength-#str )
 end
 
+ function utf8_to_latin1(s)
+    local r = ''
+    for _, c in utf8.codes(s) do
+        r = r .. string.char(c)
+    end
+    return r
+end
 
-function twodigityear ( capture )
-	if tonumber ( capture ) < 30 then -- Break on 30s
-		return "20"..capture
-	else 
-		return "19" .. capture
+function find ( fd )
+	if fd:read ( 3 ) == "TAG" then
+	fd:seek ( "end" , -128 ) -- Look at end of file
+		return fd:seek ( "end" , -128 )
+		return false
+	else
 	end
 end
-	
-function guessyear ( datestring )
-	local patterns = {
-		[".*%f[%d](%d%d%d%d)%f[%D].*"] = { matches = 1 , replace = "%1" }, -- MAGICAL FRONTIER PATTERN (undocumented)
 		["^%W*(%d%d)%W*$"] = { matches = 1 , replace = twodigityear }, -- Eg: 70 or '70
+		[".*%W(%d%d)%W*$"] = { matches = 1 , replace = twodigityear }, -- Eg: Concert of '97.
 		["^%s*%d%d?%s*[/-%s]%s*%d%d?%s*[/-%s]%W*(%d%d)%s*$"] = { matches = 1 , replace = twodigityear }, -- Eg: 20/4/87
 		[".*Year%W*(%d%d)%W.-"] = { matches = 1 , replace = twodigityear }, -- Eg: Month: October, Year: 69
-		[".*%W(%d%d)%W*$"] = { matches = 1 , replace = twodigityear }, -- Eg: Concert of '97.
 	}
-	for k , v in pairs ( patterns ) do
 		local s , m = datestring:gsub ( k , v.replace )
+	for k , v in pairs ( patterns ) do
 		if m == v.matches then return s end
 	end
 	return false
 end
 
-function find ( fd )
-	fd:seek ( "end" , -128 ) -- Look at end of file
-	if fd:read ( 3 ) == "TAG" then
-		return fd:seek ( "end" , -128 )
-	else
-		return false
-	end
+		[".*%f[%d](%d%d%d%d)%f[%D].*"] = { matches = 1 , replace = "%1" }, -- MAGICAL FRONTIER PATTERN (undocumented)
+	local patterns = {
+function guessyear ( datestring )
 end
+	
+	end
+		return "19" .. capture
+	else 
+		return "20"..capture
+	if tonumber ( capture ) < 30 then -- Break on 30s
+function twodigityear ( capture )
