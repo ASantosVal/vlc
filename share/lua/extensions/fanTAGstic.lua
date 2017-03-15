@@ -6,6 +6,8 @@ function descriptor()
          }
 end
 
+require("share.lua.extensions.libs.id3libBinding")
+
 local txt = {
   int_extension_name= 'fanTAGstic',
   int_help = 'Help',
@@ -43,6 +45,7 @@ local txt = {
     There is no file in the playlist. Please, 
     select on file and then launch this extension. ]],
   int_filename_analysis = 'Run filename analysis',
+  int_posible_names_found = 'These are the possible artist and song names found:',
   int_this_is_artist = 'This is the artist',
   int_this_is_name = 'This is the song',
   int_use_this_artist = 'No, better use this as artist',
@@ -54,10 +57,10 @@ local input_table = {} -- General widget id reference
 local meta_image_path = nil --TODO: temporal, hay que repensarlo
 local metas_table = nil --TODO: temporal, hay que repensarlo
 
-require "ID3"
+--require "ID3"
 
 function activate()    --Initialization
-  vlc.msg.dbg('[StreamIt] init') --Debug message
+  vlc.msg.dbg('[fanTAGstic] initialization') --Debug message
   if vlc.input.item() == nil then 
     launch_error(txt['int_errorNoFile'])
   else 
@@ -66,8 +69,8 @@ function activate()    --Initialization
 end
 
 
-function close()
-  vlc.msg.dbg('[StreamIt] closing') --Debug message
+function deactivate()  --Closing
+  vlc.msg.dbg('[fanTAGstic] closing') --Debug message
   dlg = nil
   collectgarbage() --important
   vlc.deactivate()
@@ -75,8 +78,6 @@ end
 
 
 function close_dlg() --Close a dialog so another one can open
-  vlc.msg.dbg('[StreamIt] closing dialog') --Debug message
-
   if dlg ~= nil then 
     dlg:hide() 
   end
@@ -88,19 +89,15 @@ end
 
 function launch_main_menu()
   close_dlg()
-  vlc.msg.dbg('[StreamIt] launching main menu') --Debug message
   
   dlg = vlc.dialog(txt['int_extension_name'])
 
   fileInfo = getFileInfoHTML()
   input_table['html_fileInfo'] = dlg:add_html(fileInfo, 1, 1, 12, 12)
 
-
   input_table['button_filename_analysis'] = dlg:add_button(txt['int_filename_analysis'], launch_filename_analysis, 14, 1, 1, 1)
   
-  input_table['label_debug'] = dlg:add_label('', 6, 2, 2, 1) --TODO: delete this
   
-
   input_table['button_help'] = dlg:add_button(txt['int_help'], launch_help, 13, 1, 1, 1)
   input_table['button_about'] = dlg:add_button(txt['int_about'], launch_about, 13, 2, 1, 1)
 
@@ -114,15 +111,12 @@ end
 
 function launch_filename_analysis()
   close_dlg()
-  vlc.msg.dbg('[StreamIt] launching filename analysis') --Debug message
   
   dlg = vlc.dialog(txt['int_extension_name'])
 
   candidates=filename_analysis()
 
-
-  --TODO: externalice string
-  dlg:add_label('These are the possible artist and song names found:', 1, 1, 1, 1)
+  dlg:add_label(txt['int_posible_names_found'], 1, 1, 1, 1)
   for key,value in pairs(table_sections) do
     dlg:add_label(value, key, 2, 1, 1)
     dlg:add_button(txt['int_this_is_artist'], set_artist, key, 3, 1, 1)
@@ -141,14 +135,14 @@ end
 
 --TODO: no consigo pasar un valor a estos
 function set_name()--(value)
-  --vlc.input.item():set_meta('title', 'random') --value)
+  vlc.input.item():set_meta('title', 'random') --value)
 
-  uri = vlc.input.item():uri()  
-  decoded_uri = vlc.strings.url_parse(uri)
-  path = unescape(decoded_uri['path'])  
-  tags = { artist = "random",title = "random"  }
+  --uri = vlc.input.item():uri()  
+  --decoded_uri = vlc.strings.url_parse(uri)
+  --path = unescape(decoded_uri['path'])  
+  --tags = { artist = "random",title = "random"  }
   --id3.setV1(path, tags)
-  id3.setV2(path, 'TIT2', 'random')
+  --id3.setV2(path, 'TIT2', 'random')
   --id3.edit ( path , tags , false )
 
 end
@@ -212,7 +206,7 @@ end
 
 function dumb()    
     --TODO: delete this function
-    vlc.msg.dbg('[StreamIt] UNIMPLEMENTED') --Debug message  
+    vlc.msg.dbg('[fanTAGstic] UNIMPLEMENTED') --Debug message  
 end
 
 
@@ -261,7 +255,6 @@ end
 
 function launch_about()
   close_dlg()
-  vlc.msg.dbg('[StreamIt] launching about') --Debug message
   dlg = vlc.dialog(txt['int_extension_name'].. ' >> '..txt['int_help'])
 
   input_table['html_rendererInfo'] = dlg:add_html(txt['int_helpText'], 1, 1, 8, 8)
@@ -273,7 +266,6 @@ end
 
 function launch_help()
   close_dlg()
-  vlc.msg.dbg('[StreamIt] launching help') --Debug message
   dlg = vlc.dialog(txt['int_extension_name'].. ' >> '..txt['int_about'])
 
   input_table['html_rendererInfo'] = dlg:add_html(txt['int_aboutText'], 1, 1, 8, 8)   
@@ -288,7 +280,7 @@ function launch_error(text)
   dlg = vlc.dialog('Error!')
 
   input_table['html_rendererInfo'] = dlg:add_html(text, 1, 1, 8, 8)
-  input_table['button_close'] = dlg:add_button(txt['int_close'], close, 1, 9, 8, 1)
+  input_table['button_close'] = dlg:add_button(txt['int_close'], deactivate, 1, 9, 8, 1)
   
   dlg:show()
 end
