@@ -1,14 +1,16 @@
 //#include <id3/tag.h>    /* id3lib */
+//#include <id3v2lib.h>     /* id3 libraries */
+
 
 #include <lua.h>        /* Lua libraries */
 #include <lauxlib.h>                           
 #include <lualib.h>                            
 
 
-static int same_b(lua_State *L){                /* Internal name of func */
+static int same_b(lua_State *L){            /* Internal name of func */
 	float rtrn = lua_tonumber(L, -1);       /*Get the single number arg */
-	lua_pushnumber(L,rtrn);      /* Push the return */
-	return 1;                              /* One return value */
+	lua_pushnumber(L,rtrn);     			/* Push the return */
+	return 1;                              	/* One return value */
 }
 
 /* Register this file's functions with the
@@ -27,3 +29,4 @@ int luaopen_share_lua_extensions_libs_id3libBinding (lua_State *L){
 	lua_register(L,"same",same_b);
 	return 0;
 }
+
