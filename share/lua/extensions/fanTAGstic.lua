@@ -61,6 +61,8 @@ local metas_table = nil --TODO: temporal, hay que repensarlo
 
 function activate()    --Initialization
   vlc.msg.dbg('[fanTAGstic] initialization') --Debug message
+  filename = GetFileName()
+  readTags(filename)
   if vlc.input.item() == nil then 
     launch_error(txt['int_errorNoFile'])
   else 
