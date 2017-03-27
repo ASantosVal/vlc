@@ -62,7 +62,7 @@ local metas_table = nil --TODO: temporal, hay que repensarlo
 function activate()    --Initialization
   vlc.msg.dbg('[fanTAGstic] initialization') --Debug message
   filename = GetFileName()
-  readTags(filename)
+  set_title(filename, "patata") --TODO: delete this
   if vlc.input.item() == nil then 
     launch_error(txt['int_errorNoFile'])
   else 
@@ -139,23 +139,23 @@ function launch_filename_analysis()
 
 end
 
---TODO: no consigo pasar un valor a estos
-function set_name()--(value)
-  vlc.input.item():set_meta('title', 'random') --value)
+-- --TODO: probablemente elimiar esto
+-- function set_name()--(value)
+--   vlc.input.item():set_meta('title', 'random') --value)
 
-  --uri = vlc.input.item():uri()  
-  --decoded_uri = vlc.strings.url_parse(uri)
-  --path = unescape(decoded_uri['path'])  
-  --tags = { artist = "random",title = "random"  }
-  --id3.setV1(path, tags)
-  --id3.setV2(path, 'TIT2', 'random')
-  --id3.edit ( path , tags , false )
+--   --uri = vlc.input.item():uri()  
+--   --decoded_uri = vlc.strings.url_parse(uri)
+--   --path = unescape(decoded_uri['path'])  
+--   --tags = { artist = "random",title = "random"  }
+--   --id3.setV1(path, tags)
+--   --id3.setV2(path, 'TIT2', 'random')
+--   --id3.edit ( path , tags , false )
 
-end
+-- end
 
-function set_artist()--(value)
-  vlc.input.item():set_meta('artist', 'random') --value)
-end
+-- function set_artist()--(value)
+--   vlc.input.item():set_meta('artist', 'random') --value)
+-- end
 
 function filename_analysis()
   fileName = GetFileName()
