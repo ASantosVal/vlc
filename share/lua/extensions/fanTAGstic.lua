@@ -6,8 +6,10 @@ function descriptor()
          }
 end
 
-require("share.lua.extensions.libs.id3libBinding")
+require("share.lua.extensions.libs.id3libBinding") --My own C program for the LUA and C binding
 
+
+-----------------------------------------------------------TEXT AND TRANSLATIONS--------------------------------------------------------------
 local txt = {
   int_extension_name= 'fanTAGstic',
   int_help = 'Help',
@@ -52,22 +54,28 @@ local txt = {
   int_use_this_name = 'No, better use this as song',
 }
 
+-----------------------------------------------------------NEEDED VARIABLES--------------------------------------------------------------
 local dlg = nil
 local input_table = {} -- General widget id reference
 local meta_image_path = nil --TODO: temporal, hay que repensarlo
 local metas_table = nil --TODO: temporal, hay que repensarlo
 
---require "ID3"
+-----------------------------------------------------------BASIC FUNCTIONS FOR VLC--------------------------------------------------------------
 
 function activate()    --Initialization
   vlc.msg.dbg('[fanTAGstic] initialization') --Debug message
-  filename = GetFileName()
-  set_title(filename, "patata") --TODO: delete this
+  initDebbugShortcut()
   if vlc.input.item() == nil then 
     launch_error(txt['int_errorNoFile'])
   else 
     launch_main_menu()
   end
+end
+
+
+function initDebbugShortcut() --TODO: delete this
+  --this is used to test certain functions during load as a development shortcut
+  return false
 end
 
 function deactivate() --Closing [triggered by problems]
@@ -93,6 +101,11 @@ function close_dlg() --Close a dialog so another one can open
 end
 
 
+function meta_changed()
+  return false --TODO: this is foor when playing track changes
+end
+
+-----------------------------------------------------------GUI CREATION FUNCTIONS--------------------------------------------------------------
 function launch_main_menu()
   close_dlg()
   
@@ -110,12 +123,10 @@ function launch_main_menu()
   input_table['img_artwork'] = dlg:add_image( meta_image_path, 15, 1, 8, 8)
   
   dlg:show()
-
-  set_name()
 end    
 
 
-function launch_filename_analysis()
+function launch_filename_analysis() --TODO: añadir inputs a input_table[]
   close_dlg()
   
   dlg = vlc.dialog(txt['int_extension_name'])
@@ -126,37 +137,52 @@ function launch_filename_analysis()
   for key,value in pairs(table_sections) do
     dlg:add_label(value, key, 2, 1, 1)
     dlg:add_button(txt['int_this_is_artist'], set_artist, key, 3, 1, 1)
-    dlg:add_button(txt['int_this_is_name'], set_name, key, 4, 1, 1)
+    dlg:add_button(txt['int_this_is_name'], set_title, key, 4, 1, 1)
   end
   dlg:add_label('------------------------------------------------------------', 1, 5, 1, 1)
   dlg:add_text_input( artist, 1, 6, 1, 1 )
   dlg:add_button(txt['int_use_this_artist'], set_artist, 2, 6, 1, 1)
   dlg:add_text_input( name, 1, 7, 1, 1 )
-  dlg:add_button(txt['int_use_this_name'], set_name, 2, 7, 1, 1)
-
+  dlg:add_button(txt['int_use_this_name'], set_title, 2, 7, 1, 1)
 
   dlg:show()
-
 end
 
--- --TODO: probablemente elimiar esto
--- function set_name()--(value)
---   vlc.input.item():set_meta('title', 'random') --value)
 
---   --uri = vlc.input.item():uri()  
---   --decoded_uri = vlc.strings.url_parse(uri)
---   --path = unescape(decoded_uri['path'])  
---   --tags = { artist = "random",title = "random"  }
---   --id3.setV1(path, tags)
---   --id3.setV2(path, 'TIT2', 'random')
---   --id3.edit ( path , tags , false )
+function launch_about()
+  close_dlg()
+  dlg = vlc.dialog(txt['int_extension_name'].. ' >> '..txt['int_help'])
 
--- end
+  input_table['html_rendererInfo'] = dlg:add_html(txt['int_helpText'], 1, 1, 8, 8)
+  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
+  
+  dlg:show()
+end
 
--- function set_artist()--(value)
---   vlc.input.item():set_meta('artist', 'random') --value)
--- end
 
+function launch_help()
+  close_dlg()
+  dlg = vlc.dialog(txt['int_extension_name'].. ' >> '..txt['int_about'])
+
+  input_table['html_rendererInfo'] = dlg:add_html(txt['int_aboutText'], 1, 1, 8, 8)   
+  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
+
+  dlg:show()
+end
+
+
+function launch_error(text)
+  close_dlg()
+  vlc.msg.err('[StreamIt] ERROR: '..text) --Debug message  
+  dlg = vlc.dialog('Error!')
+
+  input_table['html_rendererInfo'] = dlg:add_html(text, 1, 1, 8, 8)
+  input_table['button_close'] = dlg:add_button(txt['int_close'], close, 1, 9, 8, 1)
+  
+  dlg:show()
+end
+
+-----------------------------------------------------------OTHER UTILITIES-------------------------------------------------------------
 function filename_analysis()
   fileName = GetFileName()
   bol_spaceFound = false
@@ -203,22 +229,54 @@ function filename_analysis()
   return table_sections
 end
 
-function GetFileName() --gets only the filename of the current playing file
-  uri = vlc.input.item():uri()  
-  path = uri:match("^.+/(.+)$")
-  return unescape(path) --return unescaped filename to file
 
+function hex_to_char (x)
+  return string.char(tonumber(x, 16))
 end
+
+
+function unescape (url) --unescape special chars
+  return url:gsub("%%(%x%x)", hex_to_char)
+end
+
 
 function dumb()    
     --TODO: delete this function
     vlc.msg.dbg('[fanTAGstic] UNIMPLEMENTED') --Debug message  
 end
 
+-----------------------------------------------------------GETTERS--------------------------------------------------------------
+function GetFileName() --gets only the filename of the current playing file
+  uri = vlc.input.item():uri()  
+  path = uri:match("^.+/(.+)$")
+  return unescape(path) --return unescaped filename
+end
 
+function getPath ()  
+  uri = vlc.input.item():uri()  
+  parsed_uri = vlc.strings.url_parse(uri)
+  path = parsed_uri['path']
+  return unescape(path) --return unescaped path to file
+end
+
+-----------------------------------------------------------SETTERS--------------------------------------------------------------
+--[[
+All the setters are done in C and binded to LUA due to VLC limitations. These are de available functions:
+	set_album(path, text)
+	set_artist(path, text)
+	set_album_artist(path, text)
+	set_genre(path, text)
+	set_comment(path, text)
+	set_year(path, text)
+	set_track(path, text)
+	set_disc_number(path, text)
+	set_composer(path, text)
+	set_album_cover(pathToAudio, pathToCover)
+--]]
+
+-----------------------------------------------------------HTML CREATORS--------------------------------------------------------------
 function getFileInfoHTML ()  
   title = vlc.input.item():name()
-
   
   duration = vlc.input.item():duration() --this info is in seconds
   duration_hour = string.format("%.0f", duration / 3600) --this gets the hours
@@ -227,8 +285,7 @@ function getFileInfoHTML ()
   
   uri = vlc.input.item():uri()
   decoded_uri = vlc.strings.url_parse(uri) --Parse URL. Returns a table with fields "protocol", "username", "password", "host", "port", path" and "option".
-  
-  
+    
   metas_html = getMetasHTML()
 
   return 
@@ -250,52 +307,4 @@ function getMetasHTML ()
   meta_image_path = decoded_uri['path']
 
   return metas_html
-end
-
-
-function meta_changed()
-  return false
-end
-
-
-
-function launch_about()
-  close_dlg()
-  dlg = vlc.dialog(txt['int_extension_name'].. ' >> '..txt['int_help'])
-
-  input_table['html_rendererInfo'] = dlg:add_html(txt['int_helpText'], 1, 1, 8, 8)
-  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
-  
-  dlg:show()
-end
-
-
-function launch_help()
-  close_dlg()
-  dlg = vlc.dialog(txt['int_extension_name'].. ' >> '..txt['int_about'])
-
-  input_table['html_rendererInfo'] = dlg:add_html(txt['int_aboutText'], 1, 1, 8, 8)   
-  input_table['button_back'] = dlg:add_button(txt['int_back'], launch_main_menu, 1, 9, 8, 1)
-
-  dlg:show()
-end
-
-function launch_error(text)
-  close_dlg()
-  vlc.msg.err('[StreamIt] ERROR: '..text) --Debug message  
-  dlg = vlc.dialog('Error!')
-
-  input_table['html_rendererInfo'] = dlg:add_html(text, 1, 1, 8, 8)
-  input_table['button_close'] = dlg:add_button(txt['int_close'], close, 1, 9, 8, 1)
-  
-  dlg:show()
-end
-
-
-function hex_to_char (x)
-  return string.char(tonumber(x, 16))
-end
-
-function unescape (url) --unescape special chars
-  return url:gsub("%%(%x%x)", hex_to_char)
 end

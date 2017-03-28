@@ -1,70 +1,153 @@
 #include <id3v2lib.h>     /* id3 libraries */
 
-
 #include <lua.h>        /* Lua libraries */
 #include <lauxlib.h>                           
-#include <lualib.h>                            
+#include <lualib.h>    
+ 
 
-
-// static int readTags_b(lua_State *L){     
-// 	//*char path = lua_getstring(L, -1);       /*Get the single number arg */
-// 	char path[255] = "/home/hal/Downloads/file.mp3";
-// 	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file
-// 	if(tag == NULL)
-// 	{
-// 		tag = new_tag();
-// 	}
+static int set_title_bind(lua_State *L){     
+	char *text = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *path = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
 	
-// 	tag_set_title("Title", 0, tag);
-// 	tag_set_artist("Artist", 0, tag);
-// 	set_tag("/home/hal/Downloads/file.mp3", tag);
-
-// 	// Load the fields from the tag
-// 	ID3v2_frame* artist_frame = tag_get_artist(tag); // Get the full artist frame
-// 	// We need to parse the frame content to make readable
-// 	ID3v2_frame_text_content* artist_content = parse_text_frame_content(artist_frame); 
-// 	printf("ARTIST: %s\n", artist_content->data); // Show the artist info
-		
-// 	ID3v2_frame* title_frame = tag_get_title(tag);
-// 	ID3v2_frame_text_content* title_content = parse_text_frame_content(title_frame);
-// 	printf("TITLE: %s\n", title_content->data);
-
-
-// 	//lua_pushnumber(L,rtrn);     			/* Push the return */
-// 	return 1;                              	/* One return value */
-// }
-
-static int set_title_b(lua_State *L){     
-	const char *path = lua_tostring(L, -1);       /*Get the single number arg */
-	const char *text = lua_tostring(L, -1);       /*Get the single number arg */
-	//char path[255] = "/home/hal/Downloads/file.mp3";
-
-	printf("PATH: %s\n", path);
-	printf("TEXT: %s\n", text);
-	
-	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file
+	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file //TODO: error handling if file not found
 	if(tag == NULL)	{tag = new_tag();}
 	
 	tag_set_title(text, 0, tag);
 	set_tag(path, tag);
 
-	//lua_pushnumber(L,rtrn);     			/* Push the return */
 	return 1;                              	/* One return value */
 }
 
-static int set_artist_b(lua_State *L){     
-	//*char path = lua_getstring(L, -1);       /*Get the single number arg */
-	char path[255] = "/home/hal/Downloads/file.mp3";
+static int set_album_bind(lua_State *L){     
+	char *text = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *path = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
 	
+	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file //TODO: error handling if file not found
+	if(tag == NULL)	{tag = new_tag();}
+	
+	tag_set_album(text, 0, tag);
+	set_tag(path, tag);
+
+	return 1;                              	/* One return value */
+}
+
+static int set_artist_bind(lua_State *L){     
+	char *text = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *path = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
+
 	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file
 	if(tag == NULL)	{tag = new_tag();}
 	
-	tag_set_artist("Artist", 0, tag);
+	tag_set_artist(text, 0, tag);
 	set_tag(path, tag);
 
-	//lua_pushnumber(L,rtrn);     			/* Push the return */
 	return 1;                              	/* One return value */
 }
+
+static int set_album_artist_bind(lua_State *L){     
+	char *text = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *path = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
+
+	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file
+	if(tag == NULL)	{tag = new_tag();}
+	
+	tag_set_album_artist(text, 0, tag);
+	set_tag(path, tag);
+
+	return 1;                              	/* One return value */
+}
+
+static int set_genre_bind(lua_State *L){     
+	char *text = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *path = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
+
+	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file
+	if(tag == NULL)	{tag = new_tag();}
+	
+	tag_set_genre(text, 0, tag);
+	set_tag(path, tag);
+
+	return 1;                              	/* One return value */
+}
+
+static int set_comment_bind(lua_State *L){     
+	char *text = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *path = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
+
+	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file
+	if(tag == NULL)	{tag = new_tag();}
+	
+	tag_set_comment(text, 0, tag);
+	set_tag(path, tag);
+
+	return 1;                              	/* One return value */
+}
+
+static int set_year_bind(lua_State *L){     //TODO: receive INT
+	char *text = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *path = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
+
+	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file
+	if(tag == NULL)	{tag = new_tag();}
+	
+	tag_set_year(text, 0, tag);
+	set_tag(path, tag);
+
+	return 1;                              	/* One return value */
+}
+
+static int set_track_bind(lua_State *L){     //TODO: receive INT
+	char *text = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *path = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
+
+	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file
+	if(tag == NULL)	{tag = new_tag();}
+	
+	tag_set_track(text, 0, tag);
+	set_tag(path, tag);
+
+	return 1;                              	/* One return value */
+}
+
+static int set_disc_number_bind(lua_State *L){   
+	char *text = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *path = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
+
+	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file
+	if(tag == NULL)	{tag = new_tag();}
+	
+	tag_set_disc_number(text, 0, tag);
+	set_tag(path, tag);
+
+	return 1;                              	/* One return value */
+}
+
+static int set_composer_bind(lua_State *L){     
+	char *text = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *path = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
+
+	ID3v2_tag* tag = load_tag(path); // Load the full tag from the file
+	if(tag == NULL)	{tag = new_tag();}
+	
+	tag_set_composer(text, 0, tag);
+	set_tag(path, tag);
+
+	return 1;                              	/* One return value */
+}
+
+static int set_album_cover_bind(lua_State *L){     //gets the path to the file
+	char *pathToCover = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
+	char *pathToAudio = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
+
+	ID3v2_tag* tag = load_tag(pathToAudio); // Load the full tag from the file
+	if(tag == NULL)	{tag = new_tag();}
+	
+	tag_set_album_cover(pathToCover, tag);
+	set_tag(pathToAudio, tag);
+
+	return 1;                              	/* One return value */
+}
+
 
 /* Register this file's functions with the
  * luaopen_libraryname() function, where libraryname
@@ -74,15 +157,21 @@ static int set_artist_b(lua_State *L){
  *
 */
 int luaopen_share_lua_extensions_libs_id3libBinding (lua_State *L){ 
-//	lua_register(
-//			L,               /* Lua state variable */
-//			"square",        /* func name as known in Lua */
-//			isquare          /* func name in this file */
-//			);  
-//	lua_register(L,"readTags",readTags_b);
-	lua_register(L,"set_title",set_title_b);
-	lua_register(L,"set_artist",set_artist_b);
-
+	lua_register(
+			L,               	/* Lua state variable */
+			"set_title",        /* func name as known in Lua */
+			set_title_bind         /* func name in this file */
+			);  
+	lua_register(L,"set_album",set_album_bind);
+	lua_register(L,"set_artist",set_artist_bind);
+	lua_register(L,"set_album_artist",set_album_artist_bind);
+	lua_register(L,"set_genre",set_genre_bind);
+	lua_register(L,"set_comment",set_comment_bind);
+	lua_register(L,"set_year",set_year_bind);
+	lua_register(L,"set_track",set_track_bind);
+	lua_register(L,"set_disc_number",set_disc_number_bind);
+	lua_register(L,"set_composer",set_composer_bind);
+	lua_register(L,"set_album_cover",set_album_cover_bind);
 
 	return 0;
 }
