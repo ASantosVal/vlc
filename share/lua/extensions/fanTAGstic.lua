@@ -75,6 +75,14 @@ end
 
 function initDebbugShortcut() --TODO: delete this
   --this is used to test certain functions during load as a development shortcut
+  
+  --path = getPath()
+  --text = "composer"
+  --set_composer(path, text)
+  
+  pathToAudio = getPath() 
+  pathToCover = "/home/hal/Downloads/img.jpg"  
+  set_album_cover(pathToAudio, pathToCover)
   return false
 end
 

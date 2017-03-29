@@ -139,10 +139,25 @@ static int set_album_cover_bind(lua_State *L){     //gets the path to the file
 	char *pathToCover = (char*)lua_tostring(L, -1);       /*Get 2nd arg, string */
 	char *pathToAudio = (char*)lua_tostring(L, -2);       /*Get 1st arg, string */
 
+printf("pathToCover: %s\n", pathToCover); //TODO: delete this
+printf("pathToAudio: %s\n", pathToAudio);//TODO: delete this
+pathToCover = "/home/hal/Downloads/Bynn the Breaker.mp3";//TODO: delete this
+pathToAudio = "/home/hal/Downloads/img.jpg";//TODO: delete this
+printf("pathToCover: %s\n", pathToCover);//TODO: delete this
+printf("pathToAudio: %s\n", pathToAudio);//TODO: delete this
+
 	ID3v2_tag* tag = load_tag(pathToAudio); // Load the full tag from the file
+
+printf("aaa\n");//TODO: delete this
+
 	if(tag == NULL)	{tag = new_tag();}
-	
+
+printf("bbb\n");//TODO: delete this
+
 	tag_set_album_cover(pathToCover, tag);
+	
+printf("ccc\n");//TODO: delete this
+
 	set_tag(pathToAudio, tag);
 
 	return 1;                              	/* One return value */
