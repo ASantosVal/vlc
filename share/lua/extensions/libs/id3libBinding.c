@@ -15,7 +15,7 @@ static int set_title_bind(lua_State *L){
 	tag_set_title(text, 0, tag);
 	set_tag(path, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 static int set_album_bind(lua_State *L){     
@@ -28,7 +28,7 @@ static int set_album_bind(lua_State *L){
 	tag_set_album(text, 0, tag);
 	set_tag(path, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 static int set_artist_bind(lua_State *L){     
@@ -41,7 +41,7 @@ static int set_artist_bind(lua_State *L){
 	tag_set_artist(text, 0, tag);
 	set_tag(path, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 static int set_album_artist_bind(lua_State *L){     
@@ -54,7 +54,7 @@ static int set_album_artist_bind(lua_State *L){
 	tag_set_album_artist(text, 0, tag);
 	set_tag(path, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 static int set_genre_bind(lua_State *L){     
@@ -67,7 +67,7 @@ static int set_genre_bind(lua_State *L){
 	tag_set_genre(text, 0, tag);
 	set_tag(path, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 static int set_comment_bind(lua_State *L){     
@@ -80,7 +80,7 @@ static int set_comment_bind(lua_State *L){
 	tag_set_comment(text, 0, tag);
 	set_tag(path, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 static int set_year_bind(lua_State *L){     //TODO: receive INT
@@ -93,7 +93,7 @@ static int set_year_bind(lua_State *L){     //TODO: receive INT
 	tag_set_year(text, 0, tag);
 	set_tag(path, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 static int set_track_bind(lua_State *L){     //TODO: receive INT
@@ -106,7 +106,7 @@ static int set_track_bind(lua_State *L){     //TODO: receive INT
 	tag_set_track(text, 0, tag);
 	set_tag(path, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 static int set_disc_number_bind(lua_State *L){   
@@ -119,7 +119,7 @@ static int set_disc_number_bind(lua_State *L){
 	tag_set_disc_number(text, 0, tag);
 	set_tag(path, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 static int set_composer_bind(lua_State *L){     
@@ -132,7 +132,7 @@ static int set_composer_bind(lua_State *L){
 	tag_set_composer(text, 0, tag);
 	set_tag(path, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 static int set_album_cover_bind(lua_State *L){     //gets the path to the file
@@ -155,12 +155,12 @@ printf("aaa\n");//TODO: delete this
 printf("bbb\n");//TODO: delete this
 
 	tag_set_album_cover(pathToCover, tag);
-	
+
 printf("ccc\n");//TODO: delete this
 
 	set_tag(pathToAudio, tag);
 
-	return 1;                              	/* One return value */
+	return 0;   /* no return values */
 }
 
 
