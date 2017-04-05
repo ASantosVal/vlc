@@ -80,9 +80,10 @@ function initDebbugShortcut() --TODO: delete this
   --text = "composer"
   --set_composer(path, text)
   
-  pathToAudio = getPath() 
-  pathToCover = "/home/hal/Downloads/img.jpg"  
-  set_album_cover(pathToAudio, pathToCover)
+  --pathToAudio = getPath() 
+  --pathToCover = "/home/hal/Downloads/img.jpg"  
+  --set_album_cover(pathToAudio, pathToCover)
+
   return false
 end
 
@@ -140,18 +141,20 @@ function launch_filename_analysis() --TODO: añadir inputs a input_table[]
   dlg = vlc.dialog(txt['int_extension_name'])
 
   candidates=filename_analysis()
+  path=getPath()
 
   dlg:add_label(txt['int_posible_names_found'], 1, 1, 1, 1)
   for key,value in pairs(table_sections) do
     dlg:add_label(value, key, 2, 1, 1)
-    dlg:add_button(txt['int_this_is_artist'], set_artist, key, 3, 1, 1)
-    dlg:add_button(txt['int_this_is_name'], set_title, key, 4, 1, 1)
+    dlg:add_button(txt['int_this_is_artist'], function() set_artist(path,value) end, key, 3, 1, 1)
+    dlg:add_button(txt['int_this_is_name'], function() set_title(path,value) end, key, 4, 1, 1)
+    dlg:add_label('------------------------------------------------------------', key, 5, 1, 1)   
   end
-  dlg:add_label('------------------------------------------------------------', 1, 5, 1, 1)
-  dlg:add_text_input( artist, 1, 6, 1, 1 )
-  dlg:add_button(txt['int_use_this_artist'], set_artist, 2, 6, 1, 1)
-  dlg:add_text_input( name, 1, 7, 1, 1 )
-  dlg:add_button(txt['int_use_this_name'], set_title, 2, 7, 1, 1)
+  text = "Custom editable text"
+  input_table['input_artist'] = dlg:add_text_input( text, 1, 6, 1, 1 )
+  dlg:add_button(txt['int_use_this_artist'], set_custom_artist, 2, 6, 1, 1)
+  input_table['input_title'] = dlg:add_text_input( text, 1, 7, 1, 1 )
+  dlg:add_button(txt['int_use_this_name'], set_custom_title , 2, 7, 1, 1)
 
   dlg:show()
 end
@@ -247,6 +250,15 @@ function unescape (url) --unescape special chars
   return url:gsub("%%(%x%x)", hex_to_char)
 end
 
+
+function set_custom_artist () --get text from input and redirect to set_artist
+  set_artist(getPath(),input_table['input_artist']:get_text())
+end
+
+
+function set_custom_title () --get text from input and redirect to set_artist
+  set_title(getPath(),input_table['input_title']:get_text())
+end
 
 function dumb()    
     --TODO: delete this function
