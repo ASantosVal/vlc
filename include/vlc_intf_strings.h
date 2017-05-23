@@ -53,6 +53,7 @@
 /******************* Menus *****************/
 
 #define I_MENU_INFO  N_("Media &Information")
+#define I_MENU_INFO_EXTENDED  N_("Media &Information Extended")
 #define I_MENU_CODECINFO  N_("&Codec Information")
 #define I_MENU_MSG   N_("&Messages")
 #define I_MENU_GOTOTIME N_("Jump to Specific &Time")
