@@ -67,13 +67,3 @@ if HAVE_WIN32_DESKTOP
 control_LTLIBRARIES += libntservice_plugin.la
 control_LTLIBRARIES += libwin_hotkeys_plugin.la libwin_msg_plugin.la
 endif
-
-# ---------------------------------
-# Comienzo del código de mi modulo:
-# ---------------------------------
-libhello_plugin_la_SOURCES = control/hello/hello.c
-libhello_plugin_la_CFLAGS = $(AM_CFLAGS)
-libhello_plugin_la_LIBADD = $(AM_LIBADD)
-libhello_plugin_la_DEPENDENCIES =
-# Always compile the hello module:
-control_LTLIBRARIES += libhello_plugin.la
