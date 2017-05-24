@@ -57,6 +57,7 @@
 #include "dialogs/external.hpp"
 #include "dialogs/epg.hpp"
 #include "dialogs/errors.hpp"
+#include "dialogs/extendedmetamanager.hpp" //TODO: Added by Asier Santos
 
 #include <QEvent>
 #include <QApplication>
@@ -93,6 +94,7 @@ DialogsProvider::~DialogsProvider()
 {
     PlaylistDialog::killInstance();
     MediaInfoDialog::killInstance();
+    ExtMetaManagerDialog::killInstance(); //TODO: Added by Asier Santos
     MessagesDialog::killInstance();
     BookmarksDialog::killInstance();
     HelpDialog::killInstance();
@@ -175,6 +177,8 @@ void DialogsProvider::customEvent( QEvent *event )
             messagesDialog(); break;
         case INTF_DIALOG_FILEINFO:
            mediaInfoDialog(); break;
+        case INTF_DIALOG_METAMANAGER:
+           ExtMetaManagerDialog(); break; //TODO: Added by Asier Santos
         case INTF_DIALOG_PREFS:
            prefsDialog(); break;
         case INTF_DIALOG_BOOKMARKS:
@@ -310,6 +314,11 @@ void DialogsProvider::aboutDialog()
 void DialogsProvider::mediaInfoDialog()
 {
     MediaInfoDialog::getInstance( p_intf )->showTab( MediaInfoDialog::META_PANEL );
+}
+
+void DialogsProvider::ExtMetaManagerDialog() //TODO: Added by Asier Santos
+{
+    ExtMetaManagerDialog::getInstance( p_intf )->toggleVisible();
 }
 
 void DialogsProvider::mediaCodecDialog()

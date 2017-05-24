@@ -422,6 +422,10 @@ QMenu *VLCMenuBar::ToolsMenu( intf_thread_t *p_intf, QMenu *menu )
 
     addDPStaticEntry( menu, qtr( I_MENU_INFO ) , ":/menu/info",
         SLOT( mediaInfoDialog() ), "Ctrl+I" );
+
+    addDPStaticEntry( menu, qtr( I_MENU_EXTENDED_METADATA ) , ":/menu/info",
+        SLOT( ExtMetaManagerDialog() ), "Ctrl+Shift+I" ); //TODO: Added by Asier Santos
+
     addDPStaticEntry( menu, qtr( I_MENU_CODECINFO ) ,
         ":/menu/info", SLOT( mediaCodecDialog() ), "Ctrl+J" );
 
