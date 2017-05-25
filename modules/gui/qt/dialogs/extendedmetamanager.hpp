@@ -24,19 +24,15 @@
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
 
-class QTimeEdit;
-
 class ExtMetaManagerDialog : public QVLCDialog, public Singleton<ExtMetaManagerDialog>
 {
     Q_OBJECT
 private:
     ExtMetaManagerDialog( intf_thread_t * );
     virtual ~ExtMetaManagerDialog();
-    QTimeEdit *timeEdit;
 private slots:
     void close() Q_DECL_OVERRIDE;
     void cancel() Q_DECL_OVERRIDE;
-    void reset();
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:

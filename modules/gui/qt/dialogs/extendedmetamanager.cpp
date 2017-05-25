@@ -28,7 +28,6 @@
 
 #include <QTabWidget>
 #include <QLabel>
-#include <QTimeEdit>
 #include <QGroupBox>
 #include <QDialogButtonBox>
 #include <QPushButton>
@@ -36,82 +35,51 @@
 ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
                : QVLCDialog( (QWidget*)_p_intf->p_sys->p_mi, _p_intf )
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initializing" );
     setWindowFlags( Qt::Tool );
-    setWindowTitle( qtr( "Go to Time" ) );
-    setWindowRole( "vlc-goto-time" );
+    setWindowTitle( qtr( "Extended Metadata Manager" ) );
+    setWindowRole( "vlc-ext-meta-manager" );
 
     QGridLayout *mainLayout = new QGridLayout( this );
     mainLayout->setSizeConstraint( QLayout::SetFixedSize );
 
-    QPushButton *gotoButton = new QPushButton( qtr( "&Go" ) );
     QPushButton *cancelButton = new QPushButton( qtr( "&Cancel" ) );
     QDialogButtonBox *buttonBox = new QDialogButtonBox;
 
-    gotoButton->setDefault( true );
-    buttonBox->addButton( gotoButton, QDialogButtonBox::AcceptRole );
     buttonBox->addButton( cancelButton, QDialogButtonBox::RejectRole );
-
-    QLabel *timeIntro = new QLabel( qtr( "Go to time" ) + ":" );
-    timeIntro->setWordWrap( true );
-    timeIntro->setAlignment( Qt::AlignCenter );
-
-    timeEdit = new QTimeEdit();
-    timeEdit->setDisplayFormat( "HH'H':mm'm':ss's'" );
-    timeEdit->setAlignment( Qt::AlignRight );
-    timeEdit->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Minimum );
-
-    QPushButton *resetButton = new QPushButton( QIcon(":/update"), "" );
-    resetButton->setToolTip( qtr("Reset") );
-
-    mainLayout->addWidget( timeIntro, 0, 0, 1, 1 );
-    mainLayout->addWidget( timeEdit, 0, 1, 1, 1 );
-    mainLayout->addWidget( resetButton, 0, 2, 1, 1 );
 
     mainLayout->addWidget( buttonBox, 1, 0, 1, 3 );
 
-    BUTTONACT( gotoButton, close() );
     BUTTONACT( cancelButton, cancel() );
-    BUTTONACT( resetButton, reset() );
 
-    QVLCTools::restoreWidgetPosition( p_intf, "MediaInfoDialog", this );
+    QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
+
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initialization Finished" );
 }
 
-MediaInfoDialog::~MediaInfoDialog()
+ExtMetaManagerDialog::~ExtMetaManagerDialog()
 {
-    QVLCTools::saveWidgetPosition( p_intf, "MediaInfoDialog", this );
+    QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Saving position" );
 }
 
-void MediaInfoDialog::toggleVisible()
+void ExtMetaManagerDialog::toggleVisible()
 {
-    reset();
-    if ( !isVisible() && THEMIM->getIM()->hasInput() )
-    {
-        int64_t i_time = var_GetInteger( THEMIM->getInput(), "time" );
-        timeEdit->setTime( timeEdit->time().addSecs( i_time / CLOCK_FREQ ) );
-    }
     QVLCDialog::toggleVisible();
     if(isVisible())
         activateWindow();
+
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Toggle Visible" );
 }
 
-void MediaInfoDialog::cancel()
+void ExtMetaManagerDialog::cancel()
 {
-    reset();
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Canceling" );
     toggleVisible();
 }
 
-void MediaInfoDialog::close()
+void ExtMetaManagerDialog::close()
 {
-    if ( THEMIM->getIM()->hasInput() )
-    {
-        int64_t i_time = (int64_t)
-            ( QTime( 0, 0, 0 ).msecsTo( timeEdit->time() ) ) * 1000;
-        var_SetInteger( THEMIM->getInput(), "time", i_time );
-    }
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" );
     toggleVisible();
-}
-
-void MediaInfoDialog::reset()
-{
-    timeEdit->setTime( QTime( 0, 0, 0) );
 }

@@ -58,7 +58,7 @@ libqt_plugin_la_SOURCES = \
 	dialogs/bookmarks.cpp dialogs/bookmarks.hpp \
 	dialogs/preferences.cpp dialogs/preferences.hpp \
 	dialogs/mediainfo.cpp dialogs/mediainfo.hpp \
-	dialogs/extendedmetamanager.cpp dialogs/extendedmetamanager.hpp \ #TODO: Added by Asier Santos
+	dialogs/extendedmetamanager.cpp dialogs/extendedmetamanager.hpp \
 	dialogs/epg.cpp dialogs/epg.hpp \
 	dialogs/extended.cpp dialogs/extended.hpp \
 	dialogs/messages.cpp dialogs/messages.hpp \
@@ -158,6 +158,7 @@ nodist_libqt_plugin_la_SOURCES = \
 	dialogs/playlist.moc.cpp \
 	dialogs/bookmarks.moc.cpp \
 	dialogs/mediainfo.moc.cpp \
+	dialogs/extendedmetamanager.moc.cpp \
 	dialogs/extended.moc.cpp \
 	dialogs/messages.moc.cpp \
 	dialogs/epg.moc.cpp \
