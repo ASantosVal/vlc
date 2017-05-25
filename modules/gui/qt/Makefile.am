@@ -58,7 +58,7 @@ libqt_plugin_la_SOURCES = \
 	dialogs/bookmarks.cpp dialogs/bookmarks.hpp \
 	dialogs/preferences.cpp dialogs/preferences.hpp \
 	dialogs/mediainfo.cpp dialogs/mediainfo.hpp \
-	dialogs/extendedmetamanager.cpp dialogs/extendedmetamanager.hpp \
+	dialogs/extendedmetamanager.cpp dialogs/extendedmetamanager.hpp #Added by Asier Santos \
 	dialogs/epg.cpp dialogs/epg.hpp \
 	dialogs/extended.cpp dialogs/extended.hpp \
 	dialogs/messages.cpp dialogs/messages.hpp \
