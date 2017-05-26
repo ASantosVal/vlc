@@ -240,7 +240,8 @@ nodist_libqt_plugin_la_SOURCES += \
 	ui/about.h \
 	ui/update.h \
 	ui/fingerprintdialog.h \
-	ui/sout.h
+	ui/sout.h \
+	ui/extmetamanager.h #Added by Asier Santos
 
 # User interface compilation
 
