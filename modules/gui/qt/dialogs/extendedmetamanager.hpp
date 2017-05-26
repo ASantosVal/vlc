@@ -24,12 +24,16 @@
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
 
+#include "ui/extmetamanager.h" //include de compiled version of extmetamanager.ui
+
 class ExtMetaManagerDialog : public QVLCDialog, public Singleton<ExtMetaManagerDialog>
 {
     Q_OBJECT
 private:
     ExtMetaManagerDialog( intf_thread_t * );
     virtual ~ExtMetaManagerDialog();
+
+    Ui::ExtMetaManagerWidget ui; //add de ui
 private slots:
     void close() Q_DECL_OVERRIDE;
     void cancel() Q_DECL_OVERRIDE;

@@ -26,9 +26,9 @@
 
 #include "input_manager.hpp"
 
-#include <QTabWidget>
-#include <QLabel>
-#include <QGroupBox>
+// #include <QTabWidget>
+// #include <QLabel>
+// #include <QGroupBox>
 #include <QDialogButtonBox>
 #include <QPushButton>
 
@@ -40,17 +40,32 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     setWindowTitle( qtr( "Extended Metadata Manager" ) );
     setWindowRole( "vlc-ext-meta-manager" );
 
-    QGridLayout *mainLayout = new QGridLayout( this );
-    mainLayout->setSizeConstraint( QLayout::SetFixedSize );
+    ui.setupUi( this );
 
-    QPushButton *cancelButton = new QPushButton( qtr( "&Cancel" ) );
-    QDialogButtonBox *buttonBox = new QDialogButtonBox;
+    ui.tableWidget_metadata->insertRow(0);
+    ui.tableWidget_metadata->insertRow(1);
+    ui.tableWidget_metadata->insertRow(2);
+    ui.tableWidget_metadata->insertRow(3);
+    ui.tableWidget_metadata->insertRow(4);
+    ui.tableWidget_metadata->insertRow(5);
+    ui.tableWidget_metadata->insertRow(6);
+    ui.tableWidget_metadata->insertRow(7);
+    ui.tableWidget_metadata->setItem(0, 0, new QTableWidgetItem( "patata1" ));
+    ui.tableWidget_metadata->setItem(1, 1, new QTableWidgetItem( "patata2" ));
+    ui.tableWidget_metadata->setItem(2, 2, new QTableWidgetItem( "patata3" ));
 
-    buttonBox->addButton( cancelButton, QDialogButtonBox::RejectRole );
+    // BUTTONACT( pushButton_cancel, cancel() );
 
-    mainLayout->addWidget( buttonBox, 1, 0, 1, 3 );
-
-    BUTTONACT( cancelButton, cancel() );
+    // QGridLayout *mainLayout = new QGridLayout( this );
+    // mainLayout->setSizeConstraint( QLayout::SetFixedSize );
+    //
+    // QPushButton *cancelButton = new QPushButton( qtr( "&Cancel" ) );
+    // QDialogButtonBox *buttonBox = new QDialogButtonBox;
+    //
+    // buttonBox->addButton( cancelButton, QDialogButtonBox::RejectRole );
+    //
+    // mainLayout->addWidget( buttonBox, 1, 0, 1, 3 );
+    //
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 
