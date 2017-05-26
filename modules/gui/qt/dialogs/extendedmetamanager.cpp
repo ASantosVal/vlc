@@ -42,6 +42,8 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 
     ui.setupUi( this );
 
+
+    //TODO: delete this section
     ui.tableWidget_metadata->insertRow(0);
     ui.tableWidget_metadata->insertRow(1);
     ui.tableWidget_metadata->insertRow(2);
@@ -54,7 +56,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.tableWidget_metadata->setItem(1, 1, new QTableWidgetItem( "patata2" ));
     ui.tableWidget_metadata->setItem(2, 2, new QTableWidgetItem( "patata3" ));
 
-    // BUTTONACT( pushButton_cancel, cancel() );
+    BUTTONACT( ui.pushButton_cancel, cancel() );
 
     // QGridLayout *mainLayout = new QGridLayout( this );
     // mainLayout->setSizeConstraint( QLayout::SetFixedSize );
@@ -97,4 +99,5 @@ void ExtMetaManagerDialog::close()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" );
     toggleVisible();
+    hide();
 }
