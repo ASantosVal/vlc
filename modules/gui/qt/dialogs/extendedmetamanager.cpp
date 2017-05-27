@@ -56,7 +56,15 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.tableWidget_metadata->setItem(1, 1, new QTableWidgetItem( "patata2" ));
     ui.tableWidget_metadata->setItem(2, 2, new QTableWidgetItem( "patata3" ));
 
+    //button bindings
     BUTTONACT( ui.pushButton_cancel, cancel() );
+    BUTTONACT( ui.pushButton_getFromPlaylist, getFromPlaylist() );
+    BUTTONACT( ui.pushButton_getFromFolder, getFromFolder() );
+    BUTTONACT( ui.pushButton_searchNow, searchNow() );
+    BUTTONACT( ui.pushButton_saveAll, saveAll() );
+    BUTTONACT( ui.pushButton_restoreAll, restoreAll() );
+    BUTTONACT( ui.pushButton_help, help() );
+    BUTTONACT( ui.pushButton_about, about() );
 
     // QGridLayout *mainLayout = new QGridLayout( this );
     // mainLayout->setSizeConstraint( QLayout::SetFixedSize );
@@ -99,5 +107,39 @@ void ExtMetaManagerDialog::close()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" );
     toggleVisible();
-    hide();
+}
+
+void ExtMetaManagerDialog::getFromPlaylist()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromPlaylist" );
+}
+
+void ExtMetaManagerDialog::getFromFolder()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromFolder" );
+}
+
+void ExtMetaManagerDialog::searchNow()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] searchNow" );
+}
+
+void ExtMetaManagerDialog::saveAll()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] saveAll" );
+}
+
+void ExtMetaManagerDialog::restoreAll()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] restoreAll" );
+}
+
+void ExtMetaManagerDialog::help()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] help" );
+}
+
+void ExtMetaManagerDialog::about()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] about" );
 }

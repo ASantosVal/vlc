@@ -38,6 +38,14 @@ private slots:
     void close() Q_DECL_OVERRIDE;
     void cancel() Q_DECL_OVERRIDE;
 
+    void getFromPlaylist();
+    void getFromFolder();
+    void searchNow();
+    void saveAll();
+    void restoreAll();
+    void help();
+    void about();
+
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
     void toggleVisible();
