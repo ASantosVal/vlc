@@ -25,6 +25,7 @@
 #include "dialogs/extendedmetamanager.hpp"
 
 #include "input_manager.hpp"
+#include "dialogs_provider.hpp" /* THEDP creation */
 
 // #include <QTabWidget>
 // #include <QLabel>
@@ -40,7 +41,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     setWindowTitle( qtr( "Extended Metadata Manager" ) );
     setWindowRole( "vlc-ext-meta-manager" );
 
-    ui.setupUi( this );
+    ui.setupUi( this ); //setup the UI from de compiled (.h) version of de QT ui (.ui)
 
 
     //TODO: delete this section
@@ -52,9 +53,9 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.tableWidget_metadata->insertRow(5);
     ui.tableWidget_metadata->insertRow(6);
     ui.tableWidget_metadata->insertRow(7);
-    ui.tableWidget_metadata->setItem(0, 0, new QTableWidgetItem( "patata1" ));
-    ui.tableWidget_metadata->setItem(1, 1, new QTableWidgetItem( "patata2" ));
-    ui.tableWidget_metadata->setItem(2, 2, new QTableWidgetItem( "patata3" ));
+    ui.tableWidget_metadata->setItem(0, 0, new QTableWidgetItem( "test text 1" ));
+    ui.tableWidget_metadata->setItem(0, 1, new QTableWidgetItem( "test text 2" ));
+    ui.tableWidget_metadata->setItem(0, 2, new QTableWidgetItem( "test text 3" ));
 
     //button bindings
     BUTTONACT( ui.pushButton_cancel, cancel() );
@@ -79,13 +80,13 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initialization Finished" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initialization Finished" ); //TODO: delete this
 }
 
 ExtMetaManagerDialog::~ExtMetaManagerDialog()
 {
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Saving position" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Saving position" ); //TODO: delete this
 }
 
 void ExtMetaManagerDialog::toggleVisible()
@@ -94,52 +95,65 @@ void ExtMetaManagerDialog::toggleVisible()
     if(isVisible())
         activateWindow();
 
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Toggle Visible" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Toggle Visible" ); //TODO: delete this
 }
 
 void ExtMetaManagerDialog::cancel()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Canceling" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Canceling" ); //TODO: delete this
     toggleVisible();
 }
 
 void ExtMetaManagerDialog::close()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" ); //TODO: delete this
     toggleVisible();
 }
 
 void ExtMetaManagerDialog::getFromPlaylist()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromPlaylist" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromPlaylist" ); //TODO: delete this
 }
 
 void ExtMetaManagerDialog::getFromFolder()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromFolder" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromFolder" ); //TODO: delete this
+
+    //open a file explorer just with audio files
+    QStringList urls = THEDP->showSimpleOpen(
+        qtr("Open audio files to manage"),
+        EXT_FILTER_AUDIO,
+        p_intf->p_sys->filepath );
+
+    foreach( const QString &url, urls )
+    {
+        msg_Dbg( p_intf, url.toLatin1() ); //TODO: delete this
+        //qtu(url) may be needed
+    }
+
 }
 
 void ExtMetaManagerDialog::searchNow()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] searchNow" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] searchNow" ); //TODO: delete this
 }
 
 void ExtMetaManagerDialog::saveAll()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] saveAll" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] saveAll" ); //TODO: delete this
 }
 
 void ExtMetaManagerDialog::restoreAll()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] restoreAll" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] restoreAll" ); //TODO: delete this
 }
 
 void ExtMetaManagerDialog::help()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] help" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] help" ); //TODO: delete this
 }
 
 void ExtMetaManagerDialog::about()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] about" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] about" ); //TODO: delete this
 }
