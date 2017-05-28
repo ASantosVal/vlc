@@ -36,26 +36,12 @@
 ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
                : QVLCDialog( (QWidget*)_p_intf->p_sys->p_mi, _p_intf )
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initializing" );
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initializing" ); //TODO: delete this
     setWindowFlags( Qt::Tool );
     setWindowTitle( qtr( "Extended Metadata Manager" ) );
     setWindowRole( "vlc-ext-meta-manager" );
 
     ui.setupUi( this ); //setup the UI from de compiled (.h) version of de QT ui (.ui)
-
-
-    //TODO: delete this section
-    ui.tableWidget_metadata->insertRow(0);
-    ui.tableWidget_metadata->insertRow(1);
-    ui.tableWidget_metadata->insertRow(2);
-    ui.tableWidget_metadata->insertRow(3);
-    ui.tableWidget_metadata->insertRow(4);
-    ui.tableWidget_metadata->insertRow(5);
-    ui.tableWidget_metadata->insertRow(6);
-    ui.tableWidget_metadata->insertRow(7);
-    ui.tableWidget_metadata->setItem(0, 0, new QTableWidgetItem( "test text 1" ));
-    ui.tableWidget_metadata->setItem(0, 1, new QTableWidgetItem( "test text 2" ));
-    ui.tableWidget_metadata->setItem(0, 2, new QTableWidgetItem( "test text 3" ));
 
     //button bindings
     BUTTONACT( ui.pushButton_cancel, cancel() );
@@ -66,17 +52,18 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     BUTTONACT( ui.pushButton_restoreAll, restoreAll() );
     BUTTONACT( ui.pushButton_help, help() );
     BUTTONACT( ui.pushButton_about, about() );
+    BUTTONACT( ui.pushButton_clearTable, clearTable() );
 
-    // QGridLayout *mainLayout = new QGridLayout( this );
-    // mainLayout->setSizeConstraint( QLayout::SetFixedSize );
-    //
-    // QPushButton *cancelButton = new QPushButton( qtr( "&Cancel" ) );
-    // QDialogButtonBox *buttonBox = new QDialogButtonBox;
-    //
-    // buttonBox->addButton( cancelButton, QDialogButtonBox::RejectRole );
-    //
-    // mainLayout->addWidget( buttonBox, 1, 0, 1, 3 );
-    //
+    //Set de table columns' size
+    ui.tableWidget_metadata->setColumnWidth(0, 30); //CheckBox
+    ui.tableWidget_metadata->setColumnWidth(1, 200); //Title
+    ui.tableWidget_metadata->setColumnWidth(2, 200); //Artist
+    ui.tableWidget_metadata->setColumnWidth(3, 200); //Album
+    ui.tableWidget_metadata->setColumnWidth(4, 120); //Genre
+    ui.tableWidget_metadata->setColumnWidth(5, 70); //Track #
+    ui.tableWidget_metadata->setColumnWidth(6, 120); //Publisher
+    ui.tableWidget_metadata->setColumnWidth(7, 120); //Copyright
+    ui.tableWidget_metadata->setColumnWidth(8, 70); //Artwork
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 
@@ -124,7 +111,7 @@ void ExtMetaManagerDialog::getFromFolder()
         qtr("Open audio files to manage"),
         EXT_FILTER_AUDIO,
         p_intf->p_sys->filepath );
-    clearTable();
+    //clearTable();
 
     foreach( const QString &url, urls )
     {
@@ -164,19 +151,22 @@ void ExtMetaManagerDialog::clearTable()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] clearTable" ); //TODO: delete this
     ui.tableWidget_metadata->clearContents();
+    ui.tableWidget_metadata->setRowCount(0);
 }
 
 void ExtMetaManagerDialog::addTableEntry(QString url)
 {
+    int row =   ui.tableWidget_metadata->rowCount();
+    ui.tableWidget_metadata->insertRow(row);
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" ); //TODO: delete this
-    ui.tableWidget_metadata->setItem(0, 0, new QTableWidgetItem( "**CheckBox**" ));
-    ui.tableWidget_metadata->setItem(0, 1, new QTableWidgetItem( "Title" ));
-    ui.tableWidget_metadata->setItem(0, 2, new QTableWidgetItem( "Artist" ));
-    ui.tableWidget_metadata->setItem(0, 3, new QTableWidgetItem( "Album" ));
-    ui.tableWidget_metadata->setItem(0, 4, new QTableWidgetItem( "Genre" ));
-    ui.tableWidget_metadata->setItem(0, 5, new QTableWidgetItem( "Track #" ));
-    ui.tableWidget_metadata->setItem(0, 6, new QTableWidgetItem( "Publisher" ));
-    ui.tableWidget_metadata->setItem(0, 7, new QTableWidgetItem( "Copyright" ));
-    ui.tableWidget_metadata->setItem(0, 8, new QTableWidgetItem( "Artwork" ));
+    ui.tableWidget_metadata->setItem(row, 0, new QTableWidgetItem( "**CheckBox**" ));
+    ui.tableWidget_metadata->setItem(row, 1, new QTableWidgetItem( "Title" ));
+    ui.tableWidget_metadata->setItem(row, 2, new QTableWidgetItem( "Artist" ));
+    ui.tableWidget_metadata->setItem(row, 3, new QTableWidgetItem( "Album" ));
+    ui.tableWidget_metadata->setItem(row, 4, new QTableWidgetItem( "Genre" ));
+    ui.tableWidget_metadata->setItem(row, 5, new QTableWidgetItem( "Track #" ));
+    ui.tableWidget_metadata->setItem(row, 6, new QTableWidgetItem( "Publisher" ));
+    ui.tableWidget_metadata->setItem(row, 7, new QTableWidgetItem( "Copyright" ));
+    ui.tableWidget_metadata->setItem(row, 8, new QTableWidgetItem( "Artwork" ));
 
 }
