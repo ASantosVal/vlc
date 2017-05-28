@@ -45,6 +45,8 @@ private slots:
     void restoreAll();
     void help();
     void about();
+    void clearTable();
+    void addTableEntry(QString url);
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:

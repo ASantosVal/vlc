@@ -124,10 +124,12 @@ void ExtMetaManagerDialog::getFromFolder()
         qtr("Open audio files to manage"),
         EXT_FILTER_AUDIO,
         p_intf->p_sys->filepath );
+    clearTable();
 
     foreach( const QString &url, urls )
     {
-        msg_Dbg( p_intf, url.toLatin1() ); //TODO: delete this
+        addTableEntry(url);
+        //msg_Dbg( p_intf, url.toLatin1() ); //TODO: delete this
         //qtu(url) may be needed
     }
 
@@ -156,4 +158,25 @@ void ExtMetaManagerDialog::help()
 void ExtMetaManagerDialog::about()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] about" ); //TODO: delete this
+}
+
+void ExtMetaManagerDialog::clearTable()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] clearTable" ); //TODO: delete this
+    ui.tableWidget_metadata->clearContents();
+}
+
+void ExtMetaManagerDialog::addTableEntry(QString url)
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" ); //TODO: delete this
+    ui.tableWidget_metadata->setItem(0, 0, new QTableWidgetItem( "**CheckBox**" ));
+    ui.tableWidget_metadata->setItem(0, 1, new QTableWidgetItem( "Title" ));
+    ui.tableWidget_metadata->setItem(0, 2, new QTableWidgetItem( "Artist" ));
+    ui.tableWidget_metadata->setItem(0, 3, new QTableWidgetItem( "Album" ));
+    ui.tableWidget_metadata->setItem(0, 4, new QTableWidgetItem( "Genre" ));
+    ui.tableWidget_metadata->setItem(0, 5, new QTableWidgetItem( "Track #" ));
+    ui.tableWidget_metadata->setItem(0, 6, new QTableWidgetItem( "Publisher" ));
+    ui.tableWidget_metadata->setItem(0, 7, new QTableWidgetItem( "Copyright" ));
+    ui.tableWidget_metadata->setItem(0, 8, new QTableWidgetItem( "Artwork" ));
+
 }
