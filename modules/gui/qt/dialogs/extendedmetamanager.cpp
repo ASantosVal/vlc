@@ -43,7 +43,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 
     ui.setupUi( this ); //setup the UI from de compiled (.h) version of de QT ui (.ui)
 
-    //button bindings
+    //Button bindings
     BUTTONACT( ui.pushButton_cancel, cancel() );
     BUTTONACT( ui.pushButton_getFromPlaylist, getFromPlaylist() );
     BUTTONACT( ui.pushButton_getFromFolder, getFromFolder() );
@@ -159,7 +159,12 @@ void ExtMetaManagerDialog::addTableEntry(QString url)
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" ); //TODO: delete this
-    ui.tableWidget_metadata->setItem(row, 0, new QTableWidgetItem( "**CheckBox**" ));
+
+    QTableWidgetItem *item = new QTableWidgetItem(); //Create checkbox
+    item->data(Qt::CheckStateRole);
+    item->setCheckState(Qt::Unchecked);
+
+    ui.tableWidget_metadata->setItem(row, 0, item); //Checkbox entry
     ui.tableWidget_metadata->setItem(row, 1, new QTableWidgetItem( "Title" ));
     ui.tableWidget_metadata->setItem(row, 2, new QTableWidgetItem( "Artist" ));
     ui.tableWidget_metadata->setItem(row, 3, new QTableWidgetItem( "Album" ));
