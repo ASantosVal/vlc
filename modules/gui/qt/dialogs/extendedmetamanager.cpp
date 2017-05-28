@@ -33,9 +33,13 @@
 #include <QDialogButtonBox>
 #include <QPushButton>
 
+#define UNUSED(x) (void)(x) //TODO: delete this. Unused variable warning removal
+
 ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
                : QVLCDialog( (QWidget*)_p_intf->p_sys->p_mi, _p_intf )
 {
+    UNUSED(p_intf); //TODO: delete this
+
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initializing" ); //TODO: delete this
     setWindowFlags( Qt::Tool );
     setWindowTitle( qtr( "Extended Metadata Manager" ) );
@@ -53,6 +57,9 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     BUTTONACT( ui.pushButton_help, help() );
     BUTTONACT( ui.pushButton_about, about() );
     BUTTONACT( ui.pushButton_clearTable, clearTable() );
+
+    //Events
+    CONNECT( ui.tableWidget_metadata, cellChanged(int, int), this, updateArtwork(int, int) );
 
     //Set de table columns' size
     ui.tableWidget_metadata->setColumnWidth(0, 30); //CheckBox
@@ -156,6 +163,8 @@ void ExtMetaManagerDialog::clearTable()
 
 void ExtMetaManagerDialog::addTableEntry(QString url)
 {
+    UNUSED(url); //TODO: delete this
+
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" ); //TODO: delete this
@@ -174,4 +183,12 @@ void ExtMetaManagerDialog::addTableEntry(QString url)
     ui.tableWidget_metadata->setItem(row, 7, new QTableWidgetItem( "Copyright" ));
     ui.tableWidget_metadata->setItem(row, 8, new QTableWidgetItem( "Artwork" ));
 
+}
+
+
+void ExtMetaManagerDialog::updateArtwork(int row, int column)
+{
+    UNUSED(column); //TODO: delete this
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] updateArtwork" ); //TODO: delete this
+    ui.label_artwork->setText("test: " + (char*)row); //TODO: this doesn't work
 }
