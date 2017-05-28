@@ -113,6 +113,8 @@ void ExtMetaManagerDialog::close()
 void ExtMetaManagerDialog::getFromPlaylist()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromPlaylist" ); //TODO: delete this
+
+
 }
 
 void ExtMetaManagerDialog::getFromFolder()
@@ -156,4 +158,18 @@ void ExtMetaManagerDialog::help()
 void ExtMetaManagerDialog::about()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] about" ); //TODO: delete this
+}
+
+void ExtMetaManagerDialog::showArtwork()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] showArtwork" ); //TODO: delete this
+    QString file;
+    char *psz_art = input_item_GetArtURL( p_item );
+    if( psz_art )
+    {
+        char *psz = vlc_uri2path( psz_art );
+        free( psz_art );
+        file = qfu( psz );
+        free( psz );
+    }
 }

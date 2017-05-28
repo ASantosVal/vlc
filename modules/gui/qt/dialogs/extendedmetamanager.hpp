@@ -45,6 +45,7 @@ private slots:
     void restoreAll();
     void help();
     void about();
+    void showArtwork();
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
