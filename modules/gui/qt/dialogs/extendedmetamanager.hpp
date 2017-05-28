@@ -68,6 +68,7 @@ private slots:
     void clearTable();
     void addTableEntry(QString url);
     void updateArtwork(int row, int column);
+    void showArtwork();
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
