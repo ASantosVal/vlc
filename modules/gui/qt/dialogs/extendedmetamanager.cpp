@@ -190,5 +190,5 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
     UNUSED(column); //TODO: delete this
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] updateArtwork" ); //TODO: delete this
-    ui.label_artwork->setText("test: " + (char*)row); //TODO: this doesn't work
+    ui.label_artwork->setText("test: " + row); //TODO: this doesn't work
 }
