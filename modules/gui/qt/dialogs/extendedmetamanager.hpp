@@ -64,6 +64,7 @@ private slots:
     void restoreAll();
     void help();
     void about();
+    void showArtwork();
     void clearTable();
     void addTableEntry(QString url);
     void updateArtwork(int row, int column);

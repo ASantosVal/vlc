@@ -98,6 +98,8 @@ void ExtMetaManagerDialog::close()
 void ExtMetaManagerDialog::getFromPlaylist()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromPlaylist" ); //TODO: delete this
+
+
 }
 
 void ExtMetaManagerDialog::getFromFolder()
@@ -202,4 +204,18 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
     UNUSED(column); //TODO: delete this
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] updateArtwork" ); //TODO: delete this
     ui.label_artwork->setText("test: " + row); //TODO: this doesn't work
+}
+
+void ExtMetaManagerDialog::showArtwork()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] showArtwork" ); //TODO: delete this
+    QString file;
+    char *psz_art = input_item_GetArtURL( p_item );
+    if( psz_art )
+    {
+        char *psz = vlc_uri2path( psz_art );
+        free( psz_art );
+        file = qfu( psz );
+        free( psz );
+    }
 }
