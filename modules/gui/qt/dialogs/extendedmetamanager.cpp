@@ -41,11 +41,11 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     UNUSED(p_intf); //TODO: delete this
 
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initializing" ); //TODO: delete this
-    setWindowFlags( Qt::Tool );
-    setWindowTitle( qtr( "Extended Metadata Manager" ) );
-    setWindowRole( "vlc-ext-meta-manager" );
 
     ui.setupUi( this ); //setup the UI from de compiled (.h) version of de QT ui (.ui)
+    setWindowFlags( Qt::Tool );
+    setWindowRole( "vlc-ext-meta-manager" );
+    setWindowTitle( qtr( "Extended Metadata Manager" ) );
 
     //Button bindings
     BUTTONACT( ui.pushButton_cancel, cancel() );
@@ -59,7 +59,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     BUTTONACT( ui.pushButton_clearTable, clearTable() );
 
     //Events
-    CONNECT( ui.tableWidget_metadata, cellChanged(int, int), this, updateArtwork(int, int) );
+    CONNECT( ui.tableWidget_metadata, cellClicked(int, int), this, updateArtwork(int, int) );
 
     //Set de table columns' size
     ui.tableWidget_metadata->setColumnWidth(0, 30); //CheckBox
