@@ -69,6 +69,8 @@ private slots:
     void addTableEntry(QString url);
     void updateArtwork(int row, int column);
     void showArtwork();
+    // QStringList getItemFromRow(int row);
+    // input_item_t getItemFromURI(int row);
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
