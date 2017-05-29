@@ -215,17 +215,17 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
 // {
 //     //TODO: get this workinb
 // }
-
-void ExtMetaManagerDialog::showArtwork()
-{
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] showArtwork" ); //TODO: delete this
-    QString file;
-    char *psz_art = input_item_GetArtURL( p_item );
-    if( psz_art )
-    {
-        char *psz = vlc_uri2path( psz_art );
-        free( psz_art );
-        file = qfu( psz );
-        free( psz );
-    }
-}
+//
+// void ExtMetaManagerDialog::showArtwork()
+// {
+//     msg_Dbg( p_intf, "[ExtMetaManagerDialog] showArtwork" ); //TODO: delete this
+//     QString file;
+//     char *psz_art = input_item_GetArtURL( p_item );
+//     if( psz_art )
+//     {
+//         char *psz = vlc_uri2path( psz_art );
+//         free( psz_art );
+//         file = qfu( psz );
+//         free( psz );
+//     }
+// }
