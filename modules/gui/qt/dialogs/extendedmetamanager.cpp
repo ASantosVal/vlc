@@ -27,6 +27,8 @@
 #include "input_manager.hpp"
 #include "dialogs_provider.hpp" /* THEDP creation */
 
+#include "components/interface_widgets.hpp"       /* CoverArtLabel */
+
 // #include <QTabWidget>
 // #include <QLabel>
 // #include <QGroupBox>
@@ -71,6 +73,12 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.tableWidget_metadata->setColumnWidth(6, 120); //Publisher
     ui.tableWidget_metadata->setColumnWidth(7, 120); //Copyright
     ui.tableWidget_metadata->setColumnWidth(8, 70); //Artwork
+
+    /* ART_URL */
+
+    CoverArtLabel *art_cover;
+    art_cover = new CoverArtLabel( this, p_intf );
+    ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 
@@ -184,16 +192,29 @@ void ExtMetaManagerDialog::addTableEntry(QString url)
     ui.tableWidget_metadata->setItem(row, 6, new QTableWidgetItem( "Publisher" ));
     ui.tableWidget_metadata->setItem(row, 7, new QTableWidgetItem( "Copyright" ));
     ui.tableWidget_metadata->setItem(row, 8, new QTableWidgetItem( "Artwork" ));
-
+    ui.tableWidget_metadata->setItem(row, 9, new QTableWidgetItem( "Path" ));
 }
 
 
 void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
     UNUSED(column); //TODO: delete this
+    UNUSED(row); //TODO: delete this
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] updateArtwork" ); //TODO: delete this
-    ui.label_artwork->setText("test: " + row); //TODO: this doesn't work
+    //art_cover->setItem(getItemFromRow(row)); //TODO: this doesn't work
 }
+
+
+// input_item_t ExtMetaManagerDialog::getItemFromRow(int row)
+// {
+//     ui.tableWidget_metadata->item(row,9);//TODO: get this as string
+//     //input_item_t item = getItemFromURI();
+// }
+//
+// input_item_t item  ExtMetaManagerDialog::getItemFromURI(int row)
+// {
+//     //TODO: get this workinb
+// }
 
 void ExtMetaManagerDialog::showArtwork()
 {

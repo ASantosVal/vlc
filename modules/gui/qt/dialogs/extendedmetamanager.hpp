@@ -24,6 +24,7 @@
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
 
+
 #include "ui/extmetamanager.h" //include de compiled version of extmetamanager.ui
 
 class ExtMetaManagerDialog : public QVLCDialog, public Singleton<ExtMetaManagerDialog>
@@ -49,6 +50,8 @@ private slots:
     void addTableEntry(QString url);
     void updateArtwork(int row, int column);
     void showArtwork();
+    // QStringList getItemFromRow(int row);
+    // input_item_t getItemFromURI(int row);
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
