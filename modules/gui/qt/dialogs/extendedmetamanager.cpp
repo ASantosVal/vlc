@@ -162,11 +162,12 @@ void ExtMetaManagerDialog::addTableEntry(QString uri)
     ui.tableWidget_metadata->insertRow(row);
 
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" ); //TODO: delete this
-    //msg_Dbg( p_intf, uri.toLocal8Bit().constData() ); //TODO: delete this
+    msg_Dbg( p_intf, uri.toLatin1().constData() ); //TODO: delete this
 
     // Get the item from the URI
     input_item_t *p_item;
     p_item = input_item_New( uri.toLocal8Bit().constData(), "Entry" );
+    // p_item = input_item_New( uri.toLatin1().constData(), "Entry" );
 
     // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
 
