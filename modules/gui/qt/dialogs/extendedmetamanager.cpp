@@ -32,15 +32,13 @@
 // #include <QGroupBox>
 #include <QDialogButtonBox>
 #include <QPushButton>
-#include <QMessageBox> //for the help and about popups
+#include <QMessageBox> //for the Help and About popups
 
 #define UNUSED(x) (void)(x) //TODO: delete this. Unused variable warning removal
 
 ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
                : QVLCDialog( (QWidget*)_p_intf->p_sys->p_mi, _p_intf )
 {
-    UNUSED(p_intf); //TODO: delete this
-
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initializing" ); //TODO: delete this
 
     ui.setupUi( this ); //setup the UI from de compiled (.h) version of de QT ui (.ui)
@@ -49,7 +47,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     setWindowTitle( qtr( "Extended Metadata Manager" ) );
 
     //Button bindings
-    BUTTONACT( ui.pushButton_cancel, cancel() );
+    BUTTONACT( ui.pushButton_cancel, close() );
     BUTTONACT( ui.pushButton_getFromPlaylist, getFromPlaylist() );
     BUTTONACT( ui.pushButton_getFromFolder, getFromFolder() );
     BUTTONACT( ui.pushButton_searchNow, searchNow() );
@@ -74,8 +72,6 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.tableWidget_metadata->setColumnWidth(8, 70); //Artwork
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
-
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initialization Finished" ); //TODO: delete this
 }
 
 ExtMetaManagerDialog::~ExtMetaManagerDialog()
@@ -93,12 +89,6 @@ void ExtMetaManagerDialog::toggleVisible()
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Toggle Visible" ); //TODO: delete this
 }
 
-void ExtMetaManagerDialog::cancel()
-{
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Canceling" ); //TODO: delete this
-    toggleVisible();
-}
-
 void ExtMetaManagerDialog::close()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" ); //TODO: delete this
@@ -112,24 +102,20 @@ void ExtMetaManagerDialog::getFromPlaylist()
 
 void ExtMetaManagerDialog::getFromFolder()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromFolder" ); //TODO: delete this
-
-    //open a file explorer just with audio files
+    // Open a file explorer just with audio files
     QStringList uris = THEDP->showSimpleOpen(
         qtr("Open audio files to manage"),
         EXT_FILTER_AUDIO,
         p_intf->p_sys->filepath );
-    //clearTable();
 
     if( uris.isEmpty() ) return; //if no files selected, finish
 
+    clearTable();
     foreach( const QString &uri, uris )
     {
         addTableEntry(uri);
         //msg_Dbg( p_intf, url.toLatin1() ); //TODO: delete this
-        //qtu(url) may be needed
     }
-
 }
 
 void ExtMetaManagerDialog::searchNow()
@@ -149,7 +135,6 @@ void ExtMetaManagerDialog::restoreAll()
 
 void ExtMetaManagerDialog::help()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] help" ); //TODO: delete this
     QMessageBox::information(
       this,
       tr("Help - Extended Metadata Manager"),
@@ -158,7 +143,6 @@ void ExtMetaManagerDialog::help()
 
 void ExtMetaManagerDialog::about()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] about" ); //TODO: delete this
     QMessageBox::information(
       this,
       tr("About - Extended Metadata Manager"),
@@ -167,25 +151,26 @@ void ExtMetaManagerDialog::about()
 
 void ExtMetaManagerDialog::clearTable()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] clearTable" ); //TODO: delete this
     ui.tableWidget_metadata->clearContents();
     ui.tableWidget_metadata->setRowCount(0);
 }
 
 void ExtMetaManagerDialog::addTableEntry(QString uri)
 {
-    UNUSED(uri); //TODO: delete this
-
+    // Add one row to the table
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
+
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" ); //TODO: delete this
     //msg_Dbg( p_intf, uri.toLocal8Bit().constData() ); //TODO: delete this
 
+    // Get the item from the URI
     input_item_t *p_item;
     p_item = input_item_New( uri.toLocal8Bit().constData(), "Entry" );
 
     // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
 
+    // Get metadata information from item
     char *title_text = input_item_GetTitle(p_item);
     char *artist_text = input_item_GetArtist(p_item);
     char *album_text = input_item_GetAlbum(p_item);
@@ -194,10 +179,12 @@ void ExtMetaManagerDialog::addTableEntry(QString uri)
     char *publisher_text = input_item_GetPublisher(p_item);
     char *copyright_text = input_item_GetCopyright(p_item);
 
-    QTableWidgetItem *item = new QTableWidgetItem(); //Create checkbox
+    // Create checkbox for the first column
+    QTableWidgetItem *item = new QTableWidgetItem();
     item->data(Qt::CheckStateRole);
     item->setCheckState(Qt::Unchecked);
 
+    // Inserte the obtained values in the table
     ui.tableWidget_metadata->setItem(row, COL_CHECKBOX, item );
     ui.tableWidget_metadata->setItem(row, COL_TITLE, new QTableWidgetItem( title_text ));
     ui.tableWidget_metadata->setItem(row, COL_ARTIST, new QTableWidgetItem( artist_text ));
@@ -208,7 +195,6 @@ void ExtMetaManagerDialog::addTableEntry(QString uri)
     ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
     ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //TODO: this must be a file chooser
 }
-
 
 void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
