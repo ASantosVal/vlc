@@ -32,6 +32,7 @@
 // #include <QGroupBox>
 #include <QDialogButtonBox>
 #include <QPushButton>
+#include <QMessageBox> //for the help and about popups
 
 #define UNUSED(x) (void)(x) //TODO: delete this. Unused variable warning removal
 
@@ -149,11 +150,19 @@ void ExtMetaManagerDialog::restoreAll()
 void ExtMetaManagerDialog::help()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] help" ); //TODO: delete this
+    QMessageBox::information(
+      this,
+      tr("Help - Extended Metadata Manager"),
+      tr(help_text) );
 }
 
 void ExtMetaManagerDialog::about()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] about" ); //TODO: delete this
+    QMessageBox::information(
+      this,
+      tr("About - Extended Metadata Manager"),
+      tr(about_text) );
 }
 
 void ExtMetaManagerDialog::clearTable()
@@ -170,7 +179,7 @@ void ExtMetaManagerDialog::addTableEntry(QString uri)
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" ); //TODO: delete this
-    msg_Dbg( p_intf, uri.toLocal8Bit().constData() ); //TODO: delete this
+    //msg_Dbg( p_intf, uri.toLocal8Bit().constData() ); //TODO: delete this
 
     input_item_t *p_item;
     p_item = input_item_New( uri.toLocal8Bit().constData(), "Entry" );
@@ -189,15 +198,15 @@ void ExtMetaManagerDialog::addTableEntry(QString uri)
     item->data(Qt::CheckStateRole);
     item->setCheckState(Qt::Unchecked);
 
-    ui.tableWidget_metadata->setItem(row, 0, item );
-    ui.tableWidget_metadata->setItem(row, 1, new QTableWidgetItem( title_text ));
-    ui.tableWidget_metadata->setItem(row, 2, new QTableWidgetItem( artist_text ));
-    ui.tableWidget_metadata->setItem(row, 3, new QTableWidgetItem( album_text ));
-    ui.tableWidget_metadata->setItem(row, 4, new QTableWidgetItem( genre_text ));
-    ui.tableWidget_metadata->setItem(row, 5, new QTableWidgetItem( trackNum_text ));
-    ui.tableWidget_metadata->setItem(row, 6, new QTableWidgetItem( publisher_text ));
-    ui.tableWidget_metadata->setItem(row, 7, new QTableWidgetItem( copyright_text ));
-    ui.tableWidget_metadata->setItem(row, 8, new QTableWidgetItem( "**Artwork**" )); //TODO: this must be a file chooser
+    ui.tableWidget_metadata->setItem(row, COL_CHECKBOX, item );
+    ui.tableWidget_metadata->setItem(row, COL_TITLE, new QTableWidgetItem( title_text ));
+    ui.tableWidget_metadata->setItem(row, COL_ARTIST, new QTableWidgetItem( artist_text ));
+    ui.tableWidget_metadata->setItem(row, COL_ALBUM, new QTableWidgetItem( album_text ));
+    ui.tableWidget_metadata->setItem(row, COL_GENRE, new QTableWidgetItem( genre_text ));
+    ui.tableWidget_metadata->setItem(row, COL_TRACKNUM, new QTableWidgetItem( trackNum_text ));
+    ui.tableWidget_metadata->setItem(row, COL_PUBLISHER, new QTableWidgetItem( publisher_text ));
+    ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
+    ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //TODO: this must be a file chooser
 }
 
 

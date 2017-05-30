@@ -21,6 +21,17 @@
 #ifndef QVLC_EXTMETAMANAGER_DIALOG_H_
 #define QVLC_EXTMETAMANAGER_DIALOG_H_ 1
 
+//alias for the table's columns' name
+#define COL_CHECKBOX 0
+#define COL_TITLE 1
+#define COL_ARTIST 2
+#define COL_ALBUM 3
+#define COL_GENRE 4
+#define COL_TRACKNUM 5
+#define COL_PUBLISHER 6
+#define COL_COPYRIGHT 7
+#define COL_ARTWORK 8
+
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
 
@@ -32,6 +43,14 @@ class ExtMetaManagerDialog : public QVLCDialog, public Singleton<ExtMetaManagerD
 private:
     ExtMetaManagerDialog( intf_thread_t * );
     virtual ~ExtMetaManagerDialog();
+    const char *help_text = "Lorem ipsum dolor sit amet, consectetur adipiscing "
+    "elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. U t"
+    "enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut "
+    "aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in "
+    "voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint "
+    "occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit "
+    "anim id est laborum.";
+    const char *about_text = help_text; //"about_text";
 
     Ui::ExtMetaManagerWidget ui; //add de ui
 private slots:
