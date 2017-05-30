@@ -165,7 +165,7 @@ void ExtMetaManagerDialog::clearTable()
 
 void ExtMetaManagerDialog::addTableEntry(QString uri)
 {
-    UNUSED(url); //TODO: delete this
+    UNUSED(uri); //TODO: delete this
 
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
@@ -185,31 +185,19 @@ void ExtMetaManagerDialog::addTableEntry(QString uri)
     char *publisher_text = input_item_GetPublisher(p_item);
     char *copyright_text = input_item_GetCopyright(p_item);
 
-
-    ui.tableWidget_metadata->setItem(0, 0, new QTableWidgetItem( "**CheckBox**" ));
-    ui.tableWidget_metadata->setItem(0, 1, new QTableWidgetItem( title_text ));
-    ui.tableWidget_metadata->setItem(0, 2, new QTableWidgetItem( artist_text ));
-    ui.tableWidget_metadata->setItem(0, 3, new QTableWidgetItem( album_text ));
-    ui.tableWidget_metadata->setItem(0, 4, new QTableWidgetItem( genre_text ));
-    ui.tableWidget_metadata->setItem(0, 5, new QTableWidgetItem( trackNum_text ));
-    ui.tableWidget_metadata->setItem(0, 6, new QTableWidgetItem( publisher_text ));
-    ui.tableWidget_metadata->setItem(0, 7, new QTableWidgetItem( copyright_text ));
-    ui.tableWidget_metadata->setItem(0, 8, new QTableWidgetItem( "**Artwork**" ));
-
     QTableWidgetItem *item = new QTableWidgetItem(); //Create checkbox
     item->data(Qt::CheckStateRole);
     item->setCheckState(Qt::Unchecked);
 
-    ui.tableWidget_metadata->setItem(row, 0, item); //Checkbox entry
-    ui.tableWidget_metadata->setItem(row, 1, new QTableWidgetItem( "Title" ));
-    ui.tableWidget_metadata->setItem(row, 2, new QTableWidgetItem( "Artist" ));
-    ui.tableWidget_metadata->setItem(row, 3, new QTableWidgetItem( "Album" ));
-    ui.tableWidget_metadata->setItem(row, 4, new QTableWidgetItem( "Genre" ));
-    ui.tableWidget_metadata->setItem(row, 5, new QTableWidgetItem( "Track #" ));
-    ui.tableWidget_metadata->setItem(row, 6, new QTableWidgetItem( "Publisher" ));
-    ui.tableWidget_metadata->setItem(row, 7, new QTableWidgetItem( "Copyright" ));
-    ui.tableWidget_metadata->setItem(row, 8, new QTableWidgetItem( "Artwork" ));
-
+    ui.tableWidget_metadata->setItem(row, 0, item );
+    ui.tableWidget_metadata->setItem(row, 1, new QTableWidgetItem( title_text ));
+    ui.tableWidget_metadata->setItem(row, 2, new QTableWidgetItem( artist_text ));
+    ui.tableWidget_metadata->setItem(row, 3, new QTableWidgetItem( album_text ));
+    ui.tableWidget_metadata->setItem(row, 4, new QTableWidgetItem( genre_text ));
+    ui.tableWidget_metadata->setItem(row, 5, new QTableWidgetItem( trackNum_text ));
+    ui.tableWidget_metadata->setItem(row, 6, new QTableWidgetItem( publisher_text ));
+    ui.tableWidget_metadata->setItem(row, 7, new QTableWidgetItem( copyright_text ));
+    ui.tableWidget_metadata->setItem(row, 8, new QTableWidgetItem( "**Artwork**" )); //TODO: this must be a file chooser
 }
 
 
