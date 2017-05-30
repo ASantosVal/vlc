@@ -114,15 +114,17 @@ void ExtMetaManagerDialog::getFromFolder()
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromFolder" ); //TODO: delete this
 
     //open a file explorer just with audio files
-    QStringList urls = THEDP->showSimpleOpen(
+    QStringList uris = THEDP->showSimpleOpen(
         qtr("Open audio files to manage"),
         EXT_FILTER_AUDIO,
         p_intf->p_sys->filepath );
     //clearTable();
 
-    foreach( const QString &url, urls )
+    if( uris.isEmpty() ) return; //if no files selected, finish
+
+    foreach( const QString &uri, uris )
     {
-        addTableEntry(url);
+        addTableEntry(uri);
         //msg_Dbg( p_intf, url.toLatin1() ); //TODO: delete this
         //qtu(url) may be needed
     }
@@ -161,13 +163,38 @@ void ExtMetaManagerDialog::clearTable()
     ui.tableWidget_metadata->setRowCount(0);
 }
 
-void ExtMetaManagerDialog::addTableEntry(QString url)
+void ExtMetaManagerDialog::addTableEntry(QString uri)
 {
     UNUSED(url); //TODO: delete this
 
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" ); //TODO: delete this
+    msg_Dbg( p_intf, uri.toLocal8Bit().constData() ); //TODO: delete this
+
+    input_item_t *p_item;
+    p_item = input_item_New( uri.toLocal8Bit().constData(), "Entry" );
+
+    // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
+
+    char *title_text = input_item_GetTitle(p_item);
+    char *artist_text = input_item_GetArtist(p_item);
+    char *album_text = input_item_GetAlbum(p_item);
+    char *genre_text = input_item_GetGenre(p_item);
+    char *trackNum_text = input_item_GetTrackNum(p_item);
+    char *publisher_text = input_item_GetPublisher(p_item);
+    char *copyright_text = input_item_GetCopyright(p_item);
+
+
+    ui.tableWidget_metadata->setItem(0, 0, new QTableWidgetItem( "**CheckBox**" ));
+    ui.tableWidget_metadata->setItem(0, 1, new QTableWidgetItem( title_text ));
+    ui.tableWidget_metadata->setItem(0, 2, new QTableWidgetItem( artist_text ));
+    ui.tableWidget_metadata->setItem(0, 3, new QTableWidgetItem( album_text ));
+    ui.tableWidget_metadata->setItem(0, 4, new QTableWidgetItem( genre_text ));
+    ui.tableWidget_metadata->setItem(0, 5, new QTableWidgetItem( trackNum_text ));
+    ui.tableWidget_metadata->setItem(0, 6, new QTableWidgetItem( publisher_text ));
+    ui.tableWidget_metadata->setItem(0, 7, new QTableWidgetItem( copyright_text ));
+    ui.tableWidget_metadata->setItem(0, 8, new QTableWidgetItem( "**Artwork**" ));
 
     QTableWidgetItem *item = new QTableWidgetItem(); //Create checkbox
     item->data(Qt::CheckStateRole);
