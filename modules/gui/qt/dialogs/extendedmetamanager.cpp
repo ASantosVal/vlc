@@ -214,30 +214,20 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
     UNUSED(row); //TODO: delete this
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] updateArtwork" ); //TODO: delete this
     //art_cover->setItem(getItemFromRow(row)); //TODO: this doesn't work
+    //ui.gridLayout_artwork.art_cover->setItem(getItemFromRow(row)); //TODO: can't find art_cover
 }
 
+input_item_t ExtMetaManagerDialog::getItemFromRow(int row)
+{
+    // char uri = ui.tableWidget_metadata->item(row,9)>text();//TODO: get this working
+    // input_item_t item = getItemFromURI(uri);
+    return item;
+}
 
-// input_item_t ExtMetaManagerDialog::getItemFromRow(int row)
-// {
-//     ui.tableWidget_metadata->item(row,9);//TODO: get this as string
-//     //input_item_t item = getItemFromURI();
-// }
-//
-// input_item_t item  ExtMetaManagerDialog::getItemFromURI(int row)
-// {
-//     //TODO: get this workinb
-// }
-//
-// void ExtMetaManagerDialog::showArtwork()
-// {
-//     msg_Dbg( p_intf, "[ExtMetaManagerDialog] showArtwork" ); //TODO: delete this
-//     QString file;
-//     char *psz_art = input_item_GetArtURL( p_item );
-//     if( psz_art )
-//     {
-//         char *psz = vlc_uri2path( psz_art );
-//         free( psz_art );
-//         file = qfu( psz );
-//         free( psz );
-//     }
-// }
+input_item_t ExtMetaManagerDialog::getItemFromURI(char uri)
+{
+    input_item_t p_item;
+    p_item = input_item_New( uri, "Test" );
+    return p_item;
+
+}
