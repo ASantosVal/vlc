@@ -126,6 +126,8 @@ void ExtMetaManagerDialog::getFromFolder()
         p_intf->p_sys->filepath );
     clearTable();
 
+    if( uris.isEmpty() ) return; //if no files selected, finish
+
     foreach( const QString &uri, uris )
     {
         addTableEntry(uri);
@@ -168,11 +170,13 @@ void ExtMetaManagerDialog::clearTable()
 
 void ExtMetaManagerDialog::addTableEntry(QString uri)
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" ); //TODO: delete this
+    msg_Dbg( p_intf, uri.toLocal8Bit().constData() ); //TODO: delete this
 
-    input_item_t *p_item = new input_item_t();
+    input_item_t *p_item;
+    p_item = input_item_New( uri.toLocal8Bit().constData(), "Entry" );
 
-    input_item_SetURI(p_item, uri.toLatin1());
-
+    // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
 
     char *title_text = input_item_GetTitle(p_item);
     char *artist_text = input_item_GetArtist(p_item);
