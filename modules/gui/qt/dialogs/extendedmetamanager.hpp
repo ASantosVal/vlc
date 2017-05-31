@@ -31,6 +31,7 @@
 #define COL_PUBLISHER 6
 #define COL_COPYRIGHT 7
 #define COL_ARTWORK 8
+#define COL_PATH 9
 
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
@@ -67,7 +68,6 @@ private slots:
     void restoreAll();
     void help();
     void about();
-    void showArtwork();
     void clearTable();
     void addTableEntry(QString url);
     void updateArtwork(int row, int column);

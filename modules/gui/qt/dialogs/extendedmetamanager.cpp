@@ -35,8 +35,6 @@
 #include <QDialogButtonBox>
 #include <QPushButton>
 #include <QMessageBox> //for the Help and About popups
-#include <QTableWidget>
-#include <QTableWidgetItem>
 
 #define UNUSED(x) (void)(x) //TODO: delete this. Unused variable warning removal
 
@@ -45,6 +43,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initializing" ); //TODO: delete this
 
+    // Basic UI setup
     ui.setupUi( this ); //setup the UI from de compiled (.h) version of de QT ui (.ui)
     setWindowFlags( Qt::Tool );
     setWindowRole( "vlc-ext-meta-manager" );
@@ -65,18 +64,18 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     CONNECT( ui.tableWidget_metadata, cellClicked(int, int), this, updateArtwork(int, int) );
 
     //Set de table columns' size
-    ui.tableWidget_metadata->setColumnWidth(0, 30); //CheckBox
-    ui.tableWidget_metadata->setColumnWidth(1, 200); //Title
-    ui.tableWidget_metadata->setColumnWidth(2, 200); //Artist
-    ui.tableWidget_metadata->setColumnWidth(3, 200); //Album
-    ui.tableWidget_metadata->setColumnWidth(4, 120); //Genre
-    ui.tableWidget_metadata->setColumnWidth(5, 70); //Track #
-    ui.tableWidget_metadata->setColumnWidth(6, 120); //Publisher
-    ui.tableWidget_metadata->setColumnWidth(7, 120); //Copyright
-    ui.tableWidget_metadata->setColumnWidth(8, 70); //Artwork
+    ui.tableWidget_metadata->setColumnWidth(COL_CHECKBOX, 30); //CheckBox
+    ui.tableWidget_metadata->setColumnWidth(COL_TITLE, 200); //Title
+    ui.tableWidget_metadata->setColumnWidth(COL_ARTIST, 200); //Artist
+    ui.tableWidget_metadata->setColumnWidth(COL_ALBUM, 200); //Album
+    ui.tableWidget_metadata->setColumnWidth(COL_GENRE, 120); //Genre
+    ui.tableWidget_metadata->setColumnWidth(COL_TRACKNUM, 70); //Track #
+    ui.tableWidget_metadata->setColumnWidth(COL_PUBLISHER, 120); //Publisher
+    ui.tableWidget_metadata->setColumnWidth(COL_COPYRIGHT, 120); //Copyright
+    ui.tableWidget_metadata->setColumnWidth(COL_ARTWORK, 70); //Artwork
+    ui.tableWidget_metadata->setColumnWidth(COL_PATH, 50); //Path
 
     /* ART_URL */
-
     art_cover = new CoverArtLabel( this, p_intf );
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
@@ -172,13 +171,9 @@ void ExtMetaManagerDialog::addTableEntry(QString uri)
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
 
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" ); //TODO: delete this
-    msg_Dbg( p_intf, uri.toLatin1().constData() ); //TODO: delete this
-
     // Get the item from the URI
     input_item_t *p_item;
-    p_item = input_item_New( uri.toLocal8Bit().constData(), "Entry" );
-    // p_item = input_item_New( uri.toLatin1().constData(), "Entry" );
+    p_item = input_item_New( uri.toLatin1().constData(), "Test Entry" );
 
     // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
 
@@ -206,7 +201,7 @@ void ExtMetaManagerDialog::addTableEntry(QString uri)
     ui.tableWidget_metadata->setItem(row, COL_PUBLISHER, new QTableWidgetItem( publisher_text ));
     ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
     ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //TODO: this must be a file chooser
-    ui.tableWidget_metadata->setItem(row, 9, new QTableWidgetItem( "Path" ));
+    ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri.toLatin1().data()));
 }
 
 void ExtMetaManagerDialog::updateArtwork(int row, int column)
@@ -217,7 +212,7 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
 
 input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 {
-    const char* uri = ui.tableWidget_metadata->item(row,8)->text().toLatin1();//TODO: here lays a segmentation fault
+    const char* uri = ui.tableWidget_metadata->item(row,COL_PATH)->text().toLatin1();
     input_item_t *item = getItemFromURI(uri);
     return item;
 }
@@ -226,5 +221,4 @@ input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 {
     input_item_t *p_item = input_item_New( uri, "Test" );
     return p_item;
-
 }
