@@ -35,6 +35,8 @@
 #include <QDialogButtonBox>
 #include <QPushButton>
 #include <QMessageBox> //for the Help and About popups
+#include <QTableWidget>
+#include <QTableWidgetItem>
 
 #define UNUSED(x) (void)(x) //TODO: delete this. Unused variable warning removal
 
@@ -75,7 +77,6 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 
     /* ART_URL */
 
-    CoverArtLabel *art_cover;
     art_cover = new CoverArtLabel( this, p_intf );
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
@@ -211,23 +212,19 @@ void ExtMetaManagerDialog::addTableEntry(QString uri)
 void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
     UNUSED(column); //TODO: delete this
-    UNUSED(row); //TODO: delete this
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] updateArtwork" ); //TODO: delete this
-    //art_cover->setItem(getItemFromRow(row)); //TODO: this doesn't work
-    //ui.gridLayout_artwork.art_cover->setItem(getItemFromRow(row)); //TODO: can't find art_cover
+    art_cover->setItem(getItemFromRow(row)); // Get the item selected and update the artwork widget
 }
 
-input_item_t ExtMetaManagerDialog::getItemFromRow(int row)
+input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 {
-    // char uri = ui.tableWidget_metadata->item(row,9)>text();//TODO: get this working
-    // input_item_t item = getItemFromURI(uri);
+    const char* uri = ui.tableWidget_metadata->item(row,8)->text().toLatin1();//TODO: here lays a segmentation fault
+    input_item_t *item = getItemFromURI(uri);
     return item;
 }
 
-input_item_t ExtMetaManagerDialog::getItemFromURI(char uri)
+input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 {
-    input_item_t p_item;
-    p_item = input_item_New( uri, "Test" );
+    input_item_t *p_item = input_item_New( uri, "Test" );
     return p_item;
 
 }
