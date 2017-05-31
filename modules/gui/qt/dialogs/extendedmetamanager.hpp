@@ -31,11 +31,13 @@
 #define COL_PUBLISHER 6
 #define COL_COPYRIGHT 7
 #define COL_ARTWORK 8
+#define COL_PATH 9
 
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
 
 #include "ui/extmetamanager.h" // Include de compiled version of extmetamanager.ui
+class CoverArtLabel;
 
 class ExtMetaManagerDialog : public QVLCDialog, public Singleton<ExtMetaManagerDialog>
 {
@@ -53,6 +55,8 @@ private:
     "anim id est laborum."; //TODO: Write a proper text here
     const char *about_text = help_text; //TODO: Write a proper text here
 
+    CoverArtLabel *art_cover;
+
     Ui::ExtMetaManagerWidget ui; //add de ui
 private slots:
     void close() Q_DECL_OVERRIDE;
@@ -67,6 +71,8 @@ private slots:
     void clearTable();
     void addTableEntry(QString url);
     void updateArtwork(int row, int column);
+    input_item_t* getItemFromRow(int row);
+    input_item_t* getItemFromURI(const char* uri);
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:

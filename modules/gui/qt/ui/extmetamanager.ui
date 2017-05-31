@@ -96,6 +96,11 @@
           <string>Artwork</string>
          </property>
         </column>
+        <column>
+         <property name="text">
+          <string>Path</string>
+         </property>
+        </column>
        </widget>
       </item>
      </layout>
@@ -120,11 +125,7 @@
      </property>
      <layout class="QHBoxLayout" name="horizontalLayout_4">
       <item>
-       <widget class="QLabel" name="label_artwork">
-        <property name="text">
-         <string>PixMap</string>
-        </property>
-       </widget>
+       <layout class="QGridLayout" name="gridLayout_artwork"/>
       </item>
      </layout>
     </widget>
