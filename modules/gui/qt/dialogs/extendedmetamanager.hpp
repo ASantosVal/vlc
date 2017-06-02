@@ -69,7 +69,7 @@ private slots:
     void help();
     void about();
     void clearTable();
-    void addTableEntry(const char* uri);
+    void addTableEntry(input_item_t *p_item);
     void updateArtwork(int row, int column);
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);

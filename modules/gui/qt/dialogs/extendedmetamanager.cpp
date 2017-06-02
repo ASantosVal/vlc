@@ -110,14 +110,26 @@ void ExtMetaManagerDialog::getFromPlaylist()
 
     playlist_Lock(THEPL); //Lock the playlist so we can work with it
 
-    playlist_item_t *playlist_item = playlist_ItemGetById(THEPL, 1); //Starts with 1
+    //The playlist starts on the item 4 ??
+    int i = 4;
+    bool finished = false;
+    playlist_item_t *playlist_item = playlist_ItemGetById(THEPL, i);
+    // while (!finished){
+    //     if (&playlist_item!=NULL){ //TODO this doesnt work and creates infinite loop
+    //         input_item_t *input_item = playlist_item->p_input; // TODO: This creates segmentation fault if playlist_item doesnt exist
+    //         addTableEntry(input_item);
+    //         i++;
+    //     }else{
+    //       finished = true;
+    //     }
+    // }
 
     // QList<input_item_t*> items = THEPL->inputItems(); //TODO: this may be useful, but doesn't work
 
-    // playlist_item = playlist_CurrentPlayingItem(THEPL); //TODO: this works just or the current item
-    input_item_t *input_item = playlist_item->p_input; // TODO: This creates segmentation fault if playlist_item doesnt exist
-
-    addTableEntry(input_item_GetURI(input_item));
+    // playlist_item_t *playlist_item = playlist_CurrentPlayingItem(THEPL); //TODO: this works just or the current item
+    // input_item_t *input_item = playlist_item->p_input; // TODO: This creates segmentation fault if playlist_item doesnt exist
+    //
+    // addTableEntry(input_item);
 
 
     playlist_Unlock(THEPL); //Unlock the playlist
@@ -136,7 +148,10 @@ void ExtMetaManagerDialog::getFromFolder()
     clearTable();
     foreach( const QString &uri, uris )
     {
-        addTableEntry(uri.toLatin1().constData());
+        // Get the item from the URI
+        input_item_t *p_item = getItemFromURI(uri.toLatin1().constData());
+
+        addTableEntry(p_item);
         //msg_Dbg( p_intf, url.toLatin1() ); //TODO: delete this
     }
 }
@@ -178,14 +193,11 @@ void ExtMetaManagerDialog::clearTable()
     ui.tableWidget_metadata->setRowCount(0);
 }
 
-void ExtMetaManagerDialog::addTableEntry(const char* uri)
+void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 {
     // Add one row to the table
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
-
-    // Get the item from the URI
-    input_item_t *p_item = getItemFromURI(uri);
 
     // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
 
@@ -197,6 +209,7 @@ void ExtMetaManagerDialog::addTableEntry(const char* uri)
     char *trackNum_text = input_item_GetTrackNum(p_item);
     char *publisher_text = input_item_GetPublisher(p_item);
     char *copyright_text = input_item_GetCopyright(p_item);
+    char *uri_text = input_item_GetURI(p_item);
 
     // Create checkbox for the first column
     QTableWidgetItem *item = new QTableWidgetItem();
@@ -213,7 +226,7 @@ void ExtMetaManagerDialog::addTableEntry(const char* uri)
     ui.tableWidget_metadata->setItem(row, COL_PUBLISHER, new QTableWidgetItem( publisher_text ));
     ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
     ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //TODO: this must be a file chooser
-    ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri ));
+    ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
 }
 
 void ExtMetaManagerDialog::updateArtwork(int row, int column)
