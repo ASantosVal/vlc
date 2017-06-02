@@ -69,7 +69,7 @@ private slots:
     void help();
     void about();
     void clearTable();
-    void addTableEntry(QString url);
+    void addTableEntry(const char* uri);
     void updateArtwork(int row, int column);
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);

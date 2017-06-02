@@ -26,6 +26,7 @@
 
 #include "input_manager.hpp"
 #include "dialogs_provider.hpp" /* THEDP creation */
+#include <vlc_playlist.h>  /* playlist_t */
 
 #include "components/interface_widgets.hpp"       /* CoverArtLabel */
 
@@ -106,8 +107,22 @@ void ExtMetaManagerDialog::close()
 void ExtMetaManagerDialog::getFromPlaylist()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromPlaylist" ); //TODO: delete this
+    clearTable();
 
+    playlist_t *playlist = p_intf->p_sys->p_playlist; // Get playlist
+    playlist_item_t* item = playlist_CurrentPlayingItem(playlist); //TODO: this generates a runtime error
+    UNUSED(item); //TODO: delete this
 
+    // addTableEntry(item.getURI());
+
+    // playlist_item_t *nextItem = NextItem(&playlist);
+    // addTableEntry(nextItem->getURI());
+
+    // foreach( const playlist_item &item, playlist_items )
+    // {
+    //     item.getURI();
+    //     msg_Dbg( p_intf, getURI ); //TODO: delete this
+    // }
 }
 
 void ExtMetaManagerDialog::getFromFolder()
@@ -123,7 +138,7 @@ void ExtMetaManagerDialog::getFromFolder()
     clearTable();
     foreach( const QString &uri, uris )
     {
-        addTableEntry(uri);
+        addTableEntry(uri.toLatin1().constData());
         //msg_Dbg( p_intf, url.toLatin1() ); //TODO: delete this
     }
 }
@@ -165,15 +180,14 @@ void ExtMetaManagerDialog::clearTable()
     ui.tableWidget_metadata->setRowCount(0);
 }
 
-void ExtMetaManagerDialog::addTableEntry(QString uri)
+void ExtMetaManagerDialog::addTableEntry(const char* uri)
 {
     // Add one row to the table
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
 
     // Get the item from the URI
-    input_item_t *p_item;
-    p_item = input_item_New( uri.toLatin1().constData(), "Test Entry" );
+    input_item_t *p_item = getItemFromURI(uri);
 
     // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
 
@@ -201,7 +215,7 @@ void ExtMetaManagerDialog::addTableEntry(QString uri)
     ui.tableWidget_metadata->setItem(row, COL_PUBLISHER, new QTableWidgetItem( publisher_text ));
     ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
     ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //TODO: this must be a file chooser
-    ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri.toLatin1().data()));
+    ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri ));
 }
 
 void ExtMetaManagerDialog::updateArtwork(int row, int column)
@@ -219,6 +233,8 @@ input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 
 input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 {
+    // msg_Dbg( p_intf, uri); //TODO: delete this
+
     input_item_t *p_item = input_item_New( uri, "Test" );
     return p_item;
 }
