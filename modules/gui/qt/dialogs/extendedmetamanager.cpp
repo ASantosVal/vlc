@@ -106,23 +106,21 @@ void ExtMetaManagerDialog::close()
 
 void ExtMetaManagerDialog::getFromPlaylist()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromPlaylist" ); //TODO: delete this
     clearTable();
 
-    playlist_t *playlist = p_intf->p_sys->p_playlist; // Get playlist
-    playlist_item_t* item = playlist_CurrentPlayingItem(playlist); //TODO: this generates a runtime error
-    UNUSED(item); //TODO: delete this
+    playlist_Lock(THEPL); //Lock the playlist so we can work with it
 
-    // addTableEntry(item.getURI());
+    playlist_item_t *playlist_item = playlist_ItemGetById(THEPL, 1); //Starts with 1
 
-    // playlist_item_t *nextItem = NextItem(&playlist);
-    // addTableEntry(nextItem->getURI());
+    // QList<input_item_t*> items = THEPL->inputItems(); //TODO: this may be useful, but doesn't work
 
-    // foreach( const playlist_item &item, playlist_items )
-    // {
-    //     item.getURI();
-    //     msg_Dbg( p_intf, getURI ); //TODO: delete this
-    // }
+    // playlist_item = playlist_CurrentPlayingItem(THEPL); //TODO: this works just or the current item
+    input_item_t *input_item = playlist_item->p_input; // TODO: This creates segmentation fault if playlist_item doesnt exist
+
+    addTableEntry(input_item_GetURI(input_item));
+
+
+    playlist_Unlock(THEPL); //Unlock the playlist
 }
 
 void ExtMetaManagerDialog::getFromFolder()
@@ -236,5 +234,12 @@ input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
     // msg_Dbg( p_intf, uri); //TODO: delete this
 
     input_item_t *p_item = input_item_New( uri, "Test" );
+    //assert(p_item != NULL); //check if the item exists
+
+    // while (!input_item_IsPreparsed(p_item)) //Check it it is preparsed (metadata was added)
+    //   msg_Dbg( p_intf, "Waiting preparse"); //TODO: delete this
+
+
+    // input_item_WriteMeta( VLC_OBJECT(p_intf->p_sys->p_playlist), p_item ); //TODO: this may load the metadata, need testing
     return p_item;
 }
