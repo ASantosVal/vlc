@@ -266,6 +266,35 @@ private slots:
     void resetRate();
 };
 
+class CoverArtLabelExt : public QLabel
+{
+    Q_OBJECT
+public:
+    CoverArtLabelExt( QWidget *parent, intf_thread_t * );
+    void setItem( input_item_t * );
+    virtual ~CoverArtLabelExt();
+
+protected:
+    void mouseDoubleClickEvent( QMouseEvent *event ) Q_DECL_OVERRIDE
+    {
+        if( ! p_item && qobject_cast<MetaPanel *>(this->window()) == NULL )
+        {
+            THEDP->mediaInfoDialog();
+        }
+        event->accept();
+    }
+private:
+    intf_thread_t *p_intf;
+    input_item_t *p_item;
+
+public slots:
+    void showArtUpdate( const QString& );
+    void showArtUpdate( input_item_t * );
+    void askForUpdate();
+    void setArtFromFile();
+    void clear();
+};
+
 class CoverArtLabel : public QLabel
 {
     Q_OBJECT
