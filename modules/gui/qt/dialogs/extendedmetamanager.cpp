@@ -113,6 +113,9 @@ void ExtMetaManagerDialog::getFromPlaylist()
     playlist_item_t *playlist_item;
     input_item_t *input_item;
 
+    if( size ==0 ) return; //if no files selected, finish
+
+
     for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
     {
         playlist_item = playlist_ItemGetById(THEPL, i); // Get the playlist_item
@@ -134,6 +137,9 @@ void ExtMetaManagerDialog::getFromFolder()
     if( uris.isEmpty() ) return; //if no files selected, finish
 
     clearTable();
+
+    //we are going to use the pl to preparse the files, so we clear it first
+    playlist_Clear( THEPL, false ); //TODO: this creates segmentation fault on getFromPlaylist
     foreach( const QString &uri, uris )
     {
         // Get the item from the URI
