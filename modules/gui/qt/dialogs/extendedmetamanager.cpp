@@ -244,15 +244,13 @@ input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 
 input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 {
-    // msg_Dbg( p_intf, uri); //TODO: delete this
+    input_item_t *p_item = input_item_New( uri, "Test" ); //TODO: give significant name
 
-    input_item_t *p_item = input_item_New( uri, "Test" );
-    //assert(p_item != NULL); //check if the item exists
+    //add to the playlist so it is preparsed (metadata is got)
+    playlist_AddInput( THEPL, p_item, false, false );
 
-    // while (!input_item_IsPreparsed(p_item)) //Check it it is preparsed (metadata was added)
-    //   msg_Dbg( p_intf, "Waiting preparse"); //TODO: delete this
+    //Check it it is preparsed (metadata was added)
+    while (!input_item_IsPreparsed(p_item)) ;
 
-
-    // input_item_WriteMeta( VLC_OBJECT(p_intf->p_sys->p_playlist), p_item ); //TODO: this may load the metadata, need testing
     return p_item;
 }
