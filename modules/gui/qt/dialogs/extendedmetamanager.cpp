@@ -107,30 +107,18 @@ void ExtMetaManagerDialog::close()
 void ExtMetaManagerDialog::getFromPlaylist()
 {
     clearTable();
-
     playlist_Lock(THEPL); //Lock the playlist so we can work with it
 
-    //The playlist starts on the item 4 ??
-    int i = 4;
-    bool finished = false;
-    playlist_item_t *playlist_item = playlist_ItemGetById(THEPL, i);
-    // while (!finished){
-    //     if (&playlist_item!=NULL){ //TODO this doesnt work and creates infinite loop
-    //         input_item_t *input_item = playlist_item->p_input; // TODO: This creates segmentation fault if playlist_item doesnt exist
-    //         addTableEntry(input_item);
-    //         i++;
-    //     }else{
-    //       finished = true;
-    //     }
-    // }
+    int size = THEPL->items.i_size; //Get the size of the playlist
+    playlist_item_t *playlist_item;
+    input_item_t *input_item;
 
-    // QList<input_item_t*> items = THEPL->inputItems(); //TODO: this may be useful, but doesn't work
-
-    // playlist_item_t *playlist_item = playlist_CurrentPlayingItem(THEPL); //TODO: this works just or the current item
-    // input_item_t *input_item = playlist_item->p_input; // TODO: This creates segmentation fault if playlist_item doesnt exist
-    //
-    // addTableEntry(input_item);
-
+    for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
+    {
+        playlist_item = playlist_ItemGetById(THEPL, i); // Get the playlist_item
+        input_item = playlist_item->p_input; // This creates segmentation fault if playlist_item doesnt exist, be careful
+        addTableEntry(input_item); //add item to the table
+    }
 
     playlist_Unlock(THEPL); //Unlock the playlist
 }
