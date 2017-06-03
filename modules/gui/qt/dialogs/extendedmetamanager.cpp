@@ -124,6 +124,10 @@ void ExtMetaManagerDialog::getFromPlaylist()
     }
 
     playlist_Unlock(THEPL); //Unlock the playlist
+
+    //Select the first cell and update artwork label
+    ui.tableWidget_metadata->setCurrentCell(0,1);
+    updateArtwork(0,0);
 }
 
 void ExtMetaManagerDialog::getFromFolder()
@@ -148,6 +152,10 @@ void ExtMetaManagerDialog::getFromFolder()
         addTableEntry(p_item);
         //msg_Dbg( p_intf, url.toLatin1() ); //TODO: delete this
     }
+
+    //Select the first cell and update artwork label
+    ui.tableWidget_metadata->setCurrentCell(0,1);
+    updateArtwork(0,0);
 }
 
 void ExtMetaManagerDialog::searchNow()
