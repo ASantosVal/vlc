@@ -78,6 +78,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 
     /* ART_URL */
     art_cover = new CoverArtLabel( this, p_intf );
+    art_cover->setScaledContents(true); //allow the label's image to be scaled (to fit all the area)
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
