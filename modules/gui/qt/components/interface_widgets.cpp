@@ -839,7 +839,6 @@ void CoverArtLabel::clear()
 }
 
 
-
 CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
     : QLabel( parent ), p_intf( _p_i ), p_item( NULL )
 {
@@ -849,7 +848,7 @@ CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
 
     setMinimumHeight( 128 );
     setMinimumWidth( 128 );
-    setScaledContents( true );
+    setScaledContents( false );
     setAlignment( Qt::AlignCenter );
 
     QAction *action = new QAction( qtr( "Download cover art" ), this );
@@ -890,7 +889,7 @@ void CoverArtLabelExt::showArtUpdate( const QString& url )
     QPixmap pix;
     if( !url.isEmpty() && pix.load( url ) )
     {
-        pix = pix.scaled( maximumWidth(), maximumHeight(),
+        pix = pix.scaled( 250, 250,
                           Qt::KeepAspectRatioByExpanding,
                           Qt::SmoothTransformation );
     }

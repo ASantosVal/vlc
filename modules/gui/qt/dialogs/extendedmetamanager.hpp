@@ -37,7 +37,7 @@
 #include "util/singleton.hpp"
 
 #include "ui/extmetamanager.h" // Include de compiled version of extmetamanager.ui
-class CoverArtLabel;
+class CoverArtLabelExt;
 
 class ExtMetaManagerDialog : public QVLCDialog, public Singleton<ExtMetaManagerDialog>
 {
@@ -55,7 +55,7 @@ private:
     "anim id est laborum."; //TODO: Write a proper text here
     const char *about_text = help_text; //TODO: Write a proper text here
 
-    CoverArtLabel *art_cover;
+    CoverArtLabelExt *art_cover;
 
     Ui::ExtMetaManagerWidget ui; //add de ui
 private slots:
