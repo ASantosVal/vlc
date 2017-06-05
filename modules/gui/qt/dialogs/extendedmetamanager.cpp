@@ -28,7 +28,7 @@
 #include "dialogs_provider.hpp" /* THEDP creation */
 #include <vlc_playlist.h>  /* playlist_t */
 
-#include "components/interface_widgets.hpp"       /* CoverArtLabel */
+#include "components/interface_widgets.hpp"       /* CoverArtLabelExt */
 
 // #include <QTabWidget>
 // #include <QLabel>
@@ -77,7 +77,8 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.tableWidget_metadata->setColumnWidth(COL_PATH, 50); //Path
 
     /* ART_URL */
-    art_cover = new CoverArtLabel( this, p_intf );
+    art_cover = new CoverArtLabelExt( this, p_intf );
+    art_cover->setScaledContents(true); //allow the label's image to be scaled (to fit all the area)
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );

@@ -838,6 +838,105 @@ void CoverArtLabel::clear()
     showArtUpdate( "" );
 }
 
+
+CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
+    : QLabel( parent ), p_intf( _p_i ), p_item( NULL )
+{
+    setContextMenuPolicy( Qt::ActionsContextMenu );
+    CONNECT( THEMIM->getIM(), artChanged( input_item_t * ),
+             this, showArtUpdate( input_item_t * ) );
+
+    setMinimumHeight( 128 );
+    setMinimumWidth( 128 );
+    setScaledContents( false );
+    setAlignment( Qt::AlignCenter );
+
+    QAction *action = new QAction( qtr( "Download cover art" ), this );
+    CONNECT( action, triggered(), this, askForUpdate() );
+    addAction( action );
+
+    action = new QAction( qtr( "Add cover art from file" ), this );
+    CONNECT( action, triggered(), this, setArtFromFile() );
+    addAction( action );
+
+    p_item = THEMIM->currentInputItem();
+    if( p_item )
+    {
+        vlc_gc_incref( p_item );
+        showArtUpdate( p_item );
+    }
+    else
+        showArtUpdate( "" );
+}
+
+CoverArtLabelExt::~CoverArtLabelExt()
+{
+    QList< QAction* > artActions = actions();
+    foreach( QAction *act, artActions )
+        removeAction( act );
+    if ( p_item ) vlc_gc_decref( p_item );
+}
+
+void CoverArtLabelExt::setItem( input_item_t *_p_item )
+{
+    if ( p_item ) vlc_gc_decref( p_item );
+    p_item = _p_item;
+    if ( p_item ) vlc_gc_incref( p_item );
+}
+
+void CoverArtLabelExt::showArtUpdate( const QString& url )
+{
+    QPixmap pix;
+    if( !url.isEmpty() && pix.load( url ) )
+    {
+        pix = pix.scaled( 250, 250,
+                          Qt::KeepAspectRatioByExpanding,
+                          Qt::SmoothTransformation );
+    }
+    else
+    {
+        pix = QPixmap( ":/noart.png" );
+    }
+    setPixmap( pix );
+}
+
+void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
+{
+    /* not for me */
+    if ( _p_item != p_item )
+        return;
+
+    QString url;
+    if ( _p_item ) url = THEMIM->getIM()->decodeArtURL( _p_item );
+    showArtUpdate( url );
+}
+
+void CoverArtLabelExt::askForUpdate()
+{
+    THEMIM->getIM()->requestArtUpdate( p_item, true );
+}
+
+void CoverArtLabelExt::setArtFromFile()
+{
+    if( !p_item )
+        return;
+
+    QString filePath = QFileDialog::getOpenFileName( this, qtr( "Choose Cover Art" ),
+        p_intf->p_sys->filepath, qtr( "Image Files (*.gif *.jpg *.jpeg *.png)" ) );
+
+    if( filePath.isEmpty() )
+        return;
+
+    QString fileUrl = QUrl::fromLocalFile( filePath ).toString();
+
+    THEMIM->getIM()->setArt( p_item, fileUrl );
+}
+
+void CoverArtLabelExt::clear()
+{
+    showArtUpdate( "" );
+}
+
 TimeLabel::TimeLabel( intf_thread_t *_p_intf, TimeLabel::Display _displayType  )
     : ClickableQLabel(), p_intf( _p_intf ), displayType( _displayType )
 {
@@ -975,4 +1074,3 @@ void TimeLabel::toggleTimeDisplay()
     getSettings()->setValue( "MainWindow/ShowRemainingTime", b_remainingTime );
     emit broadcastRemainingTime( b_remainingTime );
 }
-
