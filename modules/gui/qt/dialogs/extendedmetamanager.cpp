@@ -192,11 +192,68 @@ void ExtMetaManagerDialog::clearPlaylist()
 void ExtMetaManagerDialog::searchNow()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] searchNow" ); //TODO: delete this
+    if (ui.checkBox_acousticid->isChecked())
+    {
+        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] acousticId checked" ); //TODO: delete this
+        fingerprintTable();
+    }
+    if (ui.checkBox_TODO->isChecked())
+    {
+        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] TODO checked" ); //TODO: delete this
+
+    }
+    if (ui.checkBox_filenameAnalysis->isChecked())
+    {
+        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] filenameAnalysis checked" ); //TODO: delete this
+
+    }
 }
 
 void ExtMetaManagerDialog::saveAll()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] saveAll" ); //TODO: delete this
+
+    input_item_t *p_item;
+    int rows = ui.tableWidget_metadata->rowCount();
+    for(int row = 0;  row < rows; row++) //the list starts at 4 because the first 3 are not files
+    {
+        msg_Dbg( p_intf, "[ExtMetaManagerDialog] getting item" ); //TODO: delete this
+        p_item = getItemFromRow(row);
+
+        // Check if the row's is checkbox checked
+        QCheckBox  *checkbox = (QCheckBox*) ui.tableWidget_metadata->cellWidget(row,COL_CHECKBOX);
+        bool is_selected = checkbox->isChecked();
+
+        if (is_selected)
+        {
+            msg_Dbg( p_intf, "[ExtMetaManagerDialog] item selected" ); //TODO: delete this
+
+            // Extract information form the table
+            const char *title_text = ui.tableWidget_metadata->item(row,COL_TITLE)->text().toLatin1();
+            const char *artist_text = ui.tableWidget_metadata->item(row,COL_ARTIST)->text().toLatin1();
+            const char *album_text = ui.tableWidget_metadata->item(row,COL_ALBUM)->text().toLatin1();
+            const char *genre_text = ui.tableWidget_metadata->item(row,COL_GENRE)->text().toLatin1();
+            const char *trackNum_text = ui.tableWidget_metadata->item(row,COL_TRACKNUM)->text().toLatin1();
+            const char *publisher_text = ui.tableWidget_metadata->item(row,COL_PUBLISHER)->text().toLatin1();
+            const char *copyright_text = ui.tableWidget_metadata->item(row,COL_COPYRIGHT)->text().toLatin1();
+
+            // Set the meta on the item
+            input_item_SetTitle(p_item, title_text); //TODO: this creates on hell of a mess with the metadata
+            input_item_SetArtist(p_item, artist_text);
+            input_item_SetAlbum(p_item, album_text);
+            input_item_SetGenre(p_item, genre_text);
+            input_item_SetTrackNum(p_item, trackNum_text);
+            input_item_SetPublisher(p_item, publisher_text);
+            input_item_SetCopyright(p_item, copyright_text);
+
+            input_item_WriteMeta( VLC_OBJECT(THEPL), p_item ); // Write the metas
+        }
+    }
+}
+
+void ExtMetaManagerDialog::fingerprintTable()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" ); //TODO: delete this
 }
 
 void ExtMetaManagerDialog::restoreAll()
@@ -247,12 +304,11 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     char *uri_text = input_item_GetURI(p_item);
 
     // Create checkbox for the first column
-    QTableWidgetItem *item = new QTableWidgetItem();
-    item->data(Qt::CheckStateRole);
-    item->setCheckState(Qt::Unchecked);
+    QCheckBox  *checkbox = new QCheckBox ();
+    checkbox->setChecked(1); // Set checked by default
 
     // Inserte the obtained values in the table
-    ui.tableWidget_metadata->setItem(row, COL_CHECKBOX, item );
+    ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
     ui.tableWidget_metadata->setItem(row, COL_TITLE, new QTableWidgetItem( title_text ));
     ui.tableWidget_metadata->setItem(row, COL_ARTIST, new QTableWidgetItem( artist_text ));
     ui.tableWidget_metadata->setItem(row, COL_ALBUM, new QTableWidgetItem( album_text ));
@@ -263,6 +319,16 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //TODO: this must be a file chooser
     ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
     ui.tableWidget_metadata->item(row, COL_PATH)->setFlags(0); // Make the path not selectable/editable
+
+    // Free some variables
+    delete title_text;
+    delete artist_text;
+    delete album_text;
+    delete genre_text;
+    delete trackNum_text;
+    delete publisher_text;
+    delete copyright_text;
+    delete uri_text;
 }
 
 void ExtMetaManagerDialog::updateArtwork(int row, int column)

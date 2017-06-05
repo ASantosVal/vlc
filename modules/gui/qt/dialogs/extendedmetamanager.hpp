@@ -67,6 +67,7 @@ private slots:
     void clearPlaylist();
     void searchNow();
     void saveAll();
+    void fingerprintTable();
     void restoreAll();
     void help();
     void about();
