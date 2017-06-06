@@ -144,7 +144,8 @@ void ExtMetaManagerDialog::getFromFolder()
     clearTable();
 
     //we are going to use the pl to preparse the files, so we clear it first
-    playlist_Clear( THEPL, false ); //TODO: this creates segmentation fault on getFromPlaylist
+    clearPlaylist();
+
     foreach( const QString &uri, uris )
     {
         // Get the item from the URI
@@ -157,6 +158,26 @@ void ExtMetaManagerDialog::getFromFolder()
     //Select the first cell and update artwork label
     ui.tableWidget_metadata->setCurrentCell(0,1);
     updateArtwork(0,0);
+}
+
+
+
+void ExtMetaManagerDialog::clearPlaylist()
+{
+    playlist_Lock(THEPL); //Lock the playlist so we can work with it
+
+    int size = THEPL->items.i_size; //Get the size of the playlist
+    playlist_item_t *playlist_item;
+
+    if( size ==0 ) return; //If no files, finish
+
+    for(int i = 4;  i <= size+3; i++) //The list starts at 4 because the first 3 are not files
+    {
+        playlist_item = playlist_ItemGetById(THEPL, i); //Get the playlist_item
+        playlist_NodeDelete(THEPL, playlist_item, false); //Delete item from teh playlist
+    }
+
+    playlist_Unlock(THEPL); //Unlock the playlist
 }
 
 void ExtMetaManagerDialog::searchNow()
@@ -249,9 +270,8 @@ input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 {
     input_item_t *p_item = input_item_New( uri, "Test" ); //TODO: give significant name
-
     //add to the playlist so it is preparsed (metadata is got)
-    playlist_AddInput( THEPL, p_item, false, false );
+    playlist_AddInput( THEPL, p_item, false, true );
 
     //Check it it is preparsed (metadata was added)
     while (!input_item_IsPreparsed(p_item)) ;

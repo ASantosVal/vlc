@@ -63,6 +63,7 @@ private slots:
 
     void getFromPlaylist();
     void getFromFolder();
+    void clearPlaylist();
     void searchNow();
     void saveAll();
     void restoreAll();
