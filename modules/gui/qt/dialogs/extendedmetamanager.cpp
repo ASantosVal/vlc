@@ -45,7 +45,7 @@
 // #include <QPushButton>
 
 #define UNUSED(x) (void)(x) //TODO: delete this. Unused variable warning removal
-
+/* Constructor */
 ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
                : QVLCDialog( (QWidget*)_p_intf->p_sys->p_mi, _p_intf )
 {
@@ -94,7 +94,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
-
+/* Destructor */
 ExtMetaManagerDialog::~ExtMetaManagerDialog()
 {
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
@@ -109,13 +109,19 @@ void ExtMetaManagerDialog::toggleVisible()
 
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Toggle Visible" ); //TODO: delete this
 }
+/*----------------------------------------------------------------------------*/
+/*-----------------------------Main use cases---------------------------------*/
+/*----------------------------------------------------------------------------*/
 
+/* Just closes the window (and the module itself) */
 void ExtMetaManagerDialog::close()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" ); //TODO: delete this
     toggleVisible();
+    //TODO: this creates segmentation fault ¿? on close and does not delete the module
 }
 
+/* Loads files into the table from the current playlist */
 void ExtMetaManagerDialog::getFromPlaylist()
 {
     clearTable();
@@ -124,30 +130,23 @@ void ExtMetaManagerDialog::getFromPlaylist()
     playlist_Lock(THEPL); //Lock the playlist so we can work with it
 
     int size = THEPL->items.i_size; //Get the size of the playlist
-    playlist_item_t *playlist_item;
-    input_item_t *p_item;
-    int row; //This is where each item's position will be stored
-
     if( size ==0 ) return; //if no files selected, finish
 
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Clearing array" ); //TODO: delete this
     vlc_array_clear(workingItems); //Clear the array with the current working items
+
+    input_item_t *p_item;  //This is where each item will be stored
+    int row; //This is where each item's position will be stored
 
     for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
     {
-        playlist_item = playlist_ItemGetById(THEPL, i); // Get the playlist_item
-        p_item = playlist_item->p_input; // This creates segmentation fault if playlist_item doesnt exist, be careful
+        p_item = playlist_ItemGetById(THEPL, i)->p_input; // Get the playlist_item's input_item_t
         addTableEntry(p_item); //add item to the table
 
         /*Now we get the size of the table and store the item on that position
-        on the array, so item at row X on teh table is also stored ad array
+        on the array, so item at row X on the table is also stored at array
         position X*/
-        msg_Dbg( p_intf, "[ExtMetaManagerDialog] 1 array" ); //TODO: delete this
         row =   ui.tableWidget_metadata->rowCount();
-        msg_Dbg( p_intf, "[ExtMetaManagerDialog] 2 array" ); //TODO: delete this
         vlc_array_insert(workingItems, p_item, row-1); //Add item array with the current working items
-        msg_Dbg( p_intf, "[ExtMetaManagerDialog] 3 array" ); //TODO: delete this
-
     }
 
     playlist_Unlock(THEPL); //Unlock the playlist
@@ -157,6 +156,7 @@ void ExtMetaManagerDialog::getFromPlaylist()
     updateArtwork(0,0);
 }
 
+/* Loads files into the table from a file explorer window */
 void ExtMetaManagerDialog::getFromFolder()
 {
     // Open a file explorer just with audio files
@@ -193,26 +193,7 @@ void ExtMetaManagerDialog::getFromFolder()
     updateArtwork(0,0);
 }
 
-
-
-void ExtMetaManagerDialog::clearPlaylist()
-{
-    playlist_Lock(THEPL); //Lock the playlist so we can work with it
-
-    int size = THEPL->items.i_size; //Get the size of the playlist
-    playlist_item_t *playlist_item;
-
-    if( size ==0 ) return; //If no files, finish
-
-    for(int i = 4;  i <= size+3; i++) //The list starts at 4 because the first 3 are not files
-    {
-        playlist_item = playlist_ItemGetById(THEPL, i); //Get the playlist_item
-        playlist_NodeDelete(THEPL, playlist_item, false); //Delete item from teh playlist
-    }
-
-    playlist_Unlock(THEPL); //Unlock the playlist
-}
-
+/* Initiates the metadata search and analysis based on choosed options */
 void ExtMetaManagerDialog::searchNow()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] searchNow" ); //TODO: delete this
@@ -233,6 +214,7 @@ void ExtMetaManagerDialog::searchNow()
     }
 }
 
+/* saves changes permanently*/
 void ExtMetaManagerDialog::saveAll()
 {
     input_item_t *p_item; // This is where the current working item will be
@@ -273,6 +255,33 @@ void ExtMetaManagerDialog::saveAll()
     }
 }
 
+/* Just reloads all the items of the table, discarding unsaved changes */
+void ExtMetaManagerDialog::restoreAll()
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] restoreAll" ); //TODO: delete this
+    clearTable();
+
+    input_item_t *p_item; // This is where the current working item will be
+    int arraySize = vlc_array_count(workingItems);
+    for(int i = 0; i < arraySize; i++) //The list starts at 4 because the first 3 are not files
+    {
+        p_item = (input_item_t*)vlc_array_item_at_index(workingItems, i); //Get one item form the list
+        addTableEntry(p_item); //Add the item to the table
+    }
+}
+
+/* Deletes all entries from the table (still can be recovered with restoreAll) */
+void ExtMetaManagerDialog::clearTable()
+{
+    ui.tableWidget_metadata->clearContents();
+    ui.tableWidget_metadata->setRowCount(0);
+}
+
+/*----------------------------------------------------------------------------*/
+/*--------------------Metadata & input management-----------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/* Initiates the fingerprint process for all the table */
 void ExtMetaManagerDialog::fingerprintTable()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" ); //TODO: delete this
@@ -287,6 +296,7 @@ void ExtMetaManagerDialog::fingerprintTable()
     }
 }
 
+/* Initiates the fingerprint process just for one item */
 void ExtMetaManagerDialog::fingerprint(input_item_t *p_item)
 {
     FingerprintDialog *dialog = new FingerprintDialog( this, p_intf, p_item );
@@ -295,42 +305,31 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item)
     dialog->show();
 }
 
-void ExtMetaManagerDialog::restoreAll() //This just reloads all the items on the table
+/* Recovers the item on a certain row (from the table) */
+input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] restoreAll" ); //TODO: delete this
-    clearTable();
-
-    input_item_t *p_item; // This is where the current working item will be
-    int arraySize = vlc_array_count(workingItems);
-    for(int i = 0; i < arraySize; i++) //The list starts at 4 because the first 3 are not files
-    {
-        p_item = (input_item_t*)vlc_array_item_at_index(workingItems, i); //Get one item form the list
-        addTableEntry(p_item); //Add the item to the table
-    }
+    input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workingItems, row);
+    return p_item;
 }
 
-void ExtMetaManagerDialog::help()
+/* Gets an item from an URI and preparses it (gets it's metadata) */
+input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 {
-    QMessageBox::information(
-      this,
-      tr("Help - Extended Metadata Manager"),
-      tr(help_text) );
+    input_item_t *p_item = input_item_New( uri, "Test" ); //TODO: give significant name
+    //add to the playlist so it is preparsed (metadata is got)
+    playlist_AddInput( THEPL, p_item, false, true );
+
+    //Check it it is preparsed (metadata was added)
+    while (!input_item_IsPreparsed(p_item)) ;
+
+    return p_item;
 }
 
-void ExtMetaManagerDialog::about()
-{
-    QMessageBox::information(
-      this,
-      tr("About - Extended Metadata Manager"),
-      tr(about_text) );
-}
+/*----------------------------------------------------------------------------*/
+/*--------------------------Table management----------------------------------*/
+/*----------------------------------------------------------------------------*/
 
-void ExtMetaManagerDialog::clearTable()
-{
-    ui.tableWidget_metadata->clearContents();
-    ui.tableWidget_metadata->setRowCount(0);
-}
-
+/* Adds a row on the table with the metadata from a given item */
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 {
     // Add one row to the table
@@ -339,6 +338,7 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     addTableEntry(p_item,row);
 }
 
+/* Writes a (given) row on the table with the metadata from a given item */
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
 {
     // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
@@ -383,6 +383,12 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
     delete uri_text;
 }
 
+/*----------------------------------------------------------------------------*/
+/*-------------------------------Others---------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/* When a cell on the table is selected, this function changes the Artwork
+label's content to the selected item's artwork */
 void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
     UNUSED(column); //TODO: delete this
@@ -390,20 +396,39 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
     art_cover->showArtUpdate(THEMIM->getIM()->decodeArtURL( getItemFromRow(row) ));
 }
 
-input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
+/* Clears the playlist */
+void ExtMetaManagerDialog::clearPlaylist() //TODO: this doesnt work properly
 {
-    input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workingItems, row);
-    return p_item;
+    playlist_Lock(THEPL); //Lock the playlist so we can work with it
+
+    int size = THEPL->items.i_size; //Get the size of the playlist
+    playlist_item_t *playlist_item;
+
+    if( size ==0 ) return; //If no files, finish
+
+    for(int i = 4;  i <= size+3; i++) //The list starts at 4 because the first 3 are not files
+    {
+        playlist_item = playlist_ItemGetById(THEPL, i); //Get the playlist_item
+        playlist_NodeDelete(THEPL, playlist_item, false); //Delete item from teh playlist
+    }
+
+    playlist_Unlock(THEPL); //Unlock the playlist
 }
 
-input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
+/* Launches the "Help" dialog */
+void ExtMetaManagerDialog::help()
 {
-    input_item_t *p_item = input_item_New( uri, "Test" ); //TODO: give significant name
-    //add to the playlist so it is preparsed (metadata is got)
-    playlist_AddInput( THEPL, p_item, false, true );
+    QMessageBox::information(
+      this,
+      tr("Help - Extended Metadata Manager"),
+      tr(help_text) );
+}
 
-    //Check it it is preparsed (metadata was added)
-    while (!input_item_IsPreparsed(p_item)) ;
-
-    return p_item;
+/* Launches the "About" dialog */
+void ExtMetaManagerDialog::about()
+{
+    QMessageBox::information(
+      this,
+      tr("About - Extended Metadata Manager"),
+      tr(about_text) );
 }
