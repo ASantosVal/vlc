@@ -73,6 +73,7 @@ private slots:
     void about();
     void clearTable();
     void addTableEntry(input_item_t *p_item);
+    void addTableEntry(input_item_t *p_item, int row);
     void updateArtwork(int row, int column);
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
@@ -80,6 +81,8 @@ private slots:
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
     void toggleVisible();
+    void fingerprint(input_item_t *p_item);
+    void fingerprintUpdate( input_item_t * );
 };
 
 #endif

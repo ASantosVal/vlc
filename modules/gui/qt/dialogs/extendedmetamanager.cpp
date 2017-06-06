@@ -26,6 +26,11 @@
 #include "dialogs_provider.hpp"                 /* THEDP creation */
 #include "components/interface_widgets.hpp"     /* CoverArtLabelExt */
 
+#include "input_manager.hpp"
+#include "dialogs_provider.hpp" /* THEDP creation */
+#include <vlc_playlist.h>  /* playlist_t */
+#include "dialogs/fingerprintdialog.hpp" /* fingerprinting */
+#include "adapters/chromaprint.hpp" /* fingerprinting */
 
 #include <QMessageBox> //for the Help and About popups
 
@@ -211,13 +216,10 @@ void ExtMetaManagerDialog::searchNow()
 
 void ExtMetaManagerDialog::saveAll()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] saveAll" ); //TODO: delete this
-
-    input_item_t *p_item;
+    input_item_t *p_item; // This is where the current working item will be
     int rows = ui.tableWidget_metadata->rowCount();
-    for(int row = 0;  row < rows; row++) //the list starts at 4 because the first 3 are not files
+    for(int row = 0;  row < rows; row++) //The list starts at 4 because the first 3 are not files
     {
-        msg_Dbg( p_intf, "[ExtMetaManagerDialog] getting item" ); //TODO: delete this
         p_item = getItemFromRow(row);
 
         // Check if the row's is checkbox checked
@@ -226,8 +228,6 @@ void ExtMetaManagerDialog::saveAll()
 
         if (is_selected)
         {
-            msg_Dbg( p_intf, "[ExtMetaManagerDialog] item selected" ); //TODO: delete this
-
             // Extract information form the table
             const char *title_text = ui.tableWidget_metadata->item(row,COL_TITLE)->text().toLatin1();
             const char *artist_text = ui.tableWidget_metadata->item(row,COL_ARTIST)->text().toLatin1();
@@ -236,6 +236,9 @@ void ExtMetaManagerDialog::saveAll()
             const char *trackNum_text = ui.tableWidget_metadata->item(row,COL_TRACKNUM)->text().toLatin1();
             const char *publisher_text = ui.tableWidget_metadata->item(row,COL_PUBLISHER)->text().toLatin1();
             const char *copyright_text = ui.tableWidget_metadata->item(row,COL_COPYRIGHT)->text().toLatin1();
+
+            printf("%s\n", title_text); //TODO: delete this
+            printf("%s\n", artist_text); //TODO: delete this
 
             // Set the meta on the item
             input_item_SetTitle(p_item, title_text); //TODO: this creates on hell of a mess with the metadata
@@ -254,6 +257,25 @@ void ExtMetaManagerDialog::saveAll()
 void ExtMetaManagerDialog::fingerprintTable()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" ); //TODO: delete this
+    input_item_t *p_item; // This is where the current working item will be
+    int rows = ui.tableWidget_metadata->rowCount();
+    for(int row = 0;  row < rows; row++) //The list starts at 4 because the first 3 are not files
+    {
+        // Get the item from the current row
+        p_item = getItemFromRow(row);
+        fingerprint(p_item);
+        addTableEntry(p_item, row);
+
+
+    }
+}
+
+void ExtMetaManagerDialog::fingerprint(input_item_t *p_item)
+{
+    FingerprintDialog *dialog = new FingerprintDialog( this, p_intf, p_item );
+    //CONNECT( dialog, metaApplied( input_item_t * ), this, fingerprintUpdate( input_item_t * ) );
+    dialog->setAttribute( Qt::WA_DeleteOnClose, true );
+    dialog->show();
 }
 
 void ExtMetaManagerDialog::restoreAll()
@@ -288,7 +310,11 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     // Add one row to the table
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
+    addTableEntry(p_item,row);
+}
 
+void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
+{
     vlc_array_insert(workingItems, p_item, row); //Add item array with the current working items
 
     // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
