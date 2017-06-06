@@ -151,11 +151,10 @@ void ExtMetaManagerDialog::getFromFolder()
     if( uris.isEmpty() ) return; //if no files selected, finish
 
     clearTable();
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Clearing array" ); //TODO: delete this
     vlc_array_clear(workingItems); //Clear the array with the current working items
 
     //we are going to use the pl to preparse the files, so we clear it first
-    clearPlaylist();
+    // clearPlaylist(); //TODO: this creates seg. fault the second time you use it
 
     foreach( const QString &uri, uris )
     {
@@ -234,7 +233,6 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
 
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Adding item" ); //TODO: delete this
     vlc_array_insert(workingItems, p_item, row); //Add item array with the current working items
 
     // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
