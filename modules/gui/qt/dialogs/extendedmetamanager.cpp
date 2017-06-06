@@ -27,6 +27,7 @@
 #include "input_manager.hpp"
 #include "dialogs_provider.hpp" /* THEDP creation */
 #include <vlc_playlist.h>  /* playlist_t */
+#include <vlc_arrays.h>
 
 #include "components/interface_widgets.hpp"       /* CoverArtLabelExt */
 
@@ -81,6 +82,10 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     art_cover->setScaledContents(true); //allow the label's image to be scaled (to fit all the area)
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
+    workingItems = new vlc_array_t();
+    vlc_array_init(workingItems); // Initilize the array for the curretnly working items
+
+
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
 
@@ -108,6 +113,8 @@ void ExtMetaManagerDialog::close()
 void ExtMetaManagerDialog::getFromPlaylist()
 {
     clearTable();
+    vlc_array_clear(workingItems); //Clear the array with the current working items
+
     playlist_Lock(THEPL); //Lock the playlist so we can work with it
 
     int size = THEPL->items.i_size; //Get the size of the playlist
@@ -116,6 +123,8 @@ void ExtMetaManagerDialog::getFromPlaylist()
 
     if( size ==0 ) return; //if no files selected, finish
 
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Clearing array" ); //TODO: delete this
+    vlc_array_clear(workingItems); //Clear the array with the current working items
 
     for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
     {
@@ -142,9 +151,10 @@ void ExtMetaManagerDialog::getFromFolder()
     if( uris.isEmpty() ) return; //if no files selected, finish
 
     clearTable();
+    vlc_array_clear(workingItems); //Clear the array with the current working items
 
     //we are going to use the pl to preparse the files, so we clear it first
-    clearPlaylist();
+    // clearPlaylist(); //TODO: this creates seg. fault the second time you use it
 
     foreach( const QString &uri, uris )
     {
@@ -223,6 +233,8 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     int row =   ui.tableWidget_metadata->rowCount();
     ui.tableWidget_metadata->insertRow(row);
 
+    vlc_array_insert(workingItems, p_item, row); //Add item array with the current working items
+
     // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
 
     // Get metadata information from item
@@ -257,14 +269,14 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
     UNUSED(column); //TODO: delete this
-    art_cover->setItem(getItemFromRow(row)); // Get the item selected and update the artwork widget
+    //Get the itme form the row, decode it's Artwork and update it in the UI
+    art_cover->showArtUpdate(THEMIM->getIM()->decodeArtURL( getItemFromRow(row) ));
 }
 
 input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 {
-    const char* uri = ui.tableWidget_metadata->item(row,COL_PATH)->text().toLatin1();
-    input_item_t *item = getItemFromURI(uri);
-    return item;
+    input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workingItems, row);
+    return p_item;
 }
 
 input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)

@@ -56,6 +56,7 @@ private:
     const char *about_text = help_text; //TODO: Write a proper text here
 
     CoverArtLabelExt *art_cover;
+    vlc_array_t  *workingItems;
 
     Ui::ExtMetaManagerWidget ui; //add de ui
 private slots:
