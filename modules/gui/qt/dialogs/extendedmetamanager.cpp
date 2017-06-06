@@ -259,7 +259,7 @@ void ExtMetaManagerDialog::fingerprintTable()
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" ); //TODO: delete this
     input_item_t *p_item; // This is where the current working item will be
     int rows = ui.tableWidget_metadata->rowCount();
-    for(int row = 0;  row < rows; row++) //The list starts at 4 because the first 3 are not files
+    for(int row = 0; row < rows; row++) //The list starts at 4 because the first 3 are not files
     {
         // Get the item from the current row
         p_item = getItemFromRow(row);
@@ -278,9 +278,18 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item)
     dialog->show();
 }
 
-void ExtMetaManagerDialog::restoreAll()
+void ExtMetaManagerDialog::restoreAll() //This just reloads all the items on the table
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] restoreAll" ); //TODO: delete this
+    clearTable();
+
+    input_item_t *p_item; // This is where the current working item will be
+    int arraySize = vlc_array_count(workingItems);
+    for(int i = 0; i < arraySize; i++) //The list starts at 4 because the first 3 are not files
+    {
+        p_item = (input_item_t*)vlc_array_item_at_index(workingItems, i); //Get one item form the list
+        addTableEntry(p_item); //Add the item to the table
+    }
 }
 
 void ExtMetaManagerDialog::help()
