@@ -23,20 +23,21 @@
 #endif
 
 #include "dialogs/extendedmetamanager.hpp"
+#include "dialogs_provider.hpp"                 /* THEDP creation */
+#include "components/interface_widgets.hpp"     /* CoverArtLabelExt */
 
-#include "input_manager.hpp"
-#include "dialogs_provider.hpp" /* THEDP creation */
-#include <vlc_playlist.h>  /* playlist_t */
-#include <vlc_arrays.h>
 
-#include "components/interface_widgets.hpp"       /* CoverArtLabelExt */
+#include <QMessageBox> //for the Help and About popups
 
+// TODO: al these can probably be deleted
+// #include "input_manager.hpp"
+// #include <vlc_playlist.h>  /* playlist_t */
+// #include <vlc_arrays.h>
 // #include <QTabWidget>
 // #include <QLabel>
 // #include <QGroupBox>
-#include <QDialogButtonBox>
-#include <QPushButton>
-#include <QMessageBox> //for the Help and About popups
+// #include <QDialogButtonBox>
+// #include <QPushButton>
 
 #define UNUSED(x) (void)(x) //TODO: delete this. Unused variable warning removal
 
@@ -160,9 +161,7 @@ void ExtMetaManagerDialog::getFromFolder()
     {
         // Get the item from the URI
         input_item_t *p_item = getItemFromURI(uri.toLatin1().constData());
-
-        addTableEntry(p_item);
-        //msg_Dbg( p_intf, url.toLatin1() ); //TODO: delete this
+        addTableEntry(p_item); //Add the item to the table
     }
 
     //Select the first cell and update artwork label
