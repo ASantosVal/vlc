@@ -89,7 +89,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
     workingItems = new vlc_array_t();
-    vlc_array_init(workingItems); // Initilize the array for the curretnly working items
+    vlc_array_init(workingItems); // Initilize the array for the currently working items
 
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
@@ -125,7 +125,8 @@ void ExtMetaManagerDialog::getFromPlaylist()
 
     int size = THEPL->items.i_size; //Get the size of the playlist
     playlist_item_t *playlist_item;
-    input_item_t *input_item;
+    input_item_t *p_item;
+    int row; //This is where each item's position will be stored
 
     if( size ==0 ) return; //if no files selected, finish
 
@@ -135,8 +136,18 @@ void ExtMetaManagerDialog::getFromPlaylist()
     for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
     {
         playlist_item = playlist_ItemGetById(THEPL, i); // Get the playlist_item
-        input_item = playlist_item->p_input; // This creates segmentation fault if playlist_item doesnt exist, be careful
-        addTableEntry(input_item); //add item to the table
+        p_item = playlist_item->p_input; // This creates segmentation fault if playlist_item doesnt exist, be careful
+        addTableEntry(p_item); //add item to the table
+
+        /*Now we get the size of the table and store the item on that position
+        on the array, so item at row X on teh table is also stored ad array
+        position X*/
+        msg_Dbg( p_intf, "[ExtMetaManagerDialog] 1 array" ); //TODO: delete this
+        row =   ui.tableWidget_metadata->rowCount();
+        msg_Dbg( p_intf, "[ExtMetaManagerDialog] 2 array" ); //TODO: delete this
+        vlc_array_insert(workingItems, p_item, row-1); //Add item array with the current working items
+        msg_Dbg( p_intf, "[ExtMetaManagerDialog] 3 array" ); //TODO: delete this
+
     }
 
     playlist_Unlock(THEPL); //Unlock the playlist
@@ -162,11 +173,19 @@ void ExtMetaManagerDialog::getFromFolder()
     //we are going to use the pl to preparse the files, so we clear it first
     // clearPlaylist(); //TODO: this creates seg. fault the second time you use it
 
+    int row; //This is where each item's position will be stored
+
     foreach( const QString &uri, uris )
     {
         // Get the item from the URI
         input_item_t *p_item = getItemFromURI(uri.toLatin1().constData());
         addTableEntry(p_item); //Add the item to the table
+
+        /*Now we get the size of the table and store the item on that position
+        on the array, so item at row X on teh table is also stored ad array
+        position X*/
+        row =   ui.tableWidget_metadata->rowCount();
+        vlc_array_insert(workingItems, p_item, row-1); //Add item array with the current working items
     }
 
     //Select the first cell and update artwork label
@@ -265,8 +284,6 @@ void ExtMetaManagerDialog::fingerprintTable()
         p_item = getItemFromRow(row);
         fingerprint(p_item);
         addTableEntry(p_item, row);
-
-
     }
 }
 
@@ -324,9 +341,9 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
 {
-    vlc_array_insert(workingItems, p_item, row); //Add item array with the current working items
-
     // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
+
+    // vlc_array_insert(workingItems, p_item, row);
 
     // Get metadata information from item
     char *title_text = input_item_GetTitle(p_item);
