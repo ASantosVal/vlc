@@ -849,10 +849,6 @@ CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
     setScaledContents( true );
     setAlignment( Qt::AlignCenter );
 
-    // QAction *action = new QAction( qtr( "Download cover art" ), this );
-    // CONNECT( action, triggered(), this, askForUpdate() );
-    // addAction( action );
-
     QAction *action = new QAction( qtr( "Add cover art from file" ), this );
     CONNECT( action, triggered(), this, setArtFromFile() );
     addAction( action );
@@ -867,13 +863,6 @@ CoverArtLabelExt::~CoverArtLabelExt()
         removeAction( act );
     if ( p_item ) vlc_gc_decref( p_item );
 }
-
-// void CoverArtLabelExt::setItem( input_item_t *_p_item )
-// {
-//     if ( p_item ) vlc_gc_decref( p_item );
-//     p_item = _p_item;
-//     if ( p_item ) vlc_gc_incref( p_item );
-// }
 
 void CoverArtLabelExt::showArtUpdate( const QString& url )
 {

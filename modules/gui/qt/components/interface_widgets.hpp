@@ -271,7 +271,6 @@ class CoverArtLabelExt : public QLabel
     Q_OBJECT
 public:
     CoverArtLabelExt( QWidget *parent, intf_thread_t * );
-    // void setItem( input_item_t * );
     virtual ~CoverArtLabelExt();
 
 protected:
@@ -290,7 +289,6 @@ private:
 public slots:
     void showArtUpdate( const QString& );
     void showArtUpdate( input_item_t * );
-    // void askForUpdate();
     void setArtFromFile();
     void clear();
 };
