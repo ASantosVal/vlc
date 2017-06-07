@@ -288,6 +288,7 @@ void ExtMetaManagerDialog::clearTable()
 {
     ui.tableWidget_metadata->clearContents();
     ui.tableWidget_metadata->setRowCount(0);
+    art_cover->clear();
 }
 
 /*----------------------------------------------------------------------------*/
@@ -354,10 +355,6 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 /* Writes a (given) row on the table with the metadata from a given item */
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
 {
-    // input_item_WriteMeta( VLC_OBJECT(THEPL), p_item); //TODO: write/store edited metadata.
-
-    // vlc_array_insert(workingItems, p_item, row);
-
     // Get metadata information from item
     char *title_text = input_item_GetTitle(p_item);
     char *artist_text = input_item_GetArtist(p_item);
@@ -372,7 +369,7 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
     QCheckBox  *checkbox = new QCheckBox ();
     checkbox->setChecked(1); // Set checked by default
 
-    // Inserte the obtained values in the table
+    // Insert the obtained values in the table
     ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
     ui.tableWidget_metadata->setItem(row, COL_TITLE, new QTableWidgetItem( title_text ));
     ui.tableWidget_metadata->setItem(row, COL_ARTIST, new QTableWidgetItem( artist_text ));
@@ -384,16 +381,6 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
     ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //TODO: this must be a file chooser
     ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
     ui.tableWidget_metadata->item(row, COL_PATH)->setFlags(0); // Make the path not selectable/editable
-
-    // Free some variables
-    delete title_text;
-    delete artist_text;
-    delete album_text;
-    delete genre_text;
-    delete trackNum_text;
-    delete publisher_text;
-    delete copyright_text;
-    delete uri_text;
 }
 
 /*----------------------------------------------------------------------------*/

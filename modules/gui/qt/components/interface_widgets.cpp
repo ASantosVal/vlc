@@ -843,30 +843,21 @@ CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
     : QLabel( parent ), p_intf( _p_i ), p_item( NULL )
 {
     setContextMenuPolicy( Qt::ActionsContextMenu );
-    CONNECT( THEMIM->getIM(), artChanged( input_item_t * ),
-             this, showArtUpdate( input_item_t * ) );
 
-    setMinimumHeight( 128 );
-    setMinimumWidth( 128 );
-    setScaledContents( false );
+    setMaximumHeight( 250 );
+    setMaximumWidth( 250 );
+    setScaledContents( true );
     setAlignment( Qt::AlignCenter );
 
-    QAction *action = new QAction( qtr( "Download cover art" ), this );
-    CONNECT( action, triggered(), this, askForUpdate() );
-    addAction( action );
+    // QAction *action = new QAction( qtr( "Download cover art" ), this );
+    // CONNECT( action, triggered(), this, askForUpdate() );
+    // addAction( action );
 
-    action = new QAction( qtr( "Add cover art from file" ), this );
+    QAction *action = new QAction( qtr( "Add cover art from file" ), this );
     CONNECT( action, triggered(), this, setArtFromFile() );
     addAction( action );
 
-    p_item = THEMIM->currentInputItem();
-    if( p_item )
-    {
-        vlc_gc_incref( p_item );
-        showArtUpdate( p_item );
-    }
-    else
-        showArtUpdate( "" );
+    showArtUpdate( "" );
 }
 
 CoverArtLabelExt::~CoverArtLabelExt()
@@ -877,12 +868,12 @@ CoverArtLabelExt::~CoverArtLabelExt()
     if ( p_item ) vlc_gc_decref( p_item );
 }
 
-void CoverArtLabelExt::setItem( input_item_t *_p_item )
-{
-    if ( p_item ) vlc_gc_decref( p_item );
-    p_item = _p_item;
-    if ( p_item ) vlc_gc_incref( p_item );
-}
+// void CoverArtLabelExt::setItem( input_item_t *_p_item )
+// {
+//     if ( p_item ) vlc_gc_decref( p_item );
+//     p_item = _p_item;
+//     if ( p_item ) vlc_gc_incref( p_item );
+// }
 
 void CoverArtLabelExt::showArtUpdate( const QString& url )
 {
@@ -911,10 +902,10 @@ void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
     showArtUpdate( url );
 }
 
-void CoverArtLabelExt::askForUpdate()
-{
-    THEMIM->getIM()->requestArtUpdate( p_item, true );
-}
+// void CoverArtLabelExt::askForUpdate()
+// {
+//     THEMIM->getIM()->requestArtUpdate( p_item, true );
+// }
 
 void CoverArtLabelExt::setArtFromFile()
 {
