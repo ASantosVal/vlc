@@ -109,6 +109,7 @@ void ExtMetaManagerDialog::toggleVisible()
 
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Toggle Visible" ); //TODO: delete this
 }
+
 /*----------------------------------------------------------------------------*/
 /*-----------------------------Main use cases---------------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -171,6 +172,10 @@ void ExtMetaManagerDialog::getFromFolder()
     vlc_array_clear(workingItems); //Clear the array with the current working items
 
     //we are going to use the pl to preparse the files, so we clear it first
+    // playlist_Lock(THEPL); //Unlock the playlist
+    // playlist_Clear(THEPL,true); //TODO: this creates seg. fault when loading form PL after this been called
+    // playlist_Unlock(THEPL); //Unlock the playlist
+
     // clearPlaylist(); //TODO: this creates seg. fault the second time you use it
 
     int row; //This is where each item's position will be stored
@@ -218,38 +223,46 @@ void ExtMetaManagerDialog::searchNow()
 void ExtMetaManagerDialog::saveAll()
 {
     input_item_t *p_item; // This is where the current working item will be
+    const char *title_text;
+    const char *artist_text;
+    const char *album_text;
+    const char *genre_text;
+    const char *trackNum_text;
+    const char *publisher_text;
+    const char *copyright_text;
+
     int rows = ui.tableWidget_metadata->rowCount();
     for(int row = 0;  row < rows; row++) //The list starts at 4 because the first 3 are not files
     {
-        p_item = getItemFromRow(row);
-
         // Check if the row's is checkbox checked
         QCheckBox  *checkbox = (QCheckBox*) ui.tableWidget_metadata->cellWidget(row,COL_CHECKBOX);
-        bool is_selected = checkbox->isChecked();
 
-        if (is_selected)
+        if (checkbox->isChecked()) //Check if the row is checked/selected
         {
-            // Extract information form the table
-            const char *title_text = ui.tableWidget_metadata->item(row,COL_TITLE)->text().toLatin1();
-            const char *artist_text = ui.tableWidget_metadata->item(row,COL_ARTIST)->text().toLatin1();
-            const char *album_text = ui.tableWidget_metadata->item(row,COL_ALBUM)->text().toLatin1();
-            const char *genre_text = ui.tableWidget_metadata->item(row,COL_GENRE)->text().toLatin1();
-            const char *trackNum_text = ui.tableWidget_metadata->item(row,COL_TRACKNUM)->text().toLatin1();
-            const char *publisher_text = ui.tableWidget_metadata->item(row,COL_PUBLISHER)->text().toLatin1();
-            const char *copyright_text = ui.tableWidget_metadata->item(row,COL_COPYRIGHT)->text().toLatin1();
+            p_item = getItemFromRow(row); //First we obtain the input_item from the row
 
-            printf("%s\n", title_text); //TODO: delete this
-            printf("%s\n", artist_text); //TODO: delete this
-
-            // Set the meta on the item
-            input_item_SetTitle(p_item, title_text); //TODO: this creates on hell of a mess with the metadata
+            /* ---Extract information form the table---
+            getting the reference to one columns info is tricky, because the
+            pointer is only valid while the QString (got with text()) hasn't
+            changed. This means every time you get info from a new row, you
+            loose the pointers to the previous row. That's why here we get the
+            info and store it inmediately*/
+            title_text = ui.tableWidget_metadata->item(row,COL_TITLE)->text().toLocal8Bit().constData();
+            input_item_SetTitle(p_item, title_text);
+            artist_text = ui.tableWidget_metadata->item(row,COL_ARTIST)->text().toLocal8Bit().constData();
             input_item_SetArtist(p_item, artist_text);
+            album_text = ui.tableWidget_metadata->item(row,COL_ALBUM)->text().toLocal8Bit().constData();
             input_item_SetAlbum(p_item, album_text);
+            genre_text = ui.tableWidget_metadata->item(row,COL_GENRE)->text().toLocal8Bit().constData();
             input_item_SetGenre(p_item, genre_text);
+            trackNum_text = ui.tableWidget_metadata->item(row,COL_TRACKNUM)->text().toLocal8Bit().constData();
             input_item_SetTrackNum(p_item, trackNum_text);
+            publisher_text = ui.tableWidget_metadata->item(row,COL_PUBLISHER)->text().toLocal8Bit().constData();
             input_item_SetPublisher(p_item, publisher_text);
+            copyright_text = ui.tableWidget_metadata->item(row,COL_COPYRIGHT)->text().toLocal8Bit().constData();
             input_item_SetCopyright(p_item, copyright_text);
 
+            // Save the meta on the item
             input_item_WriteMeta( VLC_OBJECT(THEPL), p_item ); // Write the metas
         }
     }

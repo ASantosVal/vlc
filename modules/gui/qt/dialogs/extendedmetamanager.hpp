@@ -36,7 +36,7 @@
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
 
-#include "ui/extmetamanager.h" // Include de compiled version of extmetamanager.ui
+#include "ui/extmetamanager.h" // Include teh precompiled version of extmetamanager.ui
 class CoverArtLabelExt;
 
 class ExtMetaManagerDialog : public QVLCDialog, public Singleton<ExtMetaManagerDialog>
@@ -55,8 +55,8 @@ private:
     "anim id est laborum."; //TODO: Write a proper text here
     const char *about_text = help_text; //TODO: Write a proper text here
 
-    CoverArtLabelExt *art_cover;
-    vlc_array_t  *workingItems;
+    CoverArtLabelExt *art_cover; //The widget used to show the artwork
+    vlc_array_t  *workingItems; //An array with the items the window is working at a certain moment
 
     Ui::ExtMetaManagerWidget ui; //add de ui
 private slots:
