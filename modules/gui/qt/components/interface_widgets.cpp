@@ -838,6 +838,9 @@ void CoverArtLabel::clear()
     showArtUpdate( "" );
 }
 
+/*----------------------------------------------------------------------------*/
+/*-------------Alternative dialog for extendedmetamanager---------------------*/
+/*----------------------------------------------------------------------------*/
 
 CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
     : QLabel( parent ), p_intf( _p_i ), p_item( NULL )
@@ -891,11 +894,6 @@ void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
     showArtUpdate( url );
 }
 
-// void CoverArtLabelExt::askForUpdate()
-// {
-//     THEMIM->getIM()->requestArtUpdate( p_item, true );
-// }
-
 void CoverArtLabelExt::setArtFromFile()
 {
     if( !p_item )
@@ -916,6 +914,10 @@ void CoverArtLabelExt::clear()
 {
     showArtUpdate( "" );
 }
+
+/*----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 TimeLabel::TimeLabel( intf_thread_t *_p_intf, TimeLabel::Display _displayType  )
     : ClickableQLabel(), p_intf( _p_intf ), displayType( _displayType )

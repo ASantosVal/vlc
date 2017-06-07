@@ -58,6 +58,10 @@ signals:
     void metaApplied( input_item_t * );
 };
 
+/*----------------------------------------------------------------------------*/
+/*-------------Alternative dialog for extendedmetamanager---------------------*/
+/*----------------------------------------------------------------------------*/
+
 class FingerprintDialogExt : public QDialog
 {
     Q_OBJECT
