@@ -98,6 +98,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 ExtMetaManagerDialog::~ExtMetaManagerDialog()
 {
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
+    delete ui; //Delete the user interface
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Saving position" ); //TODO: delete this
 }
 
@@ -305,12 +306,13 @@ void ExtMetaManagerDialog::fingerprintTable()
         fingerprint(p_item);
         addTableEntry(p_item, row);
     }
+
 }
 
 /* Initiates the fingerprint process just for one item */
 void ExtMetaManagerDialog::fingerprint(input_item_t *p_item)
 {
-    FingerprintDialog *dialog = new FingerprintDialog( this, p_intf, p_item );
+    FingerprintDialogExt *dialog = new FingerprintDialogExt( this, p_intf, p_item );
     //CONNECT( dialog, metaApplied( input_item_t * ), this, fingerprintUpdate( input_item_t * ) );
     dialog->setAttribute( Qt::WA_DeleteOnClose, true );
     dialog->show();
