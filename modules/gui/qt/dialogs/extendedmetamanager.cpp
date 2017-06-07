@@ -201,10 +201,8 @@ void ExtMetaManagerDialog::getFromFolder()
 /* Initiates the metadata search and analysis based on choosed options */
 void ExtMetaManagerDialog::searchNow()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] searchNow" ); //TODO: delete this
     if (ui.checkBox_acousticid->isChecked())
     {
-        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] acousticId checked" ); //TODO: delete this
         fingerprintTable();
     }
     if (ui.checkBox_TODO->isChecked())
@@ -271,7 +269,6 @@ void ExtMetaManagerDialog::saveAll()
 /* Just reloads all the items of the table, discarding unsaved changes */
 void ExtMetaManagerDialog::restoreAll()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] restoreAll" ); //TODO: delete this
     clearTable();
 
     input_item_t *p_item; // This is where the current working item will be
@@ -329,7 +326,7 @@ input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 /* Gets an item from an URI and preparses it (gets it's metadata) */
 input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 {
-    input_item_t *p_item = input_item_New( uri, "Test" ); //TODO: give significant name
+    input_item_t *p_item = input_item_New( uri, "Entry" ); //The name is not relevant
     //add to the playlist so it is preparsed (metadata is got)
     playlist_AddInput( THEPL, p_item, false, true );
 
