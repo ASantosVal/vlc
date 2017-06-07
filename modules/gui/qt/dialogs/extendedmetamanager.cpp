@@ -98,7 +98,6 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 ExtMetaManagerDialog::~ExtMetaManagerDialog()
 {
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
-    delete ui; //Delete the user interface
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Saving position" ); //TODO: delete this
 }
 
@@ -299,13 +298,22 @@ void ExtMetaManagerDialog::fingerprintTable()
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" ); //TODO: delete this
     input_item_t *p_item; // This is where the current working item will be
     int rows = ui.tableWidget_metadata->rowCount();
+
+    int progress_unit= 100/rows; //Calculate how much the progress bar has to increase each loop
+    int progress=0; //Initiaciate the counter
+    ui.progressBar_search->setValue(progress); //Set teh progress to 0
+
     for(int row = 0; row < rows; row++) //The list starts at 4 because the first 3 are not files
     {
         // Get the item from the current row
         p_item = getItemFromRow(row);
         fingerprint(p_item);
-        addTableEntry(p_item, row);
+        updateTableEntry(p_item, row);
+
+        progress=progress+progress_unit; //Increase the progress
+        ui.progressBar_search->setValue(progress); //Update the progressBar
     }
+    ui.progressBar_search->setValue(100);
 
 }
 
@@ -346,13 +354,21 @@ input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 {
     // Add one row to the table
-    int row =   ui.tableWidget_metadata->rowCount();
+    int row =   ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
     ui.tableWidget_metadata->insertRow(row);
-    addTableEntry(p_item,row);
+
+    // Create checkbox for the first column
+    QCheckBox  *checkbox = new QCheckBox ();
+    checkbox->setChecked(1); // Set checked by default
+
+    // Insert the obtained values in the table
+    ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
+
+    updateTableEntry(p_item,row);
 }
 
-/* Writes a (given) row on the table with the metadata from a given item */
-void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
+/* Updates/Writes a (given) row on the table with one itme's metadata */
+void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row)
 {
     // Get metadata information from item
     char *title_text = input_item_GetTitle(p_item);
@@ -364,12 +380,7 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
     char *copyright_text = input_item_GetCopyright(p_item);
     char *uri_text = input_item_GetURI(p_item);
 
-    // Create checkbox for the first column
-    QCheckBox  *checkbox = new QCheckBox ();
-    checkbox->setChecked(1); // Set checked by default
-
-    // Insert the obtained values in the table
-    ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
+    /* Fill all the cells with the extracted info */
     ui.tableWidget_metadata->setItem(row, COL_TITLE, new QTableWidgetItem( title_text ));
     ui.tableWidget_metadata->setItem(row, COL_ARTIST, new QTableWidgetItem( artist_text ));
     ui.tableWidget_metadata->setItem(row, COL_ALBUM, new QTableWidgetItem( album_text ));
@@ -381,6 +392,7 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
     ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
     ui.tableWidget_metadata->item(row, COL_PATH)->setFlags(0); // Make the path not selectable/editable
 }
+
 
 /*----------------------------------------------------------------------------*/
 /*-------------------------------Others---------------------------------------*/
