@@ -838,6 +838,9 @@ void CoverArtLabel::clear()
     showArtUpdate( "" );
 }
 
+/*----------------------------------------------------------------------------*/
+/*-------------Alternative dialog for extendedmetamanager---------------------*/
+/*----------------------------------------------------------------------------*/
 
 CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
     : QLabel( parent ), p_intf( _p_i ), p_item( NULL )
@@ -848,10 +851,6 @@ CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
     setMaximumWidth( 250 );
     setScaledContents( true );
     setAlignment( Qt::AlignCenter );
-
-    // QAction *action = new QAction( qtr( "Download cover art" ), this );
-    // CONNECT( action, triggered(), this, askForUpdate() );
-    // addAction( action );
 
     QAction *action = new QAction( qtr( "Add cover art from file" ), this );
     CONNECT( action, triggered(), this, setArtFromFile() );
@@ -867,13 +866,6 @@ CoverArtLabelExt::~CoverArtLabelExt()
         removeAction( act );
     if ( p_item ) vlc_gc_decref( p_item );
 }
-
-// void CoverArtLabelExt::setItem( input_item_t *_p_item )
-// {
-//     if ( p_item ) vlc_gc_decref( p_item );
-//     p_item = _p_item;
-//     if ( p_item ) vlc_gc_incref( p_item );
-// }
 
 void CoverArtLabelExt::showArtUpdate( const QString& url )
 {
@@ -902,11 +894,6 @@ void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
     showArtUpdate( url );
 }
 
-// void CoverArtLabelExt::askForUpdate()
-// {
-//     THEMIM->getIM()->requestArtUpdate( p_item, true );
-// }
-
 void CoverArtLabelExt::setArtFromFile()
 {
     if( !p_item )
@@ -927,6 +914,10 @@ void CoverArtLabelExt::clear()
 {
     showArtUpdate( "" );
 }
+
+/*----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 TimeLabel::TimeLabel( intf_thread_t *_p_intf, TimeLabel::Display _displayType  )
     : ClickableQLabel(), p_intf( _p_intf ), displayType( _displayType )

@@ -34,7 +34,7 @@
 
 #include <QMessageBox> //for the Help and About popups
 
-// TODO: al these can probably be deleted
+// FIXME: al these can probably be deleted
 // #include "input_manager.hpp"
 // #include <vlc_playlist.h>  /* playlist_t */
 // #include <vlc_arrays.h>
@@ -44,12 +44,12 @@
 // #include <QDialogButtonBox>
 // #include <QPushButton>
 
-#define UNUSED(x) (void)(x) //TODO: delete this. Unused variable warning removal
+#define UNUSED(x) (void)(x) //FIXME: delete this. Unused variable warning removal
 /* Constructor */
 ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
                : QVLCDialog( (QWidget*)_p_intf->p_sys->p_mi, _p_intf )
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initializing" ); //TODO: delete this
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Initializing" );
 
     // Basic UI setup
     ui.setupUi( this ); //setup the UI from de compiled (.h) version of de QT ui (.ui)
@@ -88,9 +88,12 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     art_cover->setScaledContents(true); //allow the label's image to be scaled (to fit all the area)
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
+    /* Initilize the array for the currently working items */
     workingItems = new vlc_array_t();
-    vlc_array_init(workingItems); // Initilize the array for the currently working items
+    vlc_array_init(workingItems);
 
+    /* Start with the progressBar disabled */
+    ui.progressBar_search->setEnabled(false);
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
@@ -98,7 +101,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 ExtMetaManagerDialog::~ExtMetaManagerDialog()
 {
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Saving position" ); //TODO: delete this
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Saving position" ); //FIXME: delete this
 }
 
 void ExtMetaManagerDialog::toggleVisible()
@@ -107,7 +110,7 @@ void ExtMetaManagerDialog::toggleVisible()
     if(isVisible())
         activateWindow();
 
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Toggle Visible" ); //TODO: delete this
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Toggle Visible" ); //FIXME: delete this
 }
 
 /*----------------------------------------------------------------------------*/
@@ -117,9 +120,9 @@ void ExtMetaManagerDialog::toggleVisible()
 /* Just closes the window (and the module itself) */
 void ExtMetaManagerDialog::close()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" ); //TODO: delete this
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" ); //FIXME: delete this
     toggleVisible();
-    //TODO: this creates segmentation fault ¿? on close and does not delete the module
+    //FIXME: this creates segmentation fault ¿? on close and does not delete the module
 }
 
 /* Loads files into the table from the current playlist */
@@ -173,10 +176,10 @@ void ExtMetaManagerDialog::getFromFolder()
 
     //we are going to use the pl to preparse the files, so we clear it first
     // playlist_Lock(THEPL); //Unlock the playlist
-    // playlist_Clear(THEPL,true); //TODO: this creates seg. fault when loading form PL after this been called
+    // playlist_Clear(THEPL,true); //FIXME: this creates seg. fault when loading form PL after this been called
     // playlist_Unlock(THEPL); //Unlock the playlist
 
-    // clearPlaylist(); //TODO: this creates seg. fault the second time you use it
+    // clearPlaylist(); //FIXME: this creates seg. fault the second time you use it
 
     int row; //This is where each item's position will be stored
 
@@ -201,25 +204,23 @@ void ExtMetaManagerDialog::getFromFolder()
 /* Initiates the metadata search and analysis based on choosed options */
 void ExtMetaManagerDialog::searchNow()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] searchNow" ); //TODO: delete this
     if (ui.checkBox_acousticid->isChecked())
     {
-        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] acousticId checked" ); //TODO: delete this
         fingerprintTable();
     }
     if (ui.checkBox_TODO->isChecked())
     {
-        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] TODO checked" ); //TODO: delete this
+        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] TODO checked" ); //FIXME: delete this
 
     }
     if (ui.checkBox_filenameAnalysis->isChecked())
     {
-        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] filenameAnalysis checked" ); //TODO: delete this
+        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] filenameAnalysis checked" ); //FIXME: delete this
 
     }
 }
 
-/* saves changes permanently*/
+/* Saves changes permanently*/
 void ExtMetaManagerDialog::saveAll()
 {
     input_item_t *p_item; // This is where the current working item will be
@@ -271,7 +272,6 @@ void ExtMetaManagerDialog::saveAll()
 /* Just reloads all the items of the table, discarding unsaved changes */
 void ExtMetaManagerDialog::restoreAll()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] restoreAll" ); //TODO: delete this
     clearTable();
 
     input_item_t *p_item; // This is where the current working item will be
@@ -298,25 +298,67 @@ void ExtMetaManagerDialog::clearTable()
 /* Initiates the fingerprint process for all the table */
 void ExtMetaManagerDialog::fingerprintTable()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" ); //TODO: delete this
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" ); //FIXME: delete this
     input_item_t *p_item; // This is where the current working item will be
+
+    //Get the number of items we'll be working with
     int rows = ui.tableWidget_metadata->rowCount();
-    for(int row = 0; row < rows; row++) //The list starts at 4 because the first 3 are not files
+
+    int progress_unit= 100/rows; //Calculate how much the progress bar has to increase each loop
+    int progress=0; // Start the counter
+    ui.progressBar_search->setValue(progress); // Set the progress to 0
+
+    // Initilize the Chromaprint module
+    t = new (std::nothrow) Chromaprint( p_intf );
+    if ( !t )
+    {
+        return; // Error
+    }
+
+    // Iterate the table
+    for(int row = 0; row < rows; row++)
     {
         // Get the item from the current row
         p_item = getItemFromRow(row);
+
+        // Fingerprint the item and wait for results
         fingerprint(p_item);
-        addTableEntry(p_item, row);
+
+        // Update the table with the new info
+        updateTableEntry(p_item, row);
+
+        // Update the progress bar
+        progress=progress+progress_unit; // Increase the progress
+        ui.progressBar_search->setValue(progress); // Update the progressBar
     }
+
+    // Lost decimals can cause the progress bar to not reach 100, so here is the fix
+    ui.progressBar_search->setValue(100); //
+    ui.progressBar_search->setEnabled(false);
+
+    // Delete the fingerprinter
+    if ( t ) delete t;
+    if ( p_r ) fingerprint_request_Delete( p_r );
+
 }
 
 /* Initiates the fingerprint process just for one item */
 void ExtMetaManagerDialog::fingerprint(input_item_t *p_item)
 {
-    FingerprintDialog *dialog = new FingerprintDialog( this, p_intf, p_item );
-    //CONNECT( dialog, metaApplied( input_item_t * ), this, fingerprintUpdate( input_item_t * ) );
-    dialog->setAttribute( Qt::WA_DeleteOnClose, true );
-    dialog->show();
+    // Add the item to the finperprinter's queue
+    if ( t )
+        t->enqueue( p_item );
+
+    // Wait for results
+    p_r = t->fetchResults();
+    while (!p_r)
+        p_r = t->fetchResults();
+
+    /* Get the meta obtained */ //FIXME: delete this
+    // vlc_meta_t *p_meta =
+    //     (vlc_meta_t *) vlc_array_item_at_index( & p_r->results.metas_array, 0 ); //get first item
+
+    t->apply( p_r, 0 );
 }
 
 /* Recovers the item on a certain row (from the table) */
@@ -329,7 +371,7 @@ input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 /* Gets an item from an URI and preparses it (gets it's metadata) */
 input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 {
-    input_item_t *p_item = input_item_New( uri, "Test" ); //TODO: give significant name
+    input_item_t *p_item = input_item_New( uri, "Entry" ); //The name is not relevant
     //add to the playlist so it is preparsed (metadata is got)
     playlist_AddInput( THEPL, p_item, false, true );
 
@@ -347,13 +389,21 @@ input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 {
     // Add one row to the table
-    int row =   ui.tableWidget_metadata->rowCount();
+    int row =   ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
     ui.tableWidget_metadata->insertRow(row);
-    addTableEntry(p_item,row);
+
+    // Create checkbox for the first column
+    QCheckBox  *checkbox = new QCheckBox ();
+    checkbox->setChecked(1); // Set checked by default
+
+    // Insert the obtained values in the table
+    ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
+
+    updateTableEntry(p_item,row);
 }
 
-/* Writes a (given) row on the table with the metadata from a given item */
-void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
+/* Updates/Writes a (given) row on the table with one itme's metadata */
+void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row)
 {
     // Get metadata information from item
     char *title_text = input_item_GetTitle(p_item);
@@ -365,12 +415,7 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
     char *copyright_text = input_item_GetCopyright(p_item);
     char *uri_text = input_item_GetURI(p_item);
 
-    // Create checkbox for the first column
-    QCheckBox  *checkbox = new QCheckBox ();
-    checkbox->setChecked(1); // Set checked by default
-
-    // Insert the obtained values in the table
-    ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
+    /* Fill all the cells with the extracted info */
     ui.tableWidget_metadata->setItem(row, COL_TITLE, new QTableWidgetItem( title_text ));
     ui.tableWidget_metadata->setItem(row, COL_ARTIST, new QTableWidgetItem( artist_text ));
     ui.tableWidget_metadata->setItem(row, COL_ALBUM, new QTableWidgetItem( album_text ));
@@ -378,10 +423,11 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
     ui.tableWidget_metadata->setItem(row, COL_TRACKNUM, new QTableWidgetItem( trackNum_text ));
     ui.tableWidget_metadata->setItem(row, COL_PUBLISHER, new QTableWidgetItem( publisher_text ));
     ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
-    ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //TODO: this must be a file chooser
+    ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //FIXME: this must be a file chooser
     ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
     ui.tableWidget_metadata->item(row, COL_PATH)->setFlags(0); // Make the path not selectable/editable
 }
+
 
 /*----------------------------------------------------------------------------*/
 /*-------------------------------Others---------------------------------------*/
@@ -391,13 +437,13 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item, int row)
 label's content to the selected item's artwork */
 void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
-    UNUSED(column); //TODO: delete this
+    UNUSED(column); //FIXME: delete this
     //Get the itme form the row, decode it's Artwork and update it in the UI
     art_cover->showArtUpdate(THEMIM->getIM()->decodeArtURL( getItemFromRow(row) ));
 }
 
 /* Clears the playlist */
-void ExtMetaManagerDialog::clearPlaylist() //TODO: this doesnt work properly
+void ExtMetaManagerDialog::clearPlaylist() //FIXME: this doesnt work properly
 {
     playlist_Lock(THEPL); //Lock the playlist so we can work with it
 

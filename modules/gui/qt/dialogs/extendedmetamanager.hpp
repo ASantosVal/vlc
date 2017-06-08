@@ -36,8 +36,12 @@
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
 
-#include "ui/extmetamanager.h" // Include teh precompiled version of extmetamanager.ui
+#include <vlc_fingerprinter.h> //VLC's fingerprinting api
+
+#include "ui/extmetamanager.h" // Include the precompiled version of extmetamanager.ui
+
 class CoverArtLabelExt;
+class Chromaprint;
 
 class ExtMetaManagerDialog : public QVLCDialog, public Singleton<ExtMetaManagerDialog>
 {
@@ -55,6 +59,10 @@ private:
     "anim id est laborum."; //TODO: Write a proper text here
     const char *about_text = help_text; //TODO: Write a proper text here
 
+    // Declarations for the fingerprinter
+    Chromaprint *t;
+    fingerprint_request_t *p_r;
+
     CoverArtLabelExt *art_cover; //The widget used to show the artwork
     vlc_array_t  *workingItems; //An array with the items the window is working at a certain moment
 
@@ -68,12 +76,13 @@ private slots:
     void searchNow();
     void saveAll();
     void fingerprintTable();
+    void fingerprint(input_item_t *p_item);
     void restoreAll();
     void help();
     void about();
     void clearTable();
     void addTableEntry(input_item_t *p_item);
-    void addTableEntry(input_item_t *p_item, int row);
+    void updateTableEntry(input_item_t *p_item, int row);
     void updateArtwork(int row, int column);
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
@@ -81,8 +90,6 @@ private slots:
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
     void toggleVisible();
-    void fingerprint(input_item_t *p_item);
-    void fingerprintUpdate( input_item_t * );
 };
 
 #endif
