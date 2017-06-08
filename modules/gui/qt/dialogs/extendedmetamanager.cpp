@@ -206,12 +206,14 @@ void ExtMetaManagerDialog::searchNow()
 {
     if (ui.checkBox_acousticid->isChecked())
     {
-        fingerprintTable();
-    }
-    if (ui.checkBox_TODO->isChecked())
-    {
-        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] TODO checked" ); //FIXME: delete this
-
+        if (ui.checkBox_disableFastSearch->isChecked())
+        {
+            fingerprintTable(false);
+        }
+        else
+        {
+            fingerprintTable(true);
+        }
     }
     if (ui.checkBox_filenameAnalysis->isChecked())
     {
@@ -295,8 +297,9 @@ void ExtMetaManagerDialog::clearTable()
 /*--------------------Metadata & input management-----------------------------*/
 /*----------------------------------------------------------------------------*/
 
-/* Initiates the fingerprint process for all the table */
-void ExtMetaManagerDialog::fingerprintTable()
+/* Initiates the fingerprint process for all the table. If "fast" is true, 1st
+entry is applied automatically */
+void ExtMetaManagerDialog::fingerprintTable( bool fast )
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" ); //FIXME: delete this
     input_item_t *p_item; // This is where the current working item will be
@@ -308,11 +311,14 @@ void ExtMetaManagerDialog::fingerprintTable()
     int progress=0; // Start the counter
     ui.progressBar_search->setValue(progress); // Set the progress to 0
 
-    // Initilize the Chromaprint module
-    t = new (std::nothrow) Chromaprint( p_intf );
-    if ( !t )
+    if (fast)
     {
-        return; // Error
+        // Initilize the Chromaprint module
+        t = new (std::nothrow) Chromaprint( p_intf );
+        if ( !t )
+        {
+            return; // Error
+        }
     }
 
     // Iterate the table
@@ -322,7 +328,7 @@ void ExtMetaManagerDialog::fingerprintTable()
         p_item = getItemFromRow(row);
 
         // Fingerprint the item and wait for results
-        fingerprint(p_item);
+        fingerprint(p_item, fast);
 
         // Update the table with the new info
         updateTableEntry(p_item, row);
@@ -336,29 +342,43 @@ void ExtMetaManagerDialog::fingerprintTable()
     ui.progressBar_search->setValue(100); //
     ui.progressBar_search->setEnabled(false);
 
-    // Delete the fingerprinter
-    if ( t ) delete t;
-    if ( p_r ) fingerprint_request_Delete( p_r );
+    if (fast)
+    {
+        // Delete the fingerprinter
+        if ( t ) delete t;
+        if ( p_r ) fingerprint_request_Delete( p_r );
+    }
 
 }
 
-/* Initiates the fingerprint process just for one item */
-void ExtMetaManagerDialog::fingerprint(input_item_t *p_item)
+/* Initiates the fingerprint process just for one item. If "fast" is true, 1st
+entry is applied automatically */
+void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
 {
-    // Add the item to the finperprinter's queue
-    if ( t )
-        t->enqueue( p_item );
+    if (fast)
+    {
+        // Add the item to the finperprinter's queue
+        if ( t )
+            t->enqueue( p_item );
 
-    // Wait for results
-    p_r = t->fetchResults();
-    while (!p_r)
+        // Wait for results
         p_r = t->fetchResults();
+        while (!p_r)
+            p_r = t->fetchResults();
 
-    /* Get the meta obtained */ //FIXME: delete this
-    // vlc_meta_t *p_meta =
-    //     (vlc_meta_t *) vlc_array_item_at_index( & p_r->results.metas_array, 0 ); //get first item
+        /* Get the meta obtained */ //FIXME: delete this
+        // vlc_meta_t *p_meta =
+        //     (vlc_meta_t *) vlc_array_item_at_index( & p_r->results.metas_array, 0 ); //get first item
 
-    t->apply( p_r, 0 );
+        t->apply( p_r, 0 );
+    }
+    else
+    {
+        //Create a fingerprint dialog and wait until it's closed
+        FingerprintDialogExt dialog(this, p_intf, p_item);
+        dialog.exec();
+    }
+
 }
 
 /* Recovers the item on a certain row (from the table) */

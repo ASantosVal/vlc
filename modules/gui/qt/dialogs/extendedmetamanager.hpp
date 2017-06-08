@@ -75,8 +75,8 @@ private slots:
     void clearPlaylist();
     void searchNow();
     void saveAll();
-    void fingerprintTable();
-    void fingerprint(input_item_t *p_item);
+    void fingerprintTable(bool fast);
+    void fingerprint(input_item_t *p_item, bool fast);
     void restoreAll();
     void help();
     void about();
