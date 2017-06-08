@@ -217,7 +217,7 @@ void ExtMetaManagerDialog::searchNow()
     }
 }
 
-/* saves changes permanently*/
+/* Saves changes permanently*/
 void ExtMetaManagerDialog::saveAll()
 {
     input_item_t *p_item; // This is where the current working item will be
@@ -303,13 +303,29 @@ void ExtMetaManagerDialog::fingerprintTable()
     int progress=0; //Initiaciate the counter
     ui.progressBar_search->setValue(progress); //Set teh progress to 0
 
+    // Initilize the Chromaprint module
+    t = new (std::nothrow) Chromaprint( p_intf );
+    if ( t )
+    {
+        CONNECT( t, finished(), this, handleResults() );
+    }
+
     for(int row = 0; row < rows; row++) //The list starts at 4 because the first 3 are not files
     {
         // Get the item from the current row
         p_item = getItemFromRow(row);
-        fingerprint(p_item);
+
+        // Add the item to the finperprinter's queue
+        if ( t )
+        {
+            t->enqueue( p_item ); //TODO: this way I only get the result of one of the items
+        }
+
+        //TODO: this should be done after handleResults
+        // fingerprint(p_item);
         updateTableEntry(p_item, row);
 
+        //TODO: this should be done after handleResults
         progress=progress+progress_unit; //Increase the progress
         ui.progressBar_search->setValue(progress); //Update the progressBar
     }
@@ -317,13 +333,62 @@ void ExtMetaManagerDialog::fingerprintTable()
 
 }
 
+// TODO: if i'm goint to use the table's writing method, I won't need this
+// void ExtMetaManagerDialog::applyMetas()
+// {
+//     Q_ASSERT( p_r );
+//     if ( ui->recordsList->currentIndex().isValid() )
+//         t->apply( p_r, ui->recordsList->currentIndex().row() );
+//     emit metaApplied( p_r->p_item );
+//     close();
+// }
+
+void ExtMetaManagerDialog::handleResults()
+{
+    printf("------------------------------> handling results <<<<<<<<<<<<<<<<<<<<<<<<<\n");
+
+    p_r = t->fetchResults();
+
+    // Error with the fingerprinter
+    if ( ! p_r )
+    {
+        return;
+    }
+
+    // Nothing found
+    if ( vlc_array_count( & p_r->results.metas_array ) == 0 )
+    {
+        fingerprint_request_Delete( p_r );
+        p_r = NULL;
+        return;
+    }
+
+    vlc_meta_t *p_meta =
+        (vlc_meta_t *) vlc_array_item_at_index( & p_r->results.metas_array, 0 ); //get first item
+    printf(">>>>>>>>>> %s <<<<<<<<<\n", vlc_meta_Get(p_meta, vlc_meta_Title)); //FIXME: delete this
+    printf(">>>>>>>>>> %s <<<<<<<<<\n", vlc_meta_Get(p_meta, vlc_meta_Artist)); //FIXME: delete this
+
+
+
+    // for ( size_t i = 0; i< vlc_array_count( & p_r->results.metas_array ) ; i++ )
+    // {
+        // vlc_meta_t *p_meta =
+        //     (vlc_meta_t *) vlc_array_item_at_index( & p_r->results.metas_array, i );
+        // printf("------------------------------>%s <<<<<<<<<<<<<<<<<<<<<<<<<\n", vlc_meta_Get(p_meta, vlc_meta_Title));
+        // printf("------------------------------>%s <<<<<<<<<<<<<<<<<<<<<<<<<\n", vlc_meta_Get(p_meta, vlc_meta_Artist));
+
+    // }
+}
+
 /* Initiates the fingerprint process just for one item */
 void ExtMetaManagerDialog::fingerprint(input_item_t *p_item)
 {
-    FingerprintDialogExt *dialog = new FingerprintDialogExt( this, p_intf, p_item );
-    //CONNECT( dialog, metaApplied( input_item_t * ), this, fingerprintUpdate( input_item_t * ) );
-    dialog->setAttribute( Qt::WA_DeleteOnClose, true );
-    dialog->show();
+    // FingerprintDialogExt *dialog = new FingerprintDialogExt( this, p_intf, p_item );
+    // //CONNECT( dialog, metaApplied( input_item_t * ), this, fingerprintUpdate( input_item_t * ) );
+    // dialog->setAttribute( Qt::WA_DeleteOnClose, true );
+    // dialog->show();
+
+
 }
 
 /* Recovers the item on a certain row (from the table) */
