@@ -23,19 +23,16 @@
 #endif
 
 #include "dialogs/extendedmetamanager.hpp"
-#include "dialogs_provider.hpp"                 /* THEDP creation */
 #include "components/interface_widgets.hpp"     /* CoverArtLabelExt */
+#include "dialogs/fingerprintdialog.hpp"        /* fingerprinting dialog */
+#include "adapters/chromaprint.hpp"             /* fingerprinting adapter (no UI)*/
 
-#include "input_manager.hpp"
-#include "dialogs_provider.hpp" /* THEDP creation */
-#include <vlc_playlist.h>  /* playlist_t */
-#include "dialogs/fingerprintdialog.hpp" /* fingerprinting */
-#include "adapters/chromaprint.hpp" /* fingerprinting */
 
 #include <QMessageBox> //for the Help and About popups
 
 // FIXME: al these can probably be deleted
 // #include "input_manager.hpp"
+// #include "dialogs_provider.hpp"   /* THEDP creation */
 // #include <vlc_playlist.h>  /* playlist_t */
 // #include <vlc_arrays.h>
 // #include <QTabWidget>
@@ -447,7 +444,6 @@ void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row)
     ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
     ui.tableWidget_metadata->item(row, COL_PATH)->setFlags(0); // Make the path not selectable/editable
 }
-
 
 /*----------------------------------------------------------------------------*/
 /*-------------------------------Others---------------------------------------*/
