@@ -76,7 +76,7 @@ private slots:
     void searchNow();
     void saveAll();
     void fingerprintTable();
-    void handleResults();
+    void fingerprint(input_item_t *p_item);
     void restoreAll();
     void help();
     void about();
@@ -90,8 +90,6 @@ private slots:
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
     void toggleVisible();
-    void fingerprint(input_item_t *p_item);
-    void fingerprintUpdate( input_item_t * );
 };
 
 #endif

@@ -88,9 +88,12 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     art_cover->setScaledContents(true); //allow the label's image to be scaled (to fit all the area)
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
+    /* Initilize the array for the currently working items */
     workingItems = new vlc_array_t();
-    vlc_array_init(workingItems); // Initilize the array for the currently working items
+    vlc_array_init(workingItems);
 
+    /* Start with the progressBar disabled */
+    ui.progressBar_search->setEnabled(false);
 
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
@@ -297,98 +300,65 @@ void ExtMetaManagerDialog::fingerprintTable()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" ); //FIXME: delete this
     input_item_t *p_item; // This is where the current working item will be
+
+    //Get the number of items we'll be working with
     int rows = ui.tableWidget_metadata->rowCount();
 
     int progress_unit= 100/rows; //Calculate how much the progress bar has to increase each loop
-    int progress=0; //Initiaciate the counter
-    ui.progressBar_search->setValue(progress); //Set teh progress to 0
+    int progress=0; // Start the counter
+    ui.progressBar_search->setValue(progress); // Set the progress to 0
 
     // Initilize the Chromaprint module
     t = new (std::nothrow) Chromaprint( p_intf );
-    if ( t )
+    if ( !t )
     {
-        CONNECT( t, finished(), this, handleResults() );
+        return; // Error
     }
 
-    for(int row = 0; row < rows; row++) //The list starts at 4 because the first 3 are not files
+    // Iterate the table
+    for(int row = 0; row < rows; row++)
     {
         // Get the item from the current row
         p_item = getItemFromRow(row);
 
-        // Add the item to the finperprinter's queue
-        if ( t )
-        {
-            t->enqueue( p_item ); //TODO: this way I only get the result of one of the items
-        }
+        // Fingerprint the item and wait for results
+        fingerprint(p_item);
 
-        //TODO: this should be done after handleResults
-        // fingerprint(p_item);
+        // Update the table with the new info
         updateTableEntry(p_item, row);
 
-        //TODO: this should be done after handleResults
-        progress=progress+progress_unit; //Increase the progress
-        ui.progressBar_search->setValue(progress); //Update the progressBar
-    }
-    ui.progressBar_search->setValue(100);
-
-}
-
-// TODO: if i'm goint to use the table's writing method, I won't need this
-// void ExtMetaManagerDialog::applyMetas()
-// {
-//     Q_ASSERT( p_r );
-//     if ( ui->recordsList->currentIndex().isValid() )
-//         t->apply( p_r, ui->recordsList->currentIndex().row() );
-//     emit metaApplied( p_r->p_item );
-//     close();
-// }
-
-void ExtMetaManagerDialog::handleResults()
-{
-    printf("------------------------------> handling results <<<<<<<<<<<<<<<<<<<<<<<<<\n");
-
-    p_r = t->fetchResults();
-
-    // Error with the fingerprinter
-    if ( ! p_r )
-    {
-        return;
+        // Update the progress bar
+        progress=progress+progress_unit; // Increase the progress
+        ui.progressBar_search->setValue(progress); // Update the progressBar
     }
 
-    // Nothing found
-    if ( vlc_array_count( & p_r->results.metas_array ) == 0 )
-    {
-        fingerprint_request_Delete( p_r );
-        p_r = NULL;
-        return;
-    }
+    // Lost decimals can cause the progress bar to not reach 100, so here is the fix
+    ui.progressBar_search->setValue(100); //
+    ui.progressBar_search->setEnabled(false);
 
-    vlc_meta_t *p_meta =
-        (vlc_meta_t *) vlc_array_item_at_index( & p_r->results.metas_array, 0 ); //get first item
-    printf(">>>>>>>>>> %s <<<<<<<<<\n", vlc_meta_Get(p_meta, vlc_meta_Title)); //FIXME: delete this
-    printf(">>>>>>>>>> %s <<<<<<<<<\n", vlc_meta_Get(p_meta, vlc_meta_Artist)); //FIXME: delete this
+    // Delete the fingerprinter
+    if ( t ) delete t;
+    if ( p_r ) fingerprint_request_Delete( p_r );
 
-
-
-    // for ( size_t i = 0; i< vlc_array_count( & p_r->results.metas_array ) ; i++ )
-    // {
-        // vlc_meta_t *p_meta =
-        //     (vlc_meta_t *) vlc_array_item_at_index( & p_r->results.metas_array, i );
-        // printf("------------------------------>%s <<<<<<<<<<<<<<<<<<<<<<<<<\n", vlc_meta_Get(p_meta, vlc_meta_Title));
-        // printf("------------------------------>%s <<<<<<<<<<<<<<<<<<<<<<<<<\n", vlc_meta_Get(p_meta, vlc_meta_Artist));
-
-    // }
 }
 
 /* Initiates the fingerprint process just for one item */
 void ExtMetaManagerDialog::fingerprint(input_item_t *p_item)
 {
-    // FingerprintDialogExt *dialog = new FingerprintDialogExt( this, p_intf, p_item );
-    // //CONNECT( dialog, metaApplied( input_item_t * ), this, fingerprintUpdate( input_item_t * ) );
-    // dialog->setAttribute( Qt::WA_DeleteOnClose, true );
-    // dialog->show();
+    // Add the item to the finperprinter's queue
+    if ( t )
+        t->enqueue( p_item );
 
+    // Wait for results
+    p_r = t->fetchResults();
+    while (!p_r)
+        p_r = t->fetchResults();
 
+    /* Get the meta obtained */ //FIXME: delete this
+    // vlc_meta_t *p_meta =
+    //     (vlc_meta_t *) vlc_array_item_at_index( & p_r->results.metas_array, 0 ); //get first item
+
+    t->apply( p_r, 0 );
 }
 
 /* Recovers the item on a certain row (from the table) */
