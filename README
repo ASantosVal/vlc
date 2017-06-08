@@ -4,7 +4,11 @@ README para el repositorio vlc-extension-trials
 Este repositorio ha sido creado para llevar el Proyecto de Fin de Grado de Asier Santos Valcárcel.
 
 El objetivo es comprender el funcionamiento y la estructura de VLC y posteriormente implementar un plugin 
-sobre el. Actualmente hay dos posibles ideas para el plugin:
+sobre el. 
+
+>Actualmente el plugin en desarrollo es una versión extendida de la interfaz de gestión de metadatos capaz de trabajar con multiples ficheros al msimo tiempo.
+
+Las ideas originales eran:
 
 >Un facilitador de streaming del contendio en reproducción a dispositivos UPnP en la LAN
 
