@@ -57,31 +57,4 @@ private slots:
 signals:
     void metaApplied( input_item_t * );
 };
-
-/*----------------------------------------------------------------------------*/
-/*-------------Alternative dialog for extendedmetamanager---------------------*/
-/*----------------------------------------------------------------------------*/
-
-class FingerprintDialogExt : public QDialog
-{
-    Q_OBJECT
-
-public:
-    FingerprintDialogExt( QWidget *parent, intf_thread_t *p_intf,
-                                input_item_t *p_item );
-    virtual ~FingerprintDialogExt();
-
-private:
-    Ui::FingerprintDialog *ui;
-    Chromaprint *t;
-    fingerprint_request_t *p_r;
-
-private slots:
-    void handleResults();
-    void applyIdentity();
-
-signals:
-    void metaApplied( input_item_t * );
-};
-
 #endif // FINGERPRINTDIALOG_HPP

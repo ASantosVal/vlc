@@ -856,6 +856,7 @@ CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
     CONNECT( action, triggered(), this, setArtFromFile() );
     addAction( action );
 
+    //By default load nothing
     showArtUpdate( "" );
 }
 
@@ -883,21 +884,27 @@ void CoverArtLabelExt::showArtUpdate( const QString& url )
     setPixmap( pix );
 }
 
+// Show new artork and update teh working item
 void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
 {
-    /* not for me */
-    if ( _p_item != p_item )
-        return;
 
     QString url;
-    if ( _p_item ) url = THEMIM->getIM()->decodeArtURL( _p_item );
+    if ( _p_item )
+    {
+        p_item = _p_item;
+        url = THEMIM->getIM()->decodeArtURL( _p_item );
+    }
     showArtUpdate( url );
 }
 
 void CoverArtLabelExt::setArtFromFile()
 {
     if( !p_item )
+    {
+        msg_Dbg( p_intf, "[ExtMetaManagerDialog] no item selected!" );
         return;
+
+    }
 
     QString filePath = QFileDialog::getOpenFileName( this, qtr( "Choose Cover Art" ),
         p_intf->p_sys->filepath, qtr( "Image Files (*.gif *.jpg *.jpeg *.png)" ) );
@@ -908,6 +915,8 @@ void CoverArtLabelExt::setArtFromFile()
     QString fileUrl = QUrl::fromLocalFile( filePath ).toString();
 
     THEMIM->getIM()->setArt( p_item, fileUrl );
+
+    showArtUpdate(p_item);
 }
 
 void CoverArtLabelExt::clear()

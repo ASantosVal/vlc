@@ -372,7 +372,7 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
     else
     {
         //Create a fingerprint dialog and wait until it's closed
-        FingerprintDialogExt dialog(this, p_intf, p_item);
+        FingerprintDialog dialog(this, p_intf, p_item);
         dialog.exec();
     }
 
@@ -455,7 +455,7 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
     UNUSED(column); //FIXME: delete this
     //Get the itme form the row, decode it's Artwork and update it in the UI
-    art_cover->showArtUpdate(THEMIM->getIM()->decodeArtURL( getItemFromRow(row) ));
+    art_cover->showArtUpdate( getItemFromRow(row) );
 }
 
 /* Clears the playlist */
