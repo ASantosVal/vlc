@@ -30,17 +30,6 @@
 
 #include <QMessageBox> //for the Help and About popups
 
-// FIXME: al these can probably be deleted
-// #include "input_manager.hpp"
-// #include "dialogs_provider.hpp"   /* THEDP creation */
-// #include <vlc_playlist.h>  /* playlist_t */
-// #include <vlc_arrays.h>
-// #include <QTabWidget>
-// #include <QLabel>
-// #include <QGroupBox>
-// #include <QDialogButtonBox>
-// #include <QPushButton>
-
 #define UNUSED(x) (void)(x) //FIXME: delete this. Unused variable warning removal
 /* Constructor */
 ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
@@ -98,7 +87,6 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 ExtMetaManagerDialog::~ExtMetaManagerDialog()
 {
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Saving position" ); //FIXME: delete this
 }
 
 void ExtMetaManagerDialog::toggleVisible()
@@ -106,8 +94,6 @@ void ExtMetaManagerDialog::toggleVisible()
     QVLCDialog::toggleVisible();
     if(isVisible())
         activateWindow();
-
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Toggle Visible" ); //FIXME: delete this
 }
 
 /*----------------------------------------------------------------------------*/
@@ -117,9 +103,8 @@ void ExtMetaManagerDialog::toggleVisible()
 /* Just closes the window (and the module itself) */
 void ExtMetaManagerDialog::close()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" ); //FIXME: delete this
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" );
     toggleVisible();
-    // delete workingItems; //TODO: is this needed?
 }
 
 /* Loads files into the table from the current playlist */
@@ -169,12 +154,7 @@ void ExtMetaManagerDialog::getFromFolder()
     clearTable();
     vlc_array_clear(workingItems); //Clear the array with the current working items
 
-    //we are going to use the pl to preparse the files, so we clear it first
-    // playlist_Lock(THEPL); //Unlock the playlist
-    // playlist_Clear(THEPL,true); //FIXME: this creates seg. fault when loading form PL after this been called
-    // playlist_Unlock(THEPL); //Unlock the playlist
-
-    // clearPlaylist(); //FIXME: this creates seg. fault the second time you use it
+    // clearPlaylist(); //TODO: enable this
 
     int row; //This is where each item's position will be stored
 
@@ -212,7 +192,7 @@ void ExtMetaManagerDialog::searchNow()
     }
     if (ui.checkBox_filenameAnalysis->isChecked())
     {
-        // msg_Dbg( p_intf, "[ExtMetaManagerDialog] filenameAnalysis checked" ); //FIXME: delete this
+        msg_Dbg( p_intf, "[ExtMetaManagerDialog] filenameAnalysis checked" ); //FIXME: delete this
 
     }
 }
@@ -296,7 +276,6 @@ void ExtMetaManagerDialog::clearTable()
 entry is applied automatically */
 void ExtMetaManagerDialog::fingerprintTable( bool fast )
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" ); //FIXME: delete this
     input_item_t *p_item; // This is where the current working item will be
 
     //Get the number of items we'll be working with
@@ -360,10 +339,6 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
         p_r = t->fetchResults();
         while (!p_r)
             p_r = t->fetchResults();
-
-        /* Get the meta obtained */ //FIXME: delete this
-        // vlc_meta_t *p_meta =
-        //     (vlc_meta_t *) vlc_array_item_at_index( & p_r->results.metas_array, 0 ); //get first item
 
         t->apply( p_r, 0 );
     }
@@ -470,6 +445,9 @@ void ExtMetaManagerDialog::changeArtwork()
 void ExtMetaManagerDialog::clearPlaylist() //FIXME: this doesnt work properly
 {
     playlist_Lock(THEPL); //Lock the playlist so we can work with it
+
+    //Try this ¿?
+    // playlist_Clear(THEPL,true);
 
     int size = THEPL->items.i_size; //Get the size of the playlist
     playlist_item_t *playlist_item;
