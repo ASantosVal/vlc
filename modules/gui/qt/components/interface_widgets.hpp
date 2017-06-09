@@ -307,6 +307,7 @@ class CoverArtLabelExt : public QLabel
 public:
     CoverArtLabelExt( QWidget *parent, intf_thread_t * );
     virtual ~CoverArtLabelExt();
+    void setItem( input_item_t * );
 
 protected:
     void mouseDoubleClickEvent( QMouseEvent *event ) Q_DECL_OVERRIDE

@@ -868,6 +868,13 @@ CoverArtLabelExt::~CoverArtLabelExt()
     if ( p_item ) vlc_gc_decref( p_item );
 }
 
+void CoverArtLabelExt::setItem( input_item_t *_p_item )
+{
+    if ( p_item ) vlc_gc_decref( p_item );
+    p_item = _p_item;
+    if ( p_item ) vlc_gc_incref( p_item );
+}
+
 void CoverArtLabelExt::showArtUpdate( const QString& url )
 {
     QPixmap pix;
@@ -891,7 +898,7 @@ void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
     QString url;
     if ( _p_item )
     {
-        p_item = _p_item;
+        setItem(_p_item);
         url = THEMIM->getIM()->decodeArtURL( _p_item );
     }
     showArtUpdate( url );
