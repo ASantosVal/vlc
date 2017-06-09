@@ -94,7 +94,6 @@ DialogsProvider::~DialogsProvider()
 {
     PlaylistDialog::killInstance();
     MediaInfoDialog::killInstance();
-    ExtMetaManagerDialog::killInstance(); //TODO: Added by Asier Santos
     MessagesDialog::killInstance();
     BookmarksDialog::killInstance();
     HelpDialog::killInstance();
