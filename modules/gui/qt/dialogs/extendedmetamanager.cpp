@@ -119,7 +119,7 @@ void ExtMetaManagerDialog::close()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" ); //FIXME: delete this
     toggleVisible();
-    //FIXME: this creates segmentation fault ¿? on close and does not delete the module
+    // delete workingItems; //TODO: is this needed?
 }
 
 /* Loads files into the table from the current playlist */
@@ -132,8 +132,6 @@ void ExtMetaManagerDialog::getFromPlaylist()
 
     int size = THEPL->items.i_size; //Get the size of the playlist
     if( size ==0 ) return; //if no files selected, finish
-
-    vlc_array_clear(workingItems); //Clear the array with the current working items
 
     input_item_t *p_item;  //This is where each item will be stored
     int row; //This is where each item's position will be stored
