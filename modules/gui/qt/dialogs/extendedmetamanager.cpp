@@ -412,9 +412,14 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     // Create checkbox for the first column
     QCheckBox  *checkbox = new QCheckBox ();
     checkbox->setChecked(1); // Set checked by default
-
-    // Insert the obtained values in the table
+    // Insert the checkbox in the cell
     ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
+
+    // Create button for the artwork update
+    QPushButton  *m_button = new QPushButton("Change", this);
+    connect(m_button, SIGNAL (released()), this, SLOT (changeArtwork()));
+    // Insert the button in the cell
+    ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, m_button );
 
     updateTableEntry(p_item,row);
 }
@@ -440,7 +445,6 @@ void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row)
     ui.tableWidget_metadata->setItem(row, COL_TRACKNUM, new QTableWidgetItem( trackNum_text ));
     ui.tableWidget_metadata->setItem(row, COL_PUBLISHER, new QTableWidgetItem( publisher_text ));
     ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
-    ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //FIXME: this must be a file chooser
     ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
     ui.tableWidget_metadata->item(row, COL_PATH)->setFlags(0); // Make the path not selectable/editable
 }
@@ -456,6 +460,12 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
     UNUSED(column); //FIXME: delete this
     //Get the itme form the row, decode it's Artwork and update it in the UI
     art_cover->showArtUpdate( getItemFromRow(row) );
+}
+
+/* change the artwork of the currently selected item */
+void ExtMetaManagerDialog::changeArtwork()
+{
+    art_cover->setArtFromFile();
 }
 
 /* Clears the playlist */
