@@ -36,7 +36,7 @@
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
 
-#include <vlc_fingerprinter.h> //VLC's fingerprinting api
+#include "vlc_fingerprinter.h" //VLC's fingerprinting api
 
 #include "ui/extmetamanager.h" // Include the precompiled version of extmetamanager.ui
 
@@ -63,10 +63,15 @@ private:
     Chromaprint *t;
     fingerprint_request_t *p_r;
 
-    CoverArtLabelExt *art_cover; //The widget used to show the artwork
-    vlc_array_t  *workingItems; //An array with the items the window is working at a certain moment
+    //The widget used to show the artwork
+    CoverArtLabelExt *art_cover;
 
-    Ui::ExtMetaManagerWidget ui; //add de ui
+    //An array with the items the window is working at a certain moment
+    vlc_array_t  *workingItems;
+
+    //The UI
+    Ui::ExtMetaManagerWidget ui;
+
 private slots:
     void close() Q_DECL_OVERRIDE;
 
@@ -84,6 +89,7 @@ private slots:
     void addTableEntry(input_item_t *p_item);
     void updateTableEntry(input_item_t *p_item, int row);
     void updateArtwork(int row, int column);
+    void changeArtwork();
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
 

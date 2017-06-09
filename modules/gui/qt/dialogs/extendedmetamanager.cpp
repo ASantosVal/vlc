@@ -23,19 +23,16 @@
 #endif
 
 #include "dialogs/extendedmetamanager.hpp"
-#include "dialogs_provider.hpp"                 /* THEDP creation */
 #include "components/interface_widgets.hpp"     /* CoverArtLabelExt */
+#include "dialogs/fingerprintdialog.hpp"        /* fingerprinting dialog */
+#include "adapters/chromaprint.hpp"             /* fingerprinting adapter (no UI)*/
 
-#include "input_manager.hpp"
-#include "dialogs_provider.hpp" /* THEDP creation */
-#include <vlc_playlist.h>  /* playlist_t */
-#include "dialogs/fingerprintdialog.hpp" /* fingerprinting */
-#include "adapters/chromaprint.hpp" /* fingerprinting */
 
 #include <QMessageBox> //for the Help and About popups
 
 // FIXME: al these can probably be deleted
 // #include "input_manager.hpp"
+// #include "dialogs_provider.hpp"   /* THEDP creation */
 // #include <vlc_playlist.h>  /* playlist_t */
 // #include <vlc_arrays.h>
 // #include <QTabWidget>
@@ -122,7 +119,7 @@ void ExtMetaManagerDialog::close()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" ); //FIXME: delete this
     toggleVisible();
-    //FIXME: this creates segmentation fault ¿? on close and does not delete the module
+    // delete workingItems; //TODO: is this needed?
 }
 
 /* Loads files into the table from the current playlist */
@@ -135,8 +132,6 @@ void ExtMetaManagerDialog::getFromPlaylist()
 
     int size = THEPL->items.i_size; //Get the size of the playlist
     if( size ==0 ) return; //if no files selected, finish
-
-    vlc_array_clear(workingItems); //Clear the array with the current working items
 
     input_item_t *p_item;  //This is where each item will be stored
     int row; //This is where each item's position will be stored
@@ -375,7 +370,7 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
     else
     {
         //Create a fingerprint dialog and wait until it's closed
-        FingerprintDialogExt dialog(this, p_intf, p_item);
+        FingerprintDialog dialog(this, p_intf, p_item);
         dialog.exec();
     }
 
@@ -415,9 +410,14 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     // Create checkbox for the first column
     QCheckBox  *checkbox = new QCheckBox ();
     checkbox->setChecked(1); // Set checked by default
-
-    // Insert the obtained values in the table
+    // Insert the checkbox in the cell
     ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
+
+    // Create button for the artwork update
+    QPushButton  *m_button = new QPushButton("Change", this);
+    connect(m_button, SIGNAL (released()), this, SLOT (changeArtwork()));
+    // Insert the button in the cell
+    ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, m_button );
 
     updateTableEntry(p_item,row);
 }
@@ -443,11 +443,9 @@ void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row)
     ui.tableWidget_metadata->setItem(row, COL_TRACKNUM, new QTableWidgetItem( trackNum_text ));
     ui.tableWidget_metadata->setItem(row, COL_PUBLISHER, new QTableWidgetItem( publisher_text ));
     ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
-    ui.tableWidget_metadata->setItem(row, COL_ARTWORK, new QTableWidgetItem( "**Artwork**" )); //FIXME: this must be a file chooser
     ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
     ui.tableWidget_metadata->item(row, COL_PATH)->setFlags(0); // Make the path not selectable/editable
 }
-
 
 /*----------------------------------------------------------------------------*/
 /*-------------------------------Others---------------------------------------*/
@@ -459,7 +457,13 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
     UNUSED(column); //FIXME: delete this
     //Get the itme form the row, decode it's Artwork and update it in the UI
-    art_cover->showArtUpdate(THEMIM->getIM()->decodeArtURL( getItemFromRow(row) ));
+    art_cover->showArtUpdate( getItemFromRow(row) );
+}
+
+/* change the artwork of the currently selected item */
+void ExtMetaManagerDialog::changeArtwork()
+{
+    art_cover->setArtFromFile();
 }
 
 /* Clears the playlist */
