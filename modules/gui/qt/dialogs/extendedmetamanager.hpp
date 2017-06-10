@@ -57,19 +57,19 @@ private:
     "voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint "
     "occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit "
     "anim id est laborum."; //TODO: Write a proper text here
-    const char *about_text = "<big>Extended Metadata manager</big> <br><br>"
+    const char *about_text = "<big>Extended Metadata Manager</big> <br><br>"
     "This module has been created by <b>Asier Santos Valcárcel</b> as the final project "
     "for his Computer Science Engineering degree at <i>University of the "
     "Basque Country (UPV/EHU)</i>.<br><br>"
     "It was my first time using QT, C++ and in general managing a big project. "
-    "I did my best, but there may still be bugs and inprovements to be made on "
+    "I did my best, but there may still be bugs and improvements to be made on "
     "the code. Contact me if you have a suggestion. <br><br>"
     "<b>Contact information:</b><br>"
     "<b>Email:</b> asiersantosval@gmail.com<br>"
     "<b>LinkedIn:</b> "
     "<a href=\"https://www.linkedin.com/in/asier-santos-valcarcel-61965bb7/\">Profile</a></a><br>"
     "<b>GitHub for the project:</b> "
-    "<a href=\"https://github.com/ASantosVal/vlc-extension-trials\">Repository</a></a><br>"; //TODO: Write a proper text here
+    "<a href=\"https://github.com/ASantosVal/vlc-extension-trials\">Repository</a></a><br>";
 
     /* Declarations for the fingerprinter */
     Chromaprint *t;
@@ -103,6 +103,7 @@ private slots:
     void fingerprintTable(bool fast);
     void fingerprint(input_item_t *p_item, bool fast);
     void restoreAll();
+    void cleanUp();
     void help();
     void about();
     void clearTable();

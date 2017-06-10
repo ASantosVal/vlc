@@ -124,23 +124,19 @@ void ExtMetaManagerDialog::toggleVisible()
 /* Just closes the window (and the module itself) */
 void ExtMetaManagerDialog::close()
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" );
     toggleVisible();
 
-    /* Remove items from the Pl only if they habe been loaded from file */
-    if (!playlistLoaded)
-        clearPlaylist();
+    /* Clean before closing */
+    cleanUp();
+
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Closing" );
 }
 
 /* Loads files into the table from the current playlist */
 void ExtMetaManagerDialog::getFromPlaylist()
 {
-    /* Clear the table, thw playlist (if files have been loaded to it) and the
-    array with with the currently working items*/
-    clearTable();
-    if (!playlistLoaded)
-        clearPlaylist();
-    vlc_array_clear(workingItems);
+    /* Clean before changing the workspace */
+    cleanUp();
 
     /* Lock the playlist so we can work with it */
     playlist_Lock(THEPL);
@@ -152,7 +148,6 @@ void ExtMetaManagerDialog::getFromPlaylist()
     input_item_t *p_item;  //This is where each item will be stored
     int row; //This is where each item's position will be stored
 
-    //TODO; this must be reworked, doesn't work properly
     for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
     {
         p_item = playlist_ItemGetById(THEPL, i)->p_input; // Get the playlist_item's input_item_t
@@ -188,13 +183,8 @@ void ExtMetaManagerDialog::getFromFolder()
     /* If no files selected, finish */
     if( uris.isEmpty() ) return;
 
-    /* Clear the table, thw playlist (if files have been loaded to it) and the
-    array with with the currently working items*/
-    clearTable();
-    if (!playlistLoaded)
-        clearPlaylist();
-    vlc_array_clear(workingItems); // This last or the previous ones won't work
-
+    /* Clean before changing the workspace */
+    cleanUp();
 
     int row; //This is where each item's position will be stored
 
@@ -496,6 +486,7 @@ void ExtMetaManagerDialog::clearPlaylist()
 
     input_item_t *p_item; // This is where the current working item will be
     playlist_item_t *pl_item;  // This is where the playlist item of the previous item will be
+
     int arraySize = vlc_array_count(workingItems); //Nmber of items we are workin with
 
     for(int i = 0; i < arraySize; i++)
@@ -506,6 +497,18 @@ void ExtMetaManagerDialog::clearPlaylist()
     }
 
     playlist_Unlock(THEPL); //Unlock the playlist
+}
+
+
+/* Cleans the playlist, clears the table, empties workingItems */
+void ExtMetaManagerDialog::cleanUp()
+{
+    /* Clear the table, thw playlist (if files have been loaded to it) and the
+    array with with the currently working items*/
+    clearTable();
+    if (!playlistLoaded)
+        clearPlaylist();
+    vlc_array_clear(workingItems); // This last or the previous ones won't work
 }
 
 /* Launches the "Help" dialog */
