@@ -43,16 +43,27 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     setWindowRole( "vlc-ext-meta-manager" );
     setWindowTitle( qtr( "Extended Metadata Manager" ) );
 
+    /* Set button icons */
+    ui.pushButton_getFromPlaylist->setIcon(QIcon(QPixmap (":/toolbar/playlist") ) );
+    ui.pushButton_getFromFolder->setIcon(QIcon(QPixmap (":/type/folder-grey") ) );
+    ui.pushButton_help->setIcon(QIcon(QPixmap (":/menu/help") ) );
+    ui.pushButton_about->setIcon(QIcon(QPixmap (":/menu/info") ) );
+    ui.pushButton_searchNow->setIcon(QIcon(QPixmap (":/") ) );
+    ui.pushButton_saveAll->setIcon(QIcon(QPixmap (":/") ) );
+    ui.pushButton_restoreAll->setIcon(QIcon(QPixmap (":/buttons/playlist/repeat_all") ) );
+    ui.pushButton_clearTable->setIcon(QIcon(QPixmap (":") ) );
+    ui.pushButton_cancel->setIcon(QIcon(QPixmap (":/menu/exit") ) );
+
     //Button bindings
-    BUTTONACT( ui.pushButton_cancel, close() );
     BUTTONACT( ui.pushButton_getFromPlaylist, getFromPlaylist() );
     BUTTONACT( ui.pushButton_getFromFolder, getFromFolder() );
+    BUTTONACT( ui.pushButton_help, help() );
+    BUTTONACT( ui.pushButton_about, about() );
     BUTTONACT( ui.pushButton_searchNow, searchNow() );
     BUTTONACT( ui.pushButton_saveAll, saveAll() );
     BUTTONACT( ui.pushButton_restoreAll, restoreAll() );
-    BUTTONACT( ui.pushButton_help, help() );
-    BUTTONACT( ui.pushButton_about, about() );
     BUTTONACT( ui.pushButton_clearTable, clearTable() );
+    BUTTONACT( ui.pushButton_cancel, close() );
 
     //Events
     CONNECT( ui.tableWidget_metadata, cellClicked(int, int), this, updateArtwork(int, int) );
@@ -69,7 +80,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.tableWidget_metadata->setColumnWidth(COL_ARTWORK, 70); //Artwork
     ui.tableWidget_metadata->setColumnWidth(COL_PATH, 50); //Path
 
-    /* ART_URL */
+    /* Artwork label */ 
     art_cover = new CoverArtLabelExt( this, p_intf );
     art_cover->setScaledContents(true); //allow the label's image to be scaled (to fit all the area)
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
@@ -95,7 +106,7 @@ ExtMetaManagerDialog::~ExtMetaManagerDialog()
 /* Override the closing (click X) event*/
 void ExtMetaManagerDialog::closeEvent(QCloseEvent *event)
 {
-    msg_Dbg( p_intf, "[ExtMetaManagerDialog] test" );
+    UNUSED(event); //FIXME: delete this
     close();
 }
 
