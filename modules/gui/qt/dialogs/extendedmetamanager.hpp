@@ -67,13 +67,21 @@ private:
     CoverArtLabelExt *art_cover;
 
     //An array with the items the window is working at a certain moment
-    vlc_array_t  *workingItems;
+    vlc_array_t *workingItems;
+
+    /*Boolean which means if the current items are from the PL or from a file.
+     This is needed because the only way I found to preparse (load their
+     metadata) the items got form a file is by adding them to the PL, which
+     creates a great mess. Using this variable the program will adapt to the
+     sitution and delete the items we have added to the PL (clean it).*/
+    bool playlistLoaded;
 
     //The UI
     Ui::ExtMetaManagerWidget ui;
 
 private slots:
     void close() Q_DECL_OVERRIDE;
+    void closeEvent(QCloseEvent *event);
 
     void getFromPlaylist();
     void getFromFolder();
