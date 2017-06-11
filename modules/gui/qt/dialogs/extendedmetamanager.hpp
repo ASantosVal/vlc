@@ -78,8 +78,8 @@ private:
     /* The widget used to show the artwork */
     CoverArtLabelExt *art_cover;
 
-    /* An array with the items the window is working at a certain moment */
-    vlc_array_t *workingItems;
+    /* An array with the items the window is working at a the moment */
+    vlc_array_t *workspace;
 
     /*Boolean which means if the current items are from the PL or from a file.
      This is needed because the only way I found to preparse (load their
@@ -104,8 +104,8 @@ private slots:
     void fingerprint(input_item_t *p_item, bool fast);
     void restoreAll();
     void cleanUp();
-    void help();
-    void about();
+    void helpDialog();
+    void aboutDialog();
     void clearTable();
     void addTableEntry(input_item_t *p_item);
     void updateTableEntry(input_item_t *p_item, int row);

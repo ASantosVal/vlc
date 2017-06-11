@@ -57,8 +57,8 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     /* Button bindings */
     BUTTONACT( ui.pushButton_getFromPlaylist, getFromPlaylist() );
     BUTTONACT( ui.pushButton_getFromFolder, getFromFolder() );
-    BUTTONACT( ui.pushButton_help, help() );
-    BUTTONACT( ui.pushButton_about, about() );
+    BUTTONACT( ui.pushButton_help, helpDialog() );
+    BUTTONACT( ui.pushButton_about, aboutDialog() );
     BUTTONACT( ui.pushButton_searchNow, searchNow() );
     BUTTONACT( ui.pushButton_saveAll, saveAll() );
     BUTTONACT( ui.pushButton_restoreAll, restoreAll() );
@@ -85,8 +85,8 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
     /* Initilize the array for the currently working items */
-    workingItems = new vlc_array_t();
-    vlc_array_init(workingItems);
+    workspace = new vlc_array_t();
+    vlc_array_init(workspace);
 
     /* Initilize our Boolean al false (meaning the playlist is not loaded) */
     playlistLoaded=false;
@@ -154,10 +154,10 @@ void ExtMetaManagerDialog::getFromPlaylist()
         addTableEntry(p_item); //add item to the table
 
         /*Now we get the size of the table and store the item on that position
-        on the array, so item at row X on the table is also stored at array
-        position X*/
-        row =   ui.tableWidget_metadata->rowCount();
-        vlc_array_insert(workingItems, p_item, row-1); //Add item array with the current working items
+        on the workspace array, so item at row X on the table is also stored at
+        array position X*/
+        row = ui.tableWidget_metadata->rowCount();
+        vlc_array_insert(workspace, p_item, row-1);
     }
 
     /* Unlock the playlist */
@@ -195,10 +195,10 @@ void ExtMetaManagerDialog::getFromFolder()
         addTableEntry(p_item); //Add the item to the table
 
         /*Now we get the size of the table and store the item on that position
-        on the array, so item at row X on the table is also stored at array
-        position X*/
-        row =   ui.tableWidget_metadata->rowCount();
-        vlc_array_insert(workingItems, p_item, row-1); //Add item to the array with the current working items
+        on the workspace array, so item at row X on the table is also stored at
+        array position X*/
+        row = ui.tableWidget_metadata->rowCount();
+        vlc_array_insert(workspace, p_item, row-1);
     }
 
     /* Select the first cell and update artwork label */
@@ -210,7 +210,8 @@ void ExtMetaManagerDialog::getFromFolder()
 
 }
 
-/* Initiates the metadata search and analysis based on choosed options */
+/* Initiates the metadata search and analysis based on choosed options. It just
+redirects to other methods depending on the activated checkboxes */
 void ExtMetaManagerDialog::searchNow()
 {
     if (ui.checkBox_acousticid->isChecked())
@@ -224,7 +225,7 @@ void ExtMetaManagerDialog::searchNow()
             fingerprintTable(true);
         }
     }
-    if (ui.checkBox_filenameAnalysis->isChecked())
+    if (ui.checkBox_filenameAnalysis->isChecked()) //TODO: implement this
     {
         msg_Dbg( p_intf, "[ExtMetaManagerDialog] filenameAnalysis checked" ); //FIXME: delete this
 
@@ -243,6 +244,7 @@ void ExtMetaManagerDialog::saveAll()
     const char *publisher_text;
     const char *copyright_text;
 
+    /* Iterate over all the items on the table */
     int rows = ui.tableWidget_metadata->rowCount();
     for(int row = 0;  row < rows; row++) //The list starts at 4 because the first 3 are not files
     {
@@ -286,11 +288,14 @@ void ExtMetaManagerDialog::restoreAll()
     clearTable();
 
     input_item_t *p_item; // This is where the current working item will be
-    int arraySize = vlc_array_count(workingItems);
+
+    /* Iterate over all the items in the workspace */
+    int arraySize = vlc_array_count(workspace);
     for(int i = 0; i < arraySize; i++)
     {
-        p_item = (input_item_t*)vlc_array_item_at_index(workingItems, i); //Get one item form the list
-        addTableEntry(p_item); //Add the item to the table
+        /* Get one item form the list and add it to the table */
+        p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
+        addTableEntry(p_item);
     }
 }
 
@@ -315,9 +320,12 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     /* Get the number of items we'll be working with */
     int rows = ui.tableWidget_metadata->rowCount();
 
-    int progress_unit= 100/rows; //Calculate how much the progress bar has to increase each loop
-    int progress=0; // Start the counter
-    ui.progressBar_search->setValue(progress); // Set the progress to 0
+    /* Calculate how much the progress bar will advance each step (progressBar
+    goes from 0 to 100). Then progress variable is set to 0 and the widget is
+    updated */
+    int progress_unit= 100/rows;
+    int progress=0;
+    ui.progressBar_search->setValue(progress);
 
     /* if fast search is activated, initilize custom fingerprinter */
     if (fast)
@@ -351,7 +359,7 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     ui.progressBar_search->setValue(100); //
     ui.progressBar_search->setEnabled(false);
 
-    /* if fast search is activated, delete the custom fingerprinter */
+    /* If fast search is activated, delete the custom fingerprinter */
     if (fast)
     {
         if ( t ) delete t;
@@ -366,17 +374,21 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
 {
     if (fast)
     {
-        // Add the item to the finperprinter's queue
+        /* Add the item to the finperprinter's queue */
         if ( t )
             t->enqueue( p_item );
 
-        // Wait for results
+        /* Wait for results */
         p_r = t->fetchResults();
         while (!p_r)
             p_r = t->fetchResults();
 
+        /* Check if metadata was found and if not, exit */
+        if ( vlc_array_count( & p_r->results.metas_array ) == 0 )
+            return;
+
         /* Apply first option */
-        t->apply( p_r, 0 );
+        t->apply( p_r, 0 ); //TODO: check if empty
     }
     else
     {
@@ -390,19 +402,21 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
 /* Recovers the item on a certain row (from the table) */
 input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 {
-    input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workingItems, row);
+    /* Item at row X is stored at workspace postion X */
+    input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workspace, row);
     return p_item;
 }
 
 /* Gets an item from an URI and preparses it (gets it's metadata) */
 input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 {
+    /* Create the item from the given uri */
     input_item_t *p_item = input_item_New( uri, "Entry" ); //The name is not relevant
 
-    /* add to the playlist so it is preparsed (metadata is got) */
+    /* Add to the playlist so it is preparsed (metadata is got) */
     playlist_AddInput( THEPL, p_item, false, true );
 
-    /*Wait until already preparsed (metadata was added) */
+    /* Wait until already preparsed (metadata was added) */
     while (!input_item_IsPreparsed(p_item)) ;
 
     return p_item;
@@ -422,11 +436,11 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     /* Create checkbox for the first column */
     QCheckBox  *checkbox = new QCheckBox ();
     checkbox->setChecked(1); // Set checked by default
-    // Insert the checkbox in the cell
+    /* Insert the checkbox in the cell */
     ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
 
     /* Create button for the artwork update */
-    QPushButton  *m_button = new QPushButton("Change", this);
+    QPushButton  *m_button = new QPushButton( qtr("Change"), this);
     connect(m_button, SIGNAL (released()), this, SLOT (changeArtwork()));
     /* Insert the button in the cell */
     ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, m_button );
@@ -460,7 +474,7 @@ void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row)
 }
 
 /*----------------------------------------------------------------------------*/
-/*-------------------------------Others---------------------------------------*/
+/*----------------------------Artwork management------------------------------*/
 /*----------------------------------------------------------------------------*/
 
 /* When a cell on the table is selected, this function changes the Artwork
@@ -478,6 +492,10 @@ void ExtMetaManagerDialog::changeArtwork()
     art_cover->setArtFromFile();
 }
 
+/*----------------------------------------------------------------------------*/
+/*-------------------------------Others---------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
 /* Clears the playlist */
 void ExtMetaManagerDialog::clearPlaylist()
 {
@@ -487,44 +505,45 @@ void ExtMetaManagerDialog::clearPlaylist()
     input_item_t *p_item; // This is where the current working item will be
     playlist_item_t *pl_item;  // This is where the playlist item of the previous item will be
 
-    int arraySize = vlc_array_count(workingItems); //Nmber of items we are workin with
+    int arraySize = vlc_array_count(workspace); //Number of items we are workin with
 
     for(int i = 0; i < arraySize; i++)
     {
-        p_item = (input_item_t*)vlc_array_item_at_index(workingItems, i); //Get one item form the list
+        p_item = (input_item_t*)vlc_array_item_at_index(workspace, i); //Get one item form the list
         pl_item = playlist_ItemGetByInput( THEPL, p_item); //Get the playlist_item_t of the previous item
         playlist_NodeDelete(THEPL, pl_item, true); //Delete the item form the pl
     }
 
-    playlist_Unlock(THEPL); //Unlock the playlist
+    /* We've finished , so unlock the playlist */
+    playlist_Unlock(THEPL);
 }
 
 
-/* Cleans the playlist, clears the table, empties workingItems */
+/* Cleans the playlist, clears the table, empties workspace */
 void ExtMetaManagerDialog::cleanUp()
 {
-    /* Clear the table, thw playlist (if files have been loaded to it) and the
+    /* Clear the table, the playlist (if files have been loaded to it) and the
     array with with the currently working items*/
     clearTable();
     if (!playlistLoaded)
         clearPlaylist();
-    vlc_array_clear(workingItems); // This last or the previous ones won't work
+    vlc_array_clear(workspace); // This last or the previous ones won't work
 }
 
 /* Launches the "Help" dialog */
-void ExtMetaManagerDialog::help()
+void ExtMetaManagerDialog::helpDialog()
 {
     QMessageBox::information(
       this,
-      tr("Help - Extended Metadata Manager"),
-      tr(help_text) );
+      tr("Help - Extended Metadata Manager"), //Title
+      tr(help_text) ); //Text
 }
 
 /* Launches the "About" dialog */
-void ExtMetaManagerDialog::about()
+void ExtMetaManagerDialog::aboutDialog()
 {
     QMessageBox::information(
       this,
-      tr("About - Extended Metadata Manager"),
-      tr(about_text) );
+      tr("About - Extended Metadata Manager"), //Title
+      tr(about_text) ); //Text
 }
