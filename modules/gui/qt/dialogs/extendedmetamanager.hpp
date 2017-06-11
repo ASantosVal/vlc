@@ -57,23 +57,43 @@ private:
     "voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint "
     "occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit "
     "anim id est laborum."; //TODO: Write a proper text here
-    const char *about_text = help_text; //TODO: Write a proper text here
+    const char *about_text = "<big>Extended Metadata Manager</big> <br><br>"
+    "This module has been created by <b>Asier Santos Valcárcel</b> as the final project "
+    "for his Computer Science Engineering degree at <i>University of the "
+    "Basque Country (UPV/EHU)</i>.<br><br>"
+    "It was my first time using QT, C++ and in general managing a big project. "
+    "I did my best, but there may still be bugs and improvements to be made on "
+    "the code. Contact me if you have a suggestion. <br><br>"
+    "<b>Contact information:</b><br>"
+    "<b>Email:</b> asiersantosval@gmail.com<br>"
+    "<b>LinkedIn:</b> "
+    "<a href=\"https://www.linkedin.com/in/asier-santos-valcarcel-61965bb7/\">Profile</a></a><br>"
+    "<b>GitHub for the project:</b> "
+    "<a href=\"https://github.com/ASantosVal/vlc-extension-trials\">Repository</a></a><br>";
 
-    // Declarations for the fingerprinter
+    /* Declarations for the fingerprinter */
     Chromaprint *t;
     fingerprint_request_t *p_r;
 
-    //The widget used to show the artwork
+    /* The widget used to show the artwork */
     CoverArtLabelExt *art_cover;
 
-    //An array with the items the window is working at a certain moment
-    vlc_array_t  *workingItems;
+    /* An array with the items the window is working at a the moment */
+    vlc_array_t *workspace;
+
+    /*Boolean which means if the current items are from the PL or from a file.
+     This is needed because the only way I found to preparse (load their
+     metadata) the items got form a file is by adding them to the PL, which
+     creates a great mess. Using this variable the program will adapt to the
+     sitution and delete the items we have added to the PL (clean it).*/
+    bool playlistLoaded;
 
     //The UI
     Ui::ExtMetaManagerWidget ui;
 
 private slots:
     void close() Q_DECL_OVERRIDE;
+    void closeEvent(QCloseEvent *event);
 
     void getFromPlaylist();
     void getFromFolder();
@@ -83,8 +103,9 @@ private slots:
     void fingerprintTable(bool fast);
     void fingerprint(input_item_t *p_item, bool fast);
     void restoreAll();
-    void help();
-    void about();
+    void cleanUp();
+    void helpDialog();
+    void aboutDialog();
     void clearTable();
     void addTableEntry(input_item_t *p_item);
     void updateTableEntry(input_item_t *p_item, int row);
