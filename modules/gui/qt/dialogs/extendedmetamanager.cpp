@@ -65,7 +65,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     BUTTONACT( ui.pushButton_clearTable, clearTable() );
     BUTTONACT( ui.pushButton_cancel, close() );
 
-    //Events for the table
+    /* Events for the table */
     CONNECT( ui.tableWidget_metadata, cellClicked(int, int), this, updateArtwork(int, int) );
     CONNECT( ui.tableWidget_metadata,  itemChanged(QTableWidgetItem*), this,  multipleItemsChanged(QTableWidgetItem*));
 
@@ -249,10 +249,8 @@ void ExtMetaManagerDialog::saveAll()
     int rows = ui.tableWidget_metadata->rowCount();
     for(int row = 0;  row < rows; row++) //The list starts at 4 because the first 3 are not files
     {
-        /* Check if the row's is checkbox checked */
-        QCheckBox  *checkbox = (QCheckBox*) ui.tableWidget_metadata->cellWidget(row,COL_CHECKBOX);
-
-        if (checkbox->isChecked()) //Check if the row is checked/selected
+        /* Check if the row is checked/selected and ignore if not */
+        if (rowIsSelected(row))
         {
             p_item = getItemFromRow(row); //First we obtain the input_item from the row
 
@@ -341,15 +339,18 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     /* Iterate the table */
     for(int row = 0; row < rows; row++)
     {
-        /* Get the item from the current row */
-        p_item = getItemFromRow(row);
+        /* Check if the row is checked/selected and ignore if not */
+        if (rowIsSelected(row))
+        {
+            /* Get the item from the current row */
+            p_item = getItemFromRow(row);
 
-        /* Fingerprint the item and wait for results */
-        fingerprint(p_item, fast);
+            /* Fingerprint the item and wait for results */
+            fingerprint(p_item, fast);
 
-        /* Update the table with the new info */
-        updateTableEntry(p_item, row);
-
+            /* Update the table with the new info */
+            updateTableEntry(p_item, row);
+        }
         /* Update the progress bar */
         progress=progress+progress_unit; // Increase the progress
         ui.progressBar_search->setValue(progress); // Update the progressBar
@@ -485,6 +486,14 @@ void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row)
     ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
     ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
     ui.tableWidget_metadata->item(row, COL_PATH)->setFlags(0); // Make the path not selectable/editable
+}
+
+/* Returns a true if that row is seleted (checkbox is seletedc) and a flase if not */
+bool ExtMetaManagerDialog::rowIsSelected(int row)
+{
+    /* Check if the row's is checkbox checked */
+    QCheckBox  *checkbox = (QCheckBox*) ui.tableWidget_metadata->cellWidget(row,COL_CHECKBOX);
+    return checkbox->isChecked();
 }
 
 /*----------------------------------------------------------------------------*/

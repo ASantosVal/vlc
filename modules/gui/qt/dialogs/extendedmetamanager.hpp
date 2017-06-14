@@ -110,6 +110,7 @@ private slots:
     void multipleItemsChanged( QTableWidgetItem *item );
     void addTableEntry(input_item_t *p_item);
     void updateTableEntry(input_item_t *p_item, int row);
+    bool rowIsSelected(int row);
     void updateArtwork(int row, int column);
     void changeArtwork();
     input_item_t* getItemFromRow(int row);
