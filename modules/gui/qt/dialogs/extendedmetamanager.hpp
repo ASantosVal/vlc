@@ -50,13 +50,22 @@ private:
     ExtMetaManagerDialog( intf_thread_t * );
     virtual ~ExtMetaManagerDialog();
 
-    const char *help_text = "<b>Lorem ipsum</b> dolor sit amet, consectetur adipiscing "
-    "elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. U t"
-    "enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut "
-    "aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in "
-    "voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint "
-    "occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit "
-    "anim id est laborum."; //TODO: Write a proper text here
+    const char *help_text = "This window is designed to help you <b>manage "
+    "your music's metadata/tags</b>.<br><br>"
+    "First you have to <b>load your files</b>. Yo can choose to load them from "
+    "the current playlist or from a folder.<br><br>"
+    "The data will automatically be added to the table. Now you can <b>edit it "
+    "directly on the table or use the automatic search</b> function.<br><br>"
+    "When searching, the best option is automatically selected (but not saved, "
+    "yet). If you want to be able to choose between the found options, "
+    "activate de advanced search. Note that onlye the selected entries will be "
+    "searched (the ones with the checkbox activated).<br><br>"
+    "Once you hace edited/searched all your information, you can <b>save "
+    "it</b> definitively with the <i>Save button</i>. If you want to discard "
+    "the changes made on the table, you can click the <i>Reload</i> button. To "
+    "empty the table, hit the <i>Clear</i> button.<br><br>"
+    "To <b>exit</b>, click the <i>Cancel</i> button or just close the window.";
+
     const char *about_text = "<big>Extended Metadata Manager</big> <br><br>"
     "This module has been created by <b>Asier Santos Valcárcel</b> as the final project "
     "for his Computer Science Engineering degree at <i>University of the "
