@@ -67,7 +67,7 @@ private:
     "<b>Contact information:</b><br>"
     "<b>Email:</b> asiersantosval@gmail.com<br>"
     "<b>LinkedIn:</b> "
-    "<a href=\"https://www.linkedin.com/in/asier-santos-valcarcel-61965bb7/\">Profile</a></a><br>"
+    "<a href=\"https://www.linkedin.com/in/asier-santos-valcarcel\">Profile</a></a><br>"
     "<b>GitHub for the project:</b> "
     "<a href=\"https://github.com/ASantosVal/vlc-extension-trials\">Repository</a></a><br>";
 
@@ -107,8 +107,10 @@ private slots:
     void helpDialog();
     void aboutDialog();
     void clearTable();
+    void multipleItemsChanged( QTableWidgetItem *item );
     void addTableEntry(input_item_t *p_item);
     void updateTableEntry(input_item_t *p_item, int row);
+    bool rowIsSelected(int row);
     void updateArtwork(int row, int column);
     void changeArtwork();
     input_item_t* getItemFromRow(int row);

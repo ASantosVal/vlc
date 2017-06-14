@@ -48,10 +48,10 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.pushButton_getFromFolder->setIcon(QIcon(QPixmap (":/type/folder-grey") ) );
     ui.pushButton_help->setIcon(QIcon(QPixmap (":/menu/help") ) );
     ui.pushButton_about->setIcon(QIcon(QPixmap (":/menu/info") ) );
-    ui.pushButton_searchNow->setIcon(QIcon(QPixmap (":/") ) );
-    ui.pushButton_saveAll->setIcon(QIcon(QPixmap (":/") ) );
+    ui.pushButton_searchNow->setIcon(QIcon(QPixmap (":/search") ) );
+    ui.pushButton_saveAll->setIcon(QIcon(QPixmap (":/save") ) );
     ui.pushButton_restoreAll->setIcon(QIcon(QPixmap (":/buttons/playlist/repeat_all") ) );
-    ui.pushButton_clearTable->setIcon(QIcon(QPixmap (":") ) );
+    ui.pushButton_clearTable->setIcon(QIcon(QPixmap (":/clean") ) );
     ui.pushButton_cancel->setIcon(QIcon(QPixmap (":/menu/exit") ) );
 
     /* Button bindings */
@@ -65,8 +65,9 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     BUTTONACT( ui.pushButton_clearTable, clearTable() );
     BUTTONACT( ui.pushButton_cancel, close() );
 
-    //Events
+    /* Events for the table */
     CONNECT( ui.tableWidget_metadata, cellClicked(int, int), this, updateArtwork(int, int) );
+    CONNECT( ui.tableWidget_metadata,  itemChanged(QTableWidgetItem*), this,  multipleItemsChanged(QTableWidgetItem*));
 
     /* Set de table columns' size */
     ui.tableWidget_metadata->setColumnWidth(COL_CHECKBOX, 30);
@@ -246,12 +247,11 @@ void ExtMetaManagerDialog::saveAll()
 
     /* Iterate over all the items on the table */
     int rows = ui.tableWidget_metadata->rowCount();
+
     for(int row = 0;  row < rows; row++) //The list starts at 4 because the first 3 are not files
     {
-        /* Check if the row's is checkbox checked */
-        QCheckBox  *checkbox = (QCheckBox*) ui.tableWidget_metadata->cellWidget(row,COL_CHECKBOX);
-
-        if (checkbox->isChecked()) //Check if the row is checked/selected
+        /* Check if the row is checked/selected and ignore if not */
+        if (rowIsSelected(row))
         {
             p_item = getItemFromRow(row); //First we obtain the input_item from the row
 
@@ -327,6 +327,10 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     int progress=0;
     ui.progressBar_search->setValue(progress);
 
+    /* We dont want the table to mess things while we update it, so que block
+    its signals (this is caused because we edited "multipleItemsChanged"). */
+    ui.tableWidget_metadata->blockSignals(true);
+
     /* if fast search is activated, initilize custom fingerprinter */
     if (fast)
     {
@@ -340,15 +344,18 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     /* Iterate the table */
     for(int row = 0; row < rows; row++)
     {
-        /* Get the item from the current row */
-        p_item = getItemFromRow(row);
+        /* Check if the row is checked/selected and ignore if not */
+        if (rowIsSelected(row))
+        {
+            /* Get the item from the current row */
+            p_item = getItemFromRow(row);
 
-        /* Fingerprint the item and wait for results */
-        fingerprint(p_item, fast);
+            /* Fingerprint the item and wait for results */
+            fingerprint(p_item, fast);
 
-        /* Update the table with the new info */
-        updateTableEntry(p_item, row);
-
+            /* Update the table with the new info */
+            updateTableEntry(p_item, row);
+        }
         /* Update the progress bar */
         progress=progress+progress_unit; // Increase the progress
         ui.progressBar_search->setValue(progress); // Update the progressBar
@@ -366,6 +373,8 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
         if ( p_r ) fingerprint_request_Delete( p_r );
     }
 
+    /* We have finished, so we unlock al the table's signals. */
+    ui.tableWidget_metadata->blockSignals(false);
 }
 
 /* Initiates the fingerprint process just for one item. If "fast" is true, 1st
@@ -426,6 +435,19 @@ input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 /*--------------------------Table management----------------------------------*/
 /*----------------------------------------------------------------------------*/
 
+/* Modify the table's behavior so multiple items can be edited at the same time
+when more than one cell is selected. */
+void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item )
+{
+	ui.tableWidget_metadata->blockSignals(true);
+	QList<QTableWidgetItem*> selectedItems = ui.tableWidget_metadata->selectedItems();
+	foreach(QTableWidgetItem* selectItem, selectedItems)
+	{
+		selectItem->setText(item->text());
+	}
+	ui.tableWidget_metadata->blockSignals(false);
+}
+
 /* Adds a row on the table with the metadata from a given item */
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 {
@@ -471,6 +493,14 @@ void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row)
     ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
     ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
     ui.tableWidget_metadata->item(row, COL_PATH)->setFlags(0); // Make the path not selectable/editable
+}
+
+/* Returns a true if that row is seleted (checkbox is seletedc) and a flase if not */
+bool ExtMetaManagerDialog::rowIsSelected(int row)
+{
+    /* Check if the row's is checkbox checked */
+    QCheckBox  *checkbox = (QCheckBox*) ui.tableWidget_metadata->cellWidget(row,COL_CHECKBOX);
+    return checkbox->isChecked();
 }
 
 /*----------------------------------------------------------------------------*/
