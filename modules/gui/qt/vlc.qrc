@@ -105,6 +105,7 @@
         <file alias="search">pixmaps/search.png</file>
         <file alias="clean">pixmaps/clean.png</file>
         <file alias="save">pixmaps/save.png</file>
+        <file alias="ext-meta-manager">pixmaps/ext-meta-manager.png</file>
     </qresource>
     <qresource prefix="/prefsmenu">
         <file alias="cone_audio_64">pixmaps/prefs/spref_cone_Audio_64.png</file>
