@@ -247,6 +247,7 @@ void ExtMetaManagerDialog::saveAll()
 
     /* Iterate over all the items on the table */
     int rows = ui.tableWidget_metadata->rowCount();
+
     for(int row = 0;  row < rows; row++) //The list starts at 4 because the first 3 are not files
     {
         /* Check if the row is checked/selected and ignore if not */
@@ -326,6 +327,10 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     int progress=0;
     ui.progressBar_search->setValue(progress);
 
+    /* We dont want the table to mess things while we update it, so que block
+    its signals (this is caused because we edited "multipleItemsChanged"). */
+    ui.tableWidget_metadata->blockSignals(true);
+
     /* if fast search is activated, initilize custom fingerprinter */
     if (fast)
     {
@@ -368,6 +373,8 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
         if ( p_r ) fingerprint_request_Delete( p_r );
     }
 
+    /* We have finished, so we unlock al the table's signals. */
+    ui.tableWidget_metadata->blockSignals(false);
 }
 
 /* Initiates the fingerprint process just for one item. If "fast" is true, 1st
