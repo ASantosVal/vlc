@@ -85,6 +85,21 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     art_cover = new CoverArtLabelExt( this, p_intf );
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
 
+    /* Set tips for multiple widgets (extra text when de mouse is over the widget) */
+    ui.pushButton_getFromPlaylist->setToolTip(getFromPlaylist_tip);
+    ui.pushButton_getFromFolder->setToolTip(getFromFolder_tip);
+    ui.pushButton_help->setToolTip(help_tip);
+    ui.pushButton_about->setToolTip(about_tip);
+    ui.pushButton_searchNow->setToolTip(searchNow_tip);
+    ui.pushButton_saveAll->setToolTip(saveAll_tip);
+    ui.pushButton_restoreAll->setToolTip(restoreAll_tip);
+    ui.pushButton_clearTable->setToolTip(clearTable_tip);
+    ui.pushButton_cancel->setToolTip(cancel_tip);
+    ui.progressBar_search->setToolTip(progressBar_tip);
+    ui.checkBox_acoustid->setToolTip(acoustid_tip);
+    ui.checkBox_disableFastSearch->setToolTip(disableFastSearch_tip);
+    art_cover->setToolTip(artwork_tip);
+
     /* Initilize the array for the currently working items */
     workspace = new vlc_array_t();
     vlc_array_init(workspace);
@@ -215,7 +230,7 @@ void ExtMetaManagerDialog::getFromFolder()
 redirects to other methods depending on the activated checkboxes */
 void ExtMetaManagerDialog::searchNow()
 {
-    if (ui.checkBox_acousticid->isChecked())
+    if (ui.checkBox_acoustid->isChecked())
     {
         if (ui.checkBox_disableFastSearch->isChecked())
         {
@@ -452,20 +467,22 @@ void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item )
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 {
     /* Add one row to the table Initilize */
-    int row =   ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
+    int row = ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
     ui.tableWidget_metadata->insertRow(row);
 
-    /* Create checkbox for the first column */
-    QCheckBox  *checkbox = new QCheckBox ();
-    checkbox->setChecked(1); // Set checked by default
+    /* Create checkbox for the first column and set it as checked(and set it's tip). */
+    QCheckBox *checkbox = new QCheckBox ();
+    checkbox->setChecked(1);
+    checkbox->setToolTip(checkbox_tip);
     /* Insert the checkbox in the cell */
     ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
 
-    /* Create button for the artwork update */
-    QPushButton  *m_button = new QPushButton( qtr("Change"), this);
-    connect(m_button, SIGNAL (released()), this, SLOT (changeArtwork()));
+    /* Create button for the artwork update (and set it's tip) */
+    QPushButton *QPushButton_changeArtwork = new QPushButton( qtr("Change"), this);
+    QPushButton_changeArtwork->setToolTip(artworkButton_tip);
+    connect(QPushButton_changeArtwork, SIGNAL (released()), this, SLOT (changeArtwork()));
     /* Insert the button in the cell */
-    ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, m_button );
+    ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, QPushButton_changeArtwork );
 
     updateTableEntry(p_item,row);
 }
