@@ -50,8 +50,10 @@ private:
     ExtMetaManagerDialog( intf_thread_t * );
     virtual ~ExtMetaManagerDialog();
 
+    /* Help and About windows' text (HTML) */
     const char *help_text = "This window is designed to help you <b>manage "
     "your music's metadata/tags</b>.<br><br>"
+    "You can put the mouse over an item to see tips and aditional help info.<br><br>"
     "First you have to <b>load your files</b>. Yo can choose to load them from "
     "the current playlist or from a folder.<br><br>"
     "The data will automatically be added to the table. Now you can <b>edit it "
@@ -79,6 +81,30 @@ private:
     "<a href=\"https://www.linkedin.com/in/asier-santos-valcarcel\">Profile</a></a><br>"
     "<b>GitHub for the project:</b> "
     "<a href=\"https://github.com/ASantosVal/vlc-extension-trials\">Repository</a></a><br>";
+
+    /* Text for the "tips" */
+    const char *getFromPlaylist_tip = "Load files into the table from the current playlist.";
+    const char *getFromFolder_tip = "Load files into the table from a file/folder.";
+    const char *help_tip = "Launch the help window.";
+    const char *about_tip = "Learn more about this window and it's creator.";
+    const char *searchNow_tip = "Start the automatic search of the selected item's information.";
+    const char *saveAll_tip = "Save all the changes you have made permanently (only selected rows).";
+    const char *restoreAll_tip = "Discard your changes and reaload the original information.";
+    const char *clearTable_tip = "Clear the table.";
+    const char *cancel_tip = "Go back to VLC media player.";
+    const char *progressBar_tip = "Progress made by the search function.";
+    const char *checkbox_tip = "When this checkbox is NOT selected, it will be "
+    "IGNORED by search and save functions.";
+    const char *artwork_tip = "This is the selected item's current artwork/cover. "
+    "Right-click to change it (or use the buttons on the table).";
+    const char *artworkButton_tip = "Change this item's artwork/cover. Youn can "
+    "also right-click the image above to change it.";
+    const char *acoustid_tip = "With this option selected, your files "
+    "will be searched in acoustID database, which can identify files even "
+    "when guess information is given, by analyzing the file's content.";
+    const char *disableFastSearch_tip = "With this option selected, instead of "
+    "choosing automatically the \"best\" option, a window will show asking you "
+    "to choose which entry is the correct.";
 
     /* Declarations for the fingerprinter */
     Chromaprint *t;
