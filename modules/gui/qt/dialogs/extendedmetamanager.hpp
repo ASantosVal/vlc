@@ -107,6 +107,7 @@ private slots:
     void helpDialog();
     void aboutDialog();
     void clearTable();
+    void multipleItemsChanged( QTableWidgetItem *item );
     void addTableEntry(input_item_t *p_item);
     void updateTableEntry(input_item_t *p_item, int row);
     void updateArtwork(int row, int column);

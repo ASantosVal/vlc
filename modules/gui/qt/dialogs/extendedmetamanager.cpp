@@ -65,8 +65,9 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     BUTTONACT( ui.pushButton_clearTable, clearTable() );
     BUTTONACT( ui.pushButton_cancel, close() );
 
-    //Events
+    //Events for the table
     CONNECT( ui.tableWidget_metadata, cellClicked(int, int), this, updateArtwork(int, int) );
+    CONNECT( ui.tableWidget_metadata,  itemChanged(QTableWidgetItem*), this,  multipleItemsChanged(QTableWidgetItem*));
 
     /* Set de table columns' size */
     ui.tableWidget_metadata->setColumnWidth(COL_CHECKBOX, 30);
@@ -425,6 +426,19 @@ input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 /*----------------------------------------------------------------------------*/
 /*--------------------------Table management----------------------------------*/
 /*----------------------------------------------------------------------------*/
+
+/* Modify the table's behavior so multiple items can be edited at the same time
+when more than one cell is selected. */
+void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item )
+{
+	ui.tableWidget_metadata->blockSignals(true);
+	QList<QTableWidgetItem*> selectedItems = ui.tableWidget_metadata->selectedItems();
+	foreach(QTableWidgetItem* selectItem, selectedItems)
+	{
+		selectItem->setText(item->text());
+	}
+	ui.tableWidget_metadata->blockSignals(false);
+}
 
 /* Adds a row on the table with the metadata from a given item */
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
