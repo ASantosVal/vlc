@@ -295,6 +295,9 @@ EXTRA_DIST = $(libqt_plugin_la_UI)
 # Resources
 
 DEPS_res = \
+	pixmaps/clean.png \
+	pixmaps/search.png \
+	pixmaps/save.png \	
 	pixmaps/arrow_down_dark.png \
 	pixmaps/clear.png \
 	pixmaps/eject.png \

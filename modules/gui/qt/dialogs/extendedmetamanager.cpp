@@ -48,10 +48,10 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.pushButton_getFromFolder->setIcon(QIcon(QPixmap (":/type/folder-grey") ) );
     ui.pushButton_help->setIcon(QIcon(QPixmap (":/menu/help") ) );
     ui.pushButton_about->setIcon(QIcon(QPixmap (":/menu/info") ) );
-    ui.pushButton_searchNow->setIcon(QIcon(QPixmap (":/") ) );
-    ui.pushButton_saveAll->setIcon(QIcon(QPixmap (":/") ) );
+    ui.pushButton_searchNow->setIcon(QIcon(QPixmap (":/search") ) );
+    ui.pushButton_saveAll->setIcon(QIcon(QPixmap (":/save") ) );
     ui.pushButton_restoreAll->setIcon(QIcon(QPixmap (":/buttons/playlist/repeat_all") ) );
-    ui.pushButton_clearTable->setIcon(QIcon(QPixmap (":") ) );
+    ui.pushButton_clearTable->setIcon(QIcon(QPixmap (":/clean") ) );
     ui.pushButton_cancel->setIcon(QIcon(QPixmap (":/menu/exit") ) );
 
     /* Button bindings */

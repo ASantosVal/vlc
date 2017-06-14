@@ -102,6 +102,9 @@
         <file alias="search_clear">pixmaps/search_clear.png</file>
         <file alias="dropzone">pixmaps/playlist/dropzone.png</file>
         <file alias="valid">pixmaps/valid.png</file>
+        <file alias="search">pixmaps/search.png</file>
+        <file alias="clean">pixmaps/clean.png</file>
+        <file alias="save">pixmaps/save.png</file>
     </qresource>
     <qresource prefix="/prefsmenu">
         <file alias="cone_audio_64">pixmaps/prefs/spref_cone_Audio_64.png</file>
