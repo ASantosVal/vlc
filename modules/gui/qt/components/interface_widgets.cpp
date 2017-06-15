@@ -886,7 +886,7 @@ void CoverArtLabelExt::showArtUpdate( const QString& url )
     }
     else
     {
-        pix = QPixmap( ":/noart.png" );
+        pix = QPixmap( ":/ext-meta-manager/EMM-logo" );
     }
     setPixmap( pix );
 }

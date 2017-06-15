@@ -295,9 +295,6 @@ EXTRA_DIST = $(libqt_plugin_la_UI)
 # Resources
 
 DEPS_res = \
-	pixmaps/clean.png \
-	pixmaps/search.png \
-	pixmaps/save.png \	
 	pixmaps/arrow_down_dark.png \
 	pixmaps/clear.png \
 	pixmaps/eject.png \
@@ -431,7 +428,12 @@ DEPS_res = \
 	pixmaps/update.png \
 	pixmaps/valid.png \
 	pixmaps/search_clear.png \
-	pixmaps/lock.png
+	pixmaps/ext-meta-manager/search.png  \
+	pixmaps/ext-meta-manager/clean.png  \
+	pixmaps/ext-meta-manager/save.png  \
+	pixmaps/ext-meta-manager/EMM-icon.png \
+	pixmaps/ext-meta-manager/EMM-logo.png
+
 EXTRA_DIST += vlc.qrc $(DEPS_res)
 
 nodist_libqt_plugin_la_SOURCES += resources.cpp

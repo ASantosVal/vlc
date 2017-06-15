@@ -102,10 +102,6 @@
         <file alias="search_clear">pixmaps/search_clear.png</file>
         <file alias="dropzone">pixmaps/playlist/dropzone.png</file>
         <file alias="valid">pixmaps/valid.png</file>
-        <file alias="search">pixmaps/search.png</file>
-        <file alias="clean">pixmaps/clean.png</file>
-        <file alias="save">pixmaps/save.png</file>
-        <file alias="ext-meta-manager">pixmaps/ext-meta-manager.png</file>
     </qresource>
     <qresource prefix="/prefsmenu">
         <file alias="cone_audio_64">pixmaps/prefs/spref_cone_Audio_64.png</file>
@@ -160,5 +156,12 @@
         <file alias="default">pixmaps/addons/addon.png</file>
         <file alias="broken">pixmaps/addons/addon_broken.png</file>
         <file alias="score">pixmaps/addons/score.png</file>
+    </qresource>
+    <qresource prefix="/ext-meta-manager">
+        <file alias="search">pixmaps/ext-meta-manager/search.png</file>
+        <file alias="clean">pixmaps/ext-meta-manager/clean.png</file>
+        <file alias="save">pixmaps/ext-meta-manager/save.png</file>
+        <file alias="EMM-icon">pixmaps/ext-meta-manager/EMM-icon.png</file>
+        <file alias="EMM-logo">pixmaps/ext-meta-manager/EMM-logo.png</file>
     </qresource>
 </RCC>
