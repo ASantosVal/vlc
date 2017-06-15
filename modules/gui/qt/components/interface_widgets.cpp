@@ -921,7 +921,7 @@ void CoverArtLabelExt::setArtFromFile()
 
     QString fileUrl = QUrl::fromLocalFile( filePath ).toString();
 
-    THEMIM->getIM()->setArt( p_item, fileUrl );
+    THEMIM->getIM()->setArtCustomized( p_item, fileUrl );
 
     showArtUpdate(p_item);
 }

@@ -758,6 +758,37 @@ void InputManager::setArt( input_item_t *p_item, QString fileUrl )
     }
 }
 
+
+/*----------------------------------------------------------------------------*/
+/*----------------Alternative for extendedmetamanager-------------------------*/
+/*----------------------------------------------------------------------------*/
+
+void InputManager::setArtCustomized( input_item_t *p_item, QString fileUrl )
+{
+    printf("1\n");
+    char *psz_cachedir = config_GetUserDir( VLC_CACHE_DIR );
+    printf("2\n");
+    QString old_url = p_mim->getIM()->decodeArtURL( p_item );
+    printf("3\n");
+    old_url = QDir( old_url ).canonicalPath();
+
+    printf("4\n");
+    if( old_url.startsWith( QString::fromUtf8( psz_cachedir ) ) )
+        QFile( old_url ).remove(); /* Purge cached artwork */
+
+    printf("5\n");
+    free( psz_cachedir );
+
+    printf("6\n");
+    input_item_SetArtURL( p_item , fileUrl.toUtf8().constData() );
+    printf("7\n");
+    // UpdateArt();
+}
+
+/*----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
 inline void InputManager::UpdateStats()
 {
     emit statisticsUpdated( input_GetItem( p_input ) );
