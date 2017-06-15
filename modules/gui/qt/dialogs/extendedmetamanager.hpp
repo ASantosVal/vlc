@@ -60,7 +60,7 @@ private:
     "directly on the table or use the automatic search</b> function.<br><br>"
     "When searching, the best option is automatically selected (but not saved, "
     "yet). If you want to be able to choose between the found options, "
-    "activate de advanced search. Note that onlye the selected entries will be "
+    "activate de advanced search. Note that only the selected entries will be "
     "searched (the ones with the checkbox activated).<br><br>"
     "Once you hace edited/searched all your information, you can <b>save "
     "it</b> definitively with the <i>Save button</i>. If you want to discard "
