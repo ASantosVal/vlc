@@ -165,29 +165,32 @@ void ExtMetaManagerDialog::getFromPlaylist()
 
     /* Get the size of the playlist and if no files selected, finish */
     int size = THEPL->items.i_size;
-    if( size ==0 ) return;
 
-    input_item_t *p_item;  //This is where each item will be stored
-    int row; //This is where each item's position will be stored
-
-    for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
+    /* If the playlist is NOT empty, load it's info */
+    if( size !=0 )
     {
-        p_item = playlist_ItemGetById(THEPL, i)->p_input; // Get the playlist_item's input_item_t
-        addTableEntry(p_item); //add item to the table
+        input_item_t *p_item;  //This is where each item will be stored
+        int row; //This is where each item's position will be stored
 
-        /*Now we get the size of the table and store the item on that position
-        on the workspace array, so item at row X on the table is also stored at
-        array position X*/
-        row = ui.tableWidget_metadata->rowCount();
-        vlc_array_insert(workspace, p_item, row-1);
+        for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
+        {
+            p_item = playlist_ItemGetById(THEPL, i)->p_input; // Get the playlist_item's input_item_t
+            addTableEntry(p_item); //add item to the table
+
+            /*Now we get the size of the table and store the item on that position
+            on the workspace array, so item at row X on the table is also stored at
+            array position X*/
+            row = ui.tableWidget_metadata->rowCount();
+            vlc_array_insert(workspace, p_item, row-1);
+        }
+
+        /* Select the first cell and update artwork label */
+        ui.tableWidget_metadata->setCurrentCell(0,1);
+        updateArtwork(0,0);
     }
 
-    /* Unlock the playlist */
+    /* Always unlock the playlist */
     playlist_Unlock(THEPL);
-
-    /* Select the first cell and update artwork label */
-    ui.tableWidget_metadata->setCurrentCell(0,1);
-    updateArtwork(0,0);
 }
 
 /* Loads files into the table from a file explorer window */
