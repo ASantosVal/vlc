@@ -426,7 +426,7 @@ QMenu *VLCMenuBar::ToolsMenu( intf_thread_t *p_intf, QMenu *menu )
     addDPStaticEntry( menu, qtr( I_MENU_CODECINFO ) ,
         ":/menu/info", SLOT( mediaCodecDialog() ), "Ctrl+J" );
 
-    addDPStaticEntry( menu, qtr( I_MENU_EXTENDED_METADATA ) , ":/ext-meta-manager",
+    addDPStaticEntry( menu, qtr( I_MENU_EXTENDED_METADATA ) , ":/ext-meta-manager/EMM-icon",
         SLOT( ExtMetaManagerDialog() ), "Ctrl+Shift+I" ); //TODO: Added by Asier Santos
 
 
