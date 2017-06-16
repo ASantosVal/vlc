@@ -198,11 +198,17 @@ void ExtMetaManagerDialog::getFromFolder()
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromFolder" );
 
+    /* Hide */
+    toggleVisible();
+
     /* Open a file explorer just with audio files */
     QStringList uris = THEDP->showSimpleOpen(
         qtr("Open audio files to manage"),
         EXT_FILTER_AUDIO,
         p_intf->p_sys->filepath );
+
+    /* Show again */
+    toggleVisible();
 
     /* If no files selected, finish */
     if( uris.isEmpty() ) return;
