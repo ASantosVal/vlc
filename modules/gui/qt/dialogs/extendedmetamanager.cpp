@@ -100,6 +100,11 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.checkBox_disableFastSearch->setToolTip(disableFastSearch_tip);
     art_cover->setToolTip(artwork_tip);
 
+    /* Set the mapper's connection to changeArtwork. This is used to be able
+    to know from which row the button (added later on each row) it's being
+    clicked */
+    connect(&ButtonSignalMapper, SIGNAL(mapped(int)), this, SLOT(changeArtwork(int)));
+
     /* Initilize the array for the currently working items */
     workspace = new vlc_array_t();
     vlc_array_init(workspace);
@@ -488,12 +493,19 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     /* Insert the checkbox in the cell */
     ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
 
-    /* Create button for the artwork update (and set it's tip) */
-    QPushButton *QPushButton_changeArtwork = new QPushButton( qtr("Change"), this);
-    QPushButton_changeArtwork->setToolTip(artworkButton_tip);
-    connect(QPushButton_changeArtwork, SIGNAL (released()), this, SLOT (changeArtwork(row)));
-    /* Insert the button in the cell */
-    ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, QPushButton_changeArtwork );
+    /* Create button for the artwork update (and set it's tip). We don't add
+    it to the UI yet, it will be added in each row later */
+    QPushButton *button_changeArtwork = new QPushButton( qtr("Change"), this);
+    button_changeArtwork->setToolTip(artworkButton_tip);
+
+    /* Prepare the mapping with the row and connect teh button to it.
+    The mapper is used to be able to know from which row is the button is
+    being clicked */
+    ButtonSignalMapper.setMapping(button_changeArtwork, row);
+    connect(button_changeArtwork, SIGNAL(clicked()), &ButtonSignalMapper, SLOT(map()));
+
+    /* Insert the button in the cell (we have created it on the constructor) */
+    ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, button_changeArtwork );
 
     updateTableEntry(p_item,row);
 }
@@ -560,13 +572,15 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
     art_cover->showArtUpdate( getItemFromRow(row) );
 }
 
-/* change the artwork of the currently selected item */
+/* Change the artwork of the currently selected item */
 void ExtMetaManagerDialog::changeArtwork(int row)
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] changeArtwork" );
 
-    /* Small fix to select the row fro which it has been clicked */
-    ui.tableWidget_metadata->setCurrentCell(COL_ARTWORK,row);
+    /* Fix to select the row is the button being clicked and select it's cover */
+    ui.tableWidget_metadata->setCurrentCell(row, COL_ARTWORK);
+    updateArtwork(row, COL_ARTWORK);
+
     art_cover->setArtFromFile();
 }
 
