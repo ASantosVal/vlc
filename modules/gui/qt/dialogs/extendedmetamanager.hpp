@@ -116,13 +116,6 @@ private:
     /* An array with the items the window is working at a the moment */
     vlc_array_t *workspace;
 
-    /*Boolean which means if the current items are from the PL or from a file.
-     This is needed because the only way I found to preparse (load their
-     metadata) the items got form a file is by adding them to the PL, which
-     creates a great mess. Using this variable the program will adapt to the
-     sitution and delete the items we have added to the PL (clean it).*/
-    bool playlistLoaded;
-
     //The UI
     Ui::ExtMetaManagerWidget ui;
 
@@ -132,7 +125,6 @@ private slots:
 
     void getFromPlaylist();
     void getFromFolder();
-    void clearPlaylist();
     void searchNow();
     void saveAll();
     void fingerprintTable(bool fast);
