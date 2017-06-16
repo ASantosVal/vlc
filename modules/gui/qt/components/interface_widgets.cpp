@@ -845,6 +845,8 @@ void CoverArtLabel::clear()
 CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
     : QLabel( parent ), p_intf( _p_i ), p_item( NULL )
 {
+    msg_Dbg( p_intf, "[CoverArtLabelExt] Initializing" );
+
     setContextMenuPolicy( Qt::ActionsContextMenu );
 
     setMaximumHeight( 250 );
@@ -858,6 +860,8 @@ CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
 
 CoverArtLabelExt::~CoverArtLabelExt()
 {
+    msg_Dbg( p_intf, "[CoverArtLabelExt] Destroying" );
+
     QList< QAction* > artActions = actions();
     foreach( QAction *act, artActions )
         removeAction( act );
@@ -866,6 +870,8 @@ CoverArtLabelExt::~CoverArtLabelExt()
 
 void CoverArtLabelExt::setItem( input_item_t *_p_item )
 {
+    msg_Dbg( p_intf, "[CoverArtLabelExt] setItem" );
+
     if ( p_item ) vlc_gc_decref( p_item );
     p_item = _p_item;
     if ( p_item ) vlc_gc_incref( p_item );
@@ -873,6 +879,8 @@ void CoverArtLabelExt::setItem( input_item_t *_p_item )
 
 void CoverArtLabelExt::showArtUpdate( const QString& url )
 {
+    msg_Dbg( p_intf, "[CoverArtLabelExt] showArtUpdate (from url)" );
+
     QPixmap pix;
     if( !url.isEmpty() && pix.load( url ) )
     {
@@ -890,6 +898,7 @@ void CoverArtLabelExt::showArtUpdate( const QString& url )
 // Show new artork and update teh working item
 void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
 {
+    msg_Dbg( p_intf, "[CoverArtLabelExt] showArtUpdate (from item)" );
 
     QString url;
     if ( _p_item )
@@ -902,9 +911,11 @@ void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
 
 void CoverArtLabelExt::setArtFromFile()
 {
+    msg_Dbg( p_intf, "[CoverArtLabelExt] setArtFromFile" );
+
     if( !p_item )
     {
-        msg_Dbg( p_intf, "[ExtMetaManagerDialog] no item selected!" );
+        msg_Dbg( p_intf, "[CoverArtLabelExt] no item selected!" );
         return;
 
     }
@@ -924,6 +935,8 @@ void CoverArtLabelExt::setArtFromFile()
 
 void CoverArtLabelExt::clear()
 {
+    msg_Dbg( p_intf, "[CoverArtLabelExt] clear" );
+
     showArtUpdate( "" );
 }
 

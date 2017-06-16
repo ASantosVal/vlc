@@ -112,12 +112,14 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 /* Destructor */
 ExtMetaManagerDialog::~ExtMetaManagerDialog()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Destructing" );
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
 
 /* Override the closing (click X) event*/
 void ExtMetaManagerDialog::closeEvent(QCloseEvent *event)
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] Close event" );
     UNUSED(event); //FIXME: delete this
     close();
 }
@@ -125,6 +127,7 @@ void ExtMetaManagerDialog::closeEvent(QCloseEvent *event)
 /* Show/hide */
 void ExtMetaManagerDialog::toggleVisible()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] toggleVisible" );
     QVLCDialog::toggleVisible();
     if(isVisible()) //If changed to shown
         activateWindow();
@@ -148,6 +151,7 @@ void ExtMetaManagerDialog::close()
 /* Loads files into the table from the current playlist */
 void ExtMetaManagerDialog::getFromPlaylist()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromPlaylist" );
     /* Clean before changing the workspace */
     cleanUp();
 
@@ -184,6 +188,8 @@ void ExtMetaManagerDialog::getFromPlaylist()
 /* Loads files into the table from a file explorer window */
 void ExtMetaManagerDialog::getFromFolder()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getFromFolder" );
+
     /* Open a file explorer just with audio files */
     QStringList uris = THEDP->showSimpleOpen(
         qtr("Open audio files to manage"),
@@ -222,6 +228,8 @@ void ExtMetaManagerDialog::getFromFolder()
 redirects to other methods depending on the activated checkboxes */
 void ExtMetaManagerDialog::searchNow()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] searchNow" );
+
     if (ui.checkBox_acoustid->isChecked())
     {
         if (ui.checkBox_disableFastSearch->isChecked())
@@ -243,6 +251,8 @@ void ExtMetaManagerDialog::searchNow()
 /* Saves changes permanently*/
 void ExtMetaManagerDialog::saveAll()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] saveAll" );
+
     input_item_t *p_item; // This is where the current working item will be
     const char *title_text;
     const char *artist_text;
@@ -292,6 +302,8 @@ void ExtMetaManagerDialog::saveAll()
 /* Just reloads all the items of the table, discarding unsaved changes */
 void ExtMetaManagerDialog::restoreAll()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] restoreAll" );
+
     clearTable();
 
     input_item_t *p_item; // This is where the current working item will be
@@ -314,6 +326,8 @@ void ExtMetaManagerDialog::restoreAll()
 entry is applied automatically */
 void ExtMetaManagerDialog::fingerprintTable( bool fast )
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprintTable" );
+
     input_item_t *p_item; // This is where the current working item will be
 
     /* Get the number of items we'll be working with and if there are no
@@ -383,6 +397,8 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
 entry is applied automatically */
 void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] fingerprint" );
+
     if (fast)
     {
         /* Add the item to the finperprinter's queue */
@@ -413,6 +429,8 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
 /* Recovers the item on a certain row (from the table) */
 input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getItemFromRow" );
+
     /* Item at row X is stored at workspace postion X */
     input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workspace, row);
     return p_item;
@@ -421,6 +439,8 @@ input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 /* Gets an item from an URI and preparses it (gets it's metadata) */
 input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] getItemFromURI" );
+
     /* Create the item from the given uri */
     input_item_t *p_item = input_item_New( uri, "Entry" ); //The name is not relevant
 
@@ -441,7 +461,9 @@ input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
 when more than one cell is selected. */
 void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item )
 {
-	ui.tableWidget_metadata->blockSignals(true);
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] multipleItemsChanged" );
+
+    ui.tableWidget_metadata->blockSignals(true);
 	QList<QTableWidgetItem*> selectedItems = ui.tableWidget_metadata->selectedItems();
 	foreach(QTableWidgetItem* selectItem, selectedItems)
 	{
@@ -453,6 +475,8 @@ void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item )
 /* Adds a row on the table with the metadata from a given item */
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] addTableEntry" );
+
     /* Add one row to the table Initilize */
     int row = ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
     ui.tableWidget_metadata->insertRow(row);
@@ -477,6 +501,8 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 /* Updates/Writes a (given) row on the table with one itme's metadata */
 void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row)
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] updateTableEntry (with row)" );
+
     /* Get metadata information from item */
     char *title_text = input_item_GetTitle(p_item);
     char *artist_text = input_item_GetArtist(p_item);
@@ -502,6 +528,8 @@ void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row)
 /* Returns a true if that row is seleted (checkbox is seletedc) and a flase if not */
 bool ExtMetaManagerDialog::rowIsSelected(int row)
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] rowIsSelected" );
+
     /* Check if the row's is checkbox checked */
     QCheckBox  *checkbox = (QCheckBox*) ui.tableWidget_metadata->cellWidget(row,COL_CHECKBOX);
     return checkbox->isChecked();
@@ -510,6 +538,8 @@ bool ExtMetaManagerDialog::rowIsSelected(int row)
 /* Deletes all entries from the table (still can be recovered with restoreAll) */
 void ExtMetaManagerDialog::clearTable()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] clearTable" );
+
     ui.tableWidget_metadata->clearContents();
     ui.tableWidget_metadata->setRowCount(0);
     art_cover->clear();
@@ -523,6 +553,8 @@ void ExtMetaManagerDialog::clearTable()
 label's content to the selected item's artwork */
 void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] updateArtwork" );
+
     UNUSED(column); //FIXME: delete this
     /* Get the item form the row, decode it's Artwork and update it in the UI */
     art_cover->showArtUpdate( getItemFromRow(row) );
@@ -531,6 +563,8 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
 /* change the artwork of the currently selected item */
 void ExtMetaManagerDialog::changeArtwork()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] changeArtwork" );
+
     art_cover->setArtFromFile();
 }
 
@@ -541,6 +575,8 @@ void ExtMetaManagerDialog::changeArtwork()
 /* Cleans the playlist, clears the table, empties workspace */
 void ExtMetaManagerDialog::cleanUp()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] cleanUp" );
+
     /* Clear the table, the playlist (if files have been loaded to it) and the
     array with with the currently working items*/
     clearTable();
@@ -550,6 +586,8 @@ void ExtMetaManagerDialog::cleanUp()
 /* Launches the "Help" dialog */
 void ExtMetaManagerDialog::helpDialog()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] helpDialog" );
+
     QMessageBox::information(
       this,
       tr("Help - Extended Metadata Manager"), //Title
@@ -559,6 +597,8 @@ void ExtMetaManagerDialog::helpDialog()
 /* Launches the "About" dialog */
 void ExtMetaManagerDialog::aboutDialog()
 {
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] aboutDialog" );
+
     QMessageBox::information(
       this,
       tr("About - Extended Metadata Manager"), //Title
