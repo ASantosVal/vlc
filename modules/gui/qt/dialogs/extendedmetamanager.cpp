@@ -324,8 +324,11 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
 {
     input_item_t *p_item; // This is where the current working item will be
 
-    /* Get the number of items we'll be working with */
+    /* Get the number of items we'll be working with and if there are no
+    items, finish */
     int rows = ui.tableWidget_metadata->rowCount();
+    if (rows == 0)
+        return;
 
     /* Calculate how much the progress bar will advance each step (progressBar
     goes from 0 to 100). Then progress variable is set to 0 and the widget is
