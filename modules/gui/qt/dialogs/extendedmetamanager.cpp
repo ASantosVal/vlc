@@ -491,7 +491,7 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     /* Create button for the artwork update (and set it's tip) */
     QPushButton *QPushButton_changeArtwork = new QPushButton( qtr("Change"), this);
     QPushButton_changeArtwork->setToolTip(artworkButton_tip);
-    connect(QPushButton_changeArtwork, SIGNAL (released()), this, SLOT (changeArtwork()));
+    connect(QPushButton_changeArtwork, SIGNAL (released()), this, SLOT (changeArtwork(row)));
     /* Insert the button in the cell */
     ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, QPushButton_changeArtwork );
 
@@ -561,10 +561,12 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
 }
 
 /* change the artwork of the currently selected item */
-void ExtMetaManagerDialog::changeArtwork()
+void ExtMetaManagerDialog::changeArtwork(int row)
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] changeArtwork" );
 
+    /* Small fix to select the row fro which it has been clicked */
+    ui.tableWidget_metadata->setCurrentCell(COL_ARTWORK,row);
     art_cover->setArtFromFile();
 }
 

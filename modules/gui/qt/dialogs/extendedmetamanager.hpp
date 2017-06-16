@@ -138,7 +138,7 @@ private slots:
     void updateTableEntry(input_item_t *p_item, int row);
     bool rowIsSelected(int row);
     void updateArtwork(int row, int column);
-    void changeArtwork();
+    void changeArtwork(int row);
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
 
