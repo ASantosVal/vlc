@@ -42,6 +42,7 @@
 
 class CoverArtLabelExt;
 class Chromaprint;
+#include <QSignalMapper> /* for the Help and About popups */
 
 class ExtMetaManagerDialog : public QVLCDialog, public Singleton<ExtMetaManagerDialog>
 {
@@ -118,6 +119,10 @@ private:
     //The UI
     Ui::ExtMetaManagerWidget ui;
 
+    /* Mapper used on the buttons on the table to know from which row is the
+    call being made */
+    QSignalMapper ButtonSignalMapper;
+
 private slots:
     void close() Q_DECL_OVERRIDE;
     void closeEvent(QCloseEvent *event);
@@ -138,7 +143,7 @@ private slots:
     void updateTableEntry(input_item_t *p_item, int row);
     bool rowIsSelected(int row);
     void updateArtwork(int row, int column);
-    void changeArtwork();
+    void changeArtwork(int row);
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
 
