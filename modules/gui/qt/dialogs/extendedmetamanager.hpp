@@ -96,9 +96,8 @@ private:
     const char *checkbox_tip = "When this checkbox is NOT selected, it will be "
     "IGNORED by search and save functions.";
     const char *artwork_tip = "This is the selected item's current artwork/cover. "
-    "Right-click to change it (or use the buttons on the table).";
-    const char *artworkButton_tip = "Change this item's artwork/cover. Youn can "
-    "also right-click the image above to change it.";
+    "Use the buttons on the table to change it.";
+    const char *artworkButton_tip = "Change this item's artwork/cover.";
     const char *acoustid_tip = "With this option selected, your files "
     "will be searched in acoustID database, which can identify files even "
     "when guess information is given, by analyzing the file's content.";

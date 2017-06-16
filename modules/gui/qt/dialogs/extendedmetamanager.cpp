@@ -62,7 +62,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     BUTTONACT( ui.pushButton_searchNow, searchNow() );
     BUTTONACT( ui.pushButton_saveAll, saveAll() );
     BUTTONACT( ui.pushButton_restoreAll, restoreAll() );
-    BUTTONACT( ui.pushButton_clearTable, clearTable() );
+    BUTTONACT( ui.pushButton_clearTable, cleanUp() );
     BUTTONACT( ui.pushButton_cancel, close() );
 
     /* Events for the table */
@@ -306,14 +306,6 @@ void ExtMetaManagerDialog::restoreAll()
     }
 }
 
-/* Deletes all entries from the table (still can be recovered with restoreAll) */
-void ExtMetaManagerDialog::clearTable()
-{
-    ui.tableWidget_metadata->clearContents();
-    ui.tableWidget_metadata->setRowCount(0);
-    art_cover->clear();
-}
-
 /*----------------------------------------------------------------------------*/
 /*--------------------Metadata & input management-----------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -513,6 +505,14 @@ bool ExtMetaManagerDialog::rowIsSelected(int row)
     /* Check if the row's is checkbox checked */
     QCheckBox  *checkbox = (QCheckBox*) ui.tableWidget_metadata->cellWidget(row,COL_CHECKBOX);
     return checkbox->isChecked();
+}
+
+/* Deletes all entries from the table (still can be recovered with restoreAll) */
+void ExtMetaManagerDialog::clearTable()
+{
+    ui.tableWidget_metadata->clearContents();
+    ui.tableWidget_metadata->setRowCount(0);
+    art_cover->clear();
 }
 
 /*----------------------------------------------------------------------------*/

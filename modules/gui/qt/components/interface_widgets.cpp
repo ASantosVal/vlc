@@ -852,10 +852,6 @@ CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
     setScaledContents( true );
     setAlignment( Qt::AlignCenter );
 
-    QAction *action = new QAction( qtr( "Add cover art from file" ), this );
-    CONNECT( action, triggered(), this, setArtFromFile() );
-    addAction( action );
-
     //By default load nothing
     showArtUpdate( "" );
 }
