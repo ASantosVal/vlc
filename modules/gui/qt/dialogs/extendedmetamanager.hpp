@@ -146,6 +146,7 @@ private slots:
     void changeArtwork(int row);
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
+    bool isAudioFile(const char* uri);
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
