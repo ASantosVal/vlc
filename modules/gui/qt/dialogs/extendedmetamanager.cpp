@@ -479,6 +479,7 @@ input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
     return p_item;
 }
 
+/* Evaluate if file is a valid audio file or not */
 bool ExtMetaManagerDialog::isAudioFile(const char* uri)
 {
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] isAudioFile" );
@@ -526,6 +527,8 @@ bool ExtMetaManagerDialog::isAudioFile(const char* uri)
             temp[len+1] = '\0';
         }
     }
+
+    /* If our file's extension is invalid, return false */
     msg_Dbg( p_intf, "[ExtMetaManagerDialog] file is NOT audio" );
     return false;
 }
