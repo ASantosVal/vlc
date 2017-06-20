@@ -175,18 +175,27 @@ void ExtMetaManagerDialog::getFromPlaylist()
         for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
         {
             p_item = playlist_ItemGetById(THEPL, i)->p_input; // Get the playlist_item's input_item_t
-            addTableEntry(p_item); //add item to the table
 
-            /*Now we get the size of the table and store the item on that position
-            on the workspace array, so item at row X on the table is also stored at
-            array position X*/
-            row = ui.tableWidget_metadata->rowCount();
-            vlc_array_insert(workspace, p_item, row-1);
+            if (isAudioFile(input_item_GetURI(p_item)))
+            {
+                addTableEntry(p_item); //add item to the table
+
+                /*Now we get the size of the table and store the item on that position
+                on the workspace array, so item at row X on the table is also stored at
+                array position X*/
+                row = ui.tableWidget_metadata->rowCount();
+                vlc_array_insert(workspace, p_item, row-1);
+            }
         }
 
-        /* Select the first cell and update artwork label */
-        ui.tableWidget_metadata->setCurrentCell(0,1);
-        updateArtwork(0,0);
+        /* If table is not empty, prepare it */
+        if (ui.tableWidget_metadata->rowCount()>0)
+        {
+            /* Select the first cell and update artwork label */
+            ui.tableWidget_metadata->setCurrentCell(0,1);
+            updateArtwork(0,0);
+        }
+
     }
 
     /* Always unlock the playlist */
@@ -214,22 +223,27 @@ void ExtMetaManagerDialog::getFromFolder()
 
     foreach( const QString &uri, uris )
     {
-        // Get the item from the URI
-        input_item_t *p_item = getItemFromURI(uri.toLatin1().constData());
+        if (isAudioFile(uri.toLatin1().constData()))
+        {
+            // Get the item from the URI
+            input_item_t *p_item = getItemFromURI(uri.toLatin1().constData());
 
-        addTableEntry(p_item); //Add the item to the table
+            addTableEntry(p_item); //Add the item to the table
 
-        /*Now we get the size of the table and store the item on that position
-        on the workspace array, so item at row X on the table is also stored at
-        array position X*/
-        row = ui.tableWidget_metadata->rowCount();
-        vlc_array_insert(workspace, p_item, row-1);
+            /*Now we get the size of the table and store the item on that position
+            on the workspace array, so item at row X on the table is also stored at
+            array position X*/
+            row = ui.tableWidget_metadata->rowCount();
+            vlc_array_insert(workspace, p_item, row-1);
+        }
     }
-
-    /* Select the first cell and update artwork label */
-    ui.tableWidget_metadata->setCurrentCell(0,1);
-    updateArtwork(0,0);
-
+    /* If table is not empty, prepare it */
+    if (ui.tableWidget_metadata->rowCount()>0)
+    {
+        /* Select the first cell and update artwork label */
+        ui.tableWidget_metadata->setCurrentCell(0,1);
+        updateArtwork(0,0);
+    }
 }
 
 /* Initiates the metadata search and analysis based on choosed options. It just
@@ -327,7 +341,7 @@ void ExtMetaManagerDialog::restoreAll()
 }
 
 /*----------------------------------------------------------------------------*/
-/*--------------------Metadata & input management-----------------------------*/
+/*---------------------------Fingerpinting------------------------------------*/
 /*----------------------------------------------------------------------------*/
 
 /* Initiates the fingerprint process for all the table. If "fast" is true, 1st
@@ -434,6 +448,10 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
 
 }
 
+/*----------------------------------------------------------------------------*/
+/*------------------------------Item management-------------------------------*/
+/*----------------------------------------------------------------------------*/
+
 /* Recovers the item on a certain row (from the table) */
 input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 {
@@ -461,6 +479,56 @@ input_item_t* ExtMetaManagerDialog::getItemFromURI(const char* uri)
     return p_item;
 }
 
+bool ExtMetaManagerDialog::isAudioFile(const char* uri)
+{
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] isAudioFile" );
+
+    /* The following section extracts the extension from the uri */
+    char extension[255];
+    memset(extension, 0, sizeof extension);
+    for (size_t i = 0; i < strlen(uri); i++){
+        if (uri[i]=='.')
+        {
+            memset(extension, 0, sizeof extension);;
+        }
+        else
+        {
+            int len = strlen(extension);
+            extension[len] = uri[i];
+            extension[len+1] = '\0';
+        }
+    }
+
+    char temp[255];
+    memset(temp, 0, sizeof temp);
+
+    /* Now look for all the audio extension available */
+    for (size_t i = 0; i < strlen(EXTENSIONS_AUDIO); i++){
+        /* End of an extension, compare our file's extension to the found one
+        and reset temp */
+        if (EXTENSIONS_AUDIO[i]=='.')
+        {
+            /* If our file's extension is valid, return true */
+            if (strcmp(extension,temp) == 0)
+            {
+                msg_Dbg( p_intf, "[ExtMetaManagerDialog] file IS audio" );
+                return true;
+            }
+
+            /* Reset "temp" */
+            memset(temp, 0, sizeof temp);
+        }
+        /* If charater is found (not separator), add it to the current extension */
+        else if (EXTENSIONS_AUDIO[i] != '*' && EXTENSIONS_AUDIO[i] != ';')
+        {
+            int len = strlen(temp);
+            temp[len] = EXTENSIONS_AUDIO[i];
+            temp[len+1] = '\0';
+        }
+    }
+    msg_Dbg( p_intf, "[ExtMetaManagerDialog] file is NOT audio" );
+    return false;
+}
 /*----------------------------------------------------------------------------*/
 /*--------------------------Table management----------------------------------*/
 /*----------------------------------------------------------------------------*/
