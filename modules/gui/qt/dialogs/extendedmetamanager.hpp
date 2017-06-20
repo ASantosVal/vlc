@@ -85,7 +85,7 @@ private:
 
     /* Text for the "tips" */
     const char *getFromPlaylist_tip = "Load files into the table from the current playlist.";
-    const char *getFromFolder_tip = "Load files into the table from a file/folder.";
+    const char *getFromFolder_tip = "Load files into the table from a file/folder. ONLY AUDIO FILES.";
     const char *help_tip = "Launch the help window.";
     const char *about_tip = "Learn more about this window and it's creator.";
     const char *searchNow_tip = "Start the automatic search of the selected item's information.";
