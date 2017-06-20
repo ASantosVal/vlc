@@ -40,9 +40,10 @@
 
 #include "ui/extmetamanager.h" // Include the precompiled version of extmetamanager.ui
 
+#include <QSignalMapper> /* for the Help and About popups */
+
 class CoverArtLabelExt;
 class Chromaprint;
-#include <QSignalMapper> /* for the Help and About popups */
 
 class ExtMetaManagerDialog : public QVLCDialog, public Singleton<ExtMetaManagerDialog>
 {
@@ -53,29 +54,39 @@ private:
 
     /* Help and About windows' text (HTML) */
     const char *help_text = "This window is designed to help you <b>manage "
-    "your music's metadata/tags</b>.<br><br>"
-    "You can put the mouse over an item to see tips and aditional help info.<br><br>"
+    "your music's metadata/tags</b>."
+    "<br><br>"
+    "You can put the mouse over an item to see tips and aditional help info."
+    "<br><br>"
     "First you have to <b>load your files</b>. Yo can choose to load them from "
-    "the current playlist or from a folder.<br><br>"
+    "the current playlist or from a folder. Note that <b>only audio files</b> "
+    "will be loaded (other files will be ignored)."
+    "<br><br>"
     "The data will automatically be added to the table. Now you can <b>edit it "
-    "directly on the table or use the automatic search</b> function.<br><br>"
-    "When searching, the best option is automatically selected (but not saved, "
-    "yet). If you want to be able to choose between the found options, "
+    "directly on the table or use the automatic search</b> function. You can "
+    "also resize the table as you wish."
+    "<br><br>"
+    "When <b>searching</b>, the best option is automatically selected (but not "
+    "saved, yet). If you want to be able to choose between the found options, "
     "activate de advanced search. Note that only the selected entries will be "
-    "searched (the ones with the checkbox activated).<br><br>"
+    "searched (the ones with the checkbox activated)."
+    "<br><br>"
     "Once you hace edited/searched all your information, you can <b>save "
-    "it</b> definitively with the <i>Save button</i>. If you want to discard "
-    "the changes made on the table, you can click the <i>Reload</i> button. To "
-    "empty the table, hit the <i>Clear</i> button.<br><br>"
+    "it</b> definitely with the <i>Save button</i>. If you want to discard "
+    "the changes made on the table, click the <i>Reload</i> button. To "
+    "empty the table, hit the <i>Clear</i> button."
+    "<br><br>"
     "To <b>exit</b>, click the <i>Cancel</i> button or just close the window.";
 
     const char *about_text = "<big>Extended Metadata Manager</big> <br><br>"
     "This module has been created by <b>Asier Santos Valcárcel</b> as the final project "
     "for his Computer Science Engineering degree at <i>University of the "
-    "Basque Country (UPV/EHU)</i>.<br><br>"
+    "Basque Country (UPV/EHU)</i>."
+    "<br><br>"
     "It was my first time using QT, C++ and in general managing a big project. "
     "I did my best, but there may still be bugs and improvements to be made on "
-    "the code. Contact me if you have a suggestion. <br><br>"
+    "the code. Feel free to contact me if you have a suggestion. "
+    "<br><br>"
     "<b>Contact information:</b><br>"
     "<b>Email:</b> asiersantosval@gmail.com<br>"
     "<b>LinkedIn:</b> "
@@ -84,8 +95,8 @@ private:
     "<a href=\"https://github.com/ASantosVal/vlc-extension-trials\">Repository</a></a><br>";
 
     /* Text for the "tips" */
-    const char *getFromPlaylist_tip = "Load files into the table from the current playlist.";
-    const char *getFromFolder_tip = "Load files into the table from a file/folder. ONLY AUDIO FILES.";
+    const char *getFromPlaylist_tip = "Load files into the table from the current playlist.ONLY THE AUDIO FILES.";
+    const char *getFromFolder_tip = "Load files into the table from a file/folder. ONLY THE AUDIO FILES.";
     const char *help_tip = "Launch the help window.";
     const char *about_tip = "Learn more about this window and it's creator.";
     const char *searchNow_tip = "Start the automatic search of the selected item's information.";
@@ -116,7 +127,7 @@ private:
     /* An array with the items the window is working at a the moment */
     vlc_array_t *workspace;
 
-    //The UI
+    /* The User interface (UI) made in QT */
     Ui::ExtMetaManagerWidget ui;
 
     /* Mapper used on the buttons on the table to know from which row is the
