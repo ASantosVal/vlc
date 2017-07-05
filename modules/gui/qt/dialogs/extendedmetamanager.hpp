@@ -58,7 +58,7 @@ private:
     "<br><br>"
     "You can put the mouse over an item to see tips and aditional help info."
     "<br><br>"
-    "First you have to <b>load your files</b>. Yo can choose to load them from "
+    "First you have to <b>load your files</b>. You can choose to load them from "
     "the current playlist or from a folder. Note that <b>only audio files</b> "
     "will be loaded (other files will be ignored)."
     "<br><br>"
