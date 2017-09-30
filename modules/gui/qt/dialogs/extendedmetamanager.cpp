@@ -96,7 +96,6 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.pushButton_clearTable->setToolTip(clearTable_tip);
     ui.pushButton_cancel->setToolTip(cancel_tip);
     ui.progressBar_search->setToolTip(progressBar_tip);
-    ui.checkBox_acoustid->setToolTip(acoustid_tip);
     ui.checkBox_disableFastSearch->setToolTip(disableFastSearch_tip);
     art_cover->setToolTip(artwork_tip);
 
@@ -257,16 +256,14 @@ void ExtMetaManagerDialog::searchNow()
 {
     msg_Dbg( p_intf, "[EMM_Dialog] searchNow" );
 
-    if (ui.checkBox_acoustid->isChecked())
+
+    if (ui.checkBox_disableFastSearch->isChecked())
     {
-        if (ui.checkBox_disableFastSearch->isChecked())
-        {
-            fingerprintTable(false);
-        }
-        else
-        {
-            fingerprintTable(true);
-        }
+        fingerprintTable(false);
+    }
+    else
+    {
+        fingerprintTable(true);
     }
     // if (ui.checkBox_filenameAnalysis->isChecked()) //TODO: implement this
     // {
