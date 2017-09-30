@@ -116,7 +116,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 /* Destructor */
 ExtMetaManagerDialog::~ExtMetaManagerDialog()
 {
-    msg_Dbg( p_intf, "[EMM_Dialog] Destructing" );
+    msg_Dbg( p_intf, "[EMM_Dialog] Destroying" );
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
 
