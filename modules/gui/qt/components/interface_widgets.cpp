@@ -847,7 +847,7 @@ CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
 {
     msg_Dbg( p_intf, "[CoverArtLabelExt] Initializing" );
 
-    setContextMenuPolicy( Qt::ActionsContextMenu );
+    // setContextMenuPolicy( Qt::ActionsContextMenu );
 
     setMaximumHeight( 250 );
     setMaximumWidth( 250 );
@@ -862,9 +862,9 @@ CoverArtLabelExt::~CoverArtLabelExt()
 {
     msg_Dbg( p_intf, "[CoverArtLabelExt] Destroying" );
 
-    QList< QAction* > artActions = actions();
-    foreach( QAction *act, artActions )
-        removeAction( act );
+    // QList< QAction* > artActions = actions();
+    // foreach( QAction *act, artActions )
+    //     removeAction( act );
     if ( p_item ) vlc_gc_decref( p_item );
 }
 
