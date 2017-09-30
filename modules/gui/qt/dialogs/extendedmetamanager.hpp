@@ -56,7 +56,7 @@ private:
     const char *help_text = "This window is designed to help you <b>manage "
     "your music's metadata/tags</b>."
     "<br><br>"
-    "You can put the mouse over an item to see tips and aditional help info."
+    "You can put the mouse over an item to see tips and additional help info."
     "<br><br>"
     "First you have to <b>load your files</b>. You can choose to load them from "
     "the current playlist or from a folder. Note that <b>only audio files</b> "
@@ -68,10 +68,10 @@ private:
     "<br><br>"
     "When <b>searching</b>, the best option is automatically selected (but not "
     "saved, yet). If you want to be able to choose between the found options, "
-    "activate de advanced search. Note that only the selected entries will be "
+    "activate the advanced search. Note that only the selected entries will be "
     "searched (the ones with the checkbox activated)."
     "<br><br>"
-    "Once you hace edited/searched all your information, you can <b>save "
+    "Once you have edited/searched all your information, you can <b>save "
     "it</b> definitely with the <i>Save button</i>. If you want to discard "
     "the changes made on the table, click the <i>Reload</i> button. To "
     "empty the table, hit the <i>Clear</i> button."
@@ -80,7 +80,7 @@ private:
 
     const char *about_text = "<big>Extended Metadata Manager</big> <br><br>"
     "This module has been created by <b>Asier Santos Valcárcel</b> as the final project "
-    "for his Computer Science Engineering degree at <i>University of the "
+    "for his Computer Science Engineering degree at the <i>University of the "
     "Basque Country (UPV/EHU)</i>."
     "<br><br>"
     "It was my first time using QT, C++ and in general managing a big project. "
@@ -95,7 +95,7 @@ private:
     "<a href=\"https://github.com/ASantosVal/vlc-extension-trials\">Repository</a></a><br>";
 
     /* Text for the "tips" */
-    const char *getFromPlaylist_tip = "Load files into the table from the current playlist.ONLY THE AUDIO FILES.";
+    const char *getFromPlaylist_tip = "Load files into the table from the current playlist. ONLY THE AUDIO FILES.";
     const char *getFromFolder_tip = "Load files into the table from a file/folder. ONLY THE AUDIO FILES.";
     const char *help_tip = "Launch the help window.";
     const char *about_tip = "Learn more about this window and it's creator.";
