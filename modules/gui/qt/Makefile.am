@@ -39,7 +39,7 @@ if UPDATE_CHECK
 libqt_plugin_la_CPPFLAGS += -DUPDATE_CHECK
 endif
 
-libqt_plugin_la_SOURCES = \
+libqt_plugin_la_SOURCES = \	
 	gui/qt/qt.cpp gui/qt/qt.hpp \
 	gui/qt/menus.cpp gui/qt/menus.hpp \
 	gui/qt/main_interface.cpp gui/qt/main_interface.hpp \
@@ -76,6 +76,7 @@ libqt_plugin_la_SOURCES = \
 	gui/qt/dialogs/extensions.cpp gui/qt/dialogs/extensions.hpp \
 	gui/qt/dialogs/fingerprintdialog.cpp \
 	gui/qt/dialogs/fingerprintdialog.hpp \
+	gui/qt/dialogs/extendedmetamanager.cpp dialogs/extendedmetamanager.hpp #Added by Asier Santos \
 	gui/qt/components/extended_panels.cpp \
 	gui/qt/components/extended_panels.hpp \
 	gui/qt/components/info_panels.cpp gui/qt/components/info_panels.hpp \
@@ -194,6 +195,7 @@ nodist_libqt_plugin_la_SOURCES = \
 	gui/qt/dialogs/firstrun.moc.cpp \
 	gui/qt/dialogs/extensions.moc.cpp \
 	gui/qt/dialogs/fingerprintdialog.moc.cpp \
+	gui/qt/dialogs/extendedmetamanager.moc.cpp #Added by Asier Santos \
 	gui/qt/components/extended_panels.moc.cpp \
 	gui/qt/components/info_panels.moc.cpp \
 	gui/qt/components/info_widgets.moc.cpp \
@@ -256,6 +258,7 @@ nodist_libqt_plugin_la_SOURCES += \
 	gui/qt/ui/about.h \
 	gui/qt/ui/update.h \
 	gui/qt/ui/fingerprintdialog.h \
+	gui/qt/ui/extmetamanager.h #Added by Asier Santos \
 	gui/qt/ui/sout.h
 
 # User interface compilation
@@ -296,6 +299,7 @@ libqt_plugin_la_UI = \
 	gui/qt/ui/update.ui \
 	gui/qt/ui/sout.ui \
 	gui/qt/ui/vlm.ui \
+	gui/qt/ui/extmetamanager.ui #Added by Asier Santos \
 	gui/qt/ui/fingerprintdialog.ui
 EXTRA_DIST += $(libqt_plugin_la_UI)
 
@@ -436,6 +440,11 @@ libqt_plugin_la_RES = \
 	gui/qt/pixmaps/win7/win7thumbnail_prev.png \
 	gui/qt/pixmaps/win7/win7thumbnail_next.png \
 	gui/qt/pixmaps/win7/win7thumbnail_play.png \
+	gui/qt/pixmaps/ext-meta-manager/search.png #Added by Asier Santos \
+	gui/qt/pixmaps/ext-meta-manager/clean.png #Added by Asier Santos \
+	gui/qt/pixmaps/ext-meta-manager/save.png #Added by Asier Santos \
+	gui/qt/pixmaps/ext-meta-manager/EMM-icon.png #Added by Asier Santos \
+	gui/qt/pixmaps/ext-meta-manager/EMM-logo.png #Added by Asier Santos \
 	gui/qt/pixmaps/update.png \
 	gui/qt/pixmaps/valid.png \
 	gui/qt/pixmaps/search_clear.png \

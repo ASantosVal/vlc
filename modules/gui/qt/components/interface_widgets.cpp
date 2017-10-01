@@ -868,6 +868,112 @@ void CoverArtLabel::clear()
     showArtUpdate( "" );
 }
 
+/*----------------------------------------------------------------------------*/
+/*-------------Alternative dialog for extendedmetamanager---------------------*/
+/*----------------------------------------------------------------------------*/
+
+CoverArtLabelExt::CoverArtLabelExt( QWidget *parent, intf_thread_t *_p_i )
+    : QLabel( parent ), p_intf( _p_i ), p_item( NULL )
+{
+    msg_Dbg( p_intf, "[CoverArtLabelExt] Initializing" );
+
+    setContextMenuPolicy( Qt::ActionsContextMenu );
+
+    setMaximumHeight( 250 );
+    setMaximumWidth( 250 );
+    setScaledContents( true );
+    setAlignment( Qt::AlignCenter );
+
+    //By default load nothing
+    showArtUpdate( "" );
+}
+
+CoverArtLabelExt::~CoverArtLabelExt()
+{
+    msg_Dbg( p_intf, "[CoverArtLabelExt] Destroying" );
+
+    QList< QAction* > artActions = actions();
+    foreach( QAction *act, artActions )
+        removeAction( act );
+    if ( p_item ) vlc_gc_decref( p_item );
+}
+
+void CoverArtLabelExt::setItem( input_item_t *_p_item )
+{
+    msg_Dbg( p_intf, "[CoverArtLabelExt] setItem" );
+
+    if ( p_item ) vlc_gc_decref( p_item );
+    p_item = _p_item;
+    if ( p_item ) vlc_gc_incref( p_item );
+}
+
+void CoverArtLabelExt::showArtUpdate( const QString& url )
+{
+    msg_Dbg( p_intf, "[CoverArtLabelExt] showArtUpdate (from url)" );
+
+    QPixmap pix;
+    if( !url.isEmpty() && pix.load( url ) )
+    {
+        pix = pix.scaled( 250, 250,
+                          Qt::KeepAspectRatioByExpanding,
+                          Qt::SmoothTransformation );
+    }
+    else
+    {
+        pix = QPixmap( ":/ext-meta-manager/EMM-logo" );
+    }
+    setPixmap( pix );
+}
+
+// Show new artork and update teh working item
+void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
+{
+    msg_Dbg( p_intf, "[CoverArtLabelExt] showArtUpdate (from item)" );
+
+    QString url;
+    if ( _p_item )
+    {
+        setItem(_p_item);
+        url = THEMIM->getIM()->decodeArtURL( _p_item );
+    }
+    showArtUpdate( url );
+}
+
+void CoverArtLabelExt::setArtFromFile()
+{
+    msg_Dbg( p_intf, "[CoverArtLabelExt] setArtFromFile" );
+
+    if( !p_item )
+    {
+        msg_Dbg( p_intf, "[CoverArtLabelExt] no item selected!" );
+        return;
+
+    }
+
+    QString filePath = QFileDialog::getOpenFileName( this, qtr( "Choose Cover Art" ),
+        p_intf->p_sys->filepath, qtr( "Image Files (*.gif *.jpg *.jpeg *.png)" ) );
+
+    if( filePath.isEmpty() )
+        return;
+
+    QString fileUrl = QUrl::fromLocalFile( filePath ).toString();
+
+    THEMIM->getIM()->setArtCustomized( p_item, fileUrl );
+
+    showArtUpdate(p_item);
+}
+
+void CoverArtLabelExt::clear()
+{
+    msg_Dbg( p_intf, "[CoverArtLabelExt] clear" );
+
+    showArtUpdate( "" );
+}
+
+/*----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
 TimeLabel::TimeLabel( intf_thread_t *_p_intf, TimeLabel::Display _displayType  )
     : ClickableQLabel(), p_intf( _p_intf ), displayType( _displayType )
 {
@@ -1005,4 +1111,3 @@ void TimeLabel::toggleTimeDisplay()
     getSettings()->setValue( "MainWindow/ShowRemainingTime", b_remainingTime );
     emit broadcastRemainingTime( b_remainingTime );
 }
-

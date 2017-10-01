@@ -658,6 +658,8 @@ modules/gui/qt/dialogs/help.cpp
 modules/gui/qt/dialogs/help.hpp
 modules/gui/qt/dialogs/mediainfo.cpp
 modules/gui/qt/dialogs/mediainfo.hpp
+modules/gui/qt/dialogs/extendedmetamanager.cpp
+modules/gui/qt/dialogs/extendedmetamanager.hpp
 modules/gui/qt/dialogs/messages.cpp
 modules/gui/qt/dialogs/messages.hpp
 modules/gui/qt/dialogs/open.cpp

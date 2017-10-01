@@ -139,6 +139,7 @@ public:
     bool hasVisualisation();
     void requestArtUpdate( input_item_t *p_item, bool b_forced );
     void setArt( input_item_t *p_item, QString fileUrl );
+    void setArtCustomized( input_item_t *p_item, QString fileUrl );
 
     QString getName() { return oldName; }
     static const QString decodeArtURL( input_item_t *p_item );

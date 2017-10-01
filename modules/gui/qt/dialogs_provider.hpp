@@ -129,6 +129,7 @@ public slots:
     void playlistDialog();
     void bookmarksDialog();
     void mediaInfoDialog();
+    void ExtMetaManagerDialog(); //TODO: Added by Asier Santos
     void mediaCodecDialog();
     void prefsDialog();
     void extendedDialog();

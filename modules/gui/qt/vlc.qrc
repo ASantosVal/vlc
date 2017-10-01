@@ -154,4 +154,11 @@
         <file alias="addon_red">pixmaps/addons/addon_red.png</file>
         <file alias="addon_yellow">pixmaps/addons/addon_yellow.png</file>
     </qresource>
+    <qresource prefix="/ext-meta-manager">
+        <file alias="search">pixmaps/ext-meta-manager/search.png</file>
+        <file alias="clean">pixmaps/ext-meta-manager/clean.png</file>
+        <file alias="save">pixmaps/ext-meta-manager/save.png</file>
+        <file alias="EMM-icon">pixmaps/ext-meta-manager/EMM-icon.png</file>
+        <file alias="EMM-logo">pixmaps/ext-meta-manager/EMM-logo.png</file>
+    </qresource>
 </RCC>
