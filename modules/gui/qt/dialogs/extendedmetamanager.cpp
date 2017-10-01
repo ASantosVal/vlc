@@ -156,14 +156,20 @@ void ExtMetaManagerDialog::close()
 void ExtMetaManagerDialog::getFromPlaylist()
 {
     msg_Dbg( p_intf, "[EMM_Dialog] getFromPlaylist" );
-    /* Clean before changing the workspace */
-    cleanUp();
+
+    /* Clean before changing the workspace (if it's not an append operation) */
+    if (isClearSelected()){
+        cleanUp();
+    }
 
     /* Lock the playlist so we can work with it */
     playlist_Lock(THEPL);
 
     /* Get the size of the playlist and if no files selected, finish */
     int size = THEPL->items.i_size;
+
+    /* This will be used to show a warning if nothing is loaded */
+    bool itemsWereLoaded = false;
 
     /* If the playlist is NOT empty, load it's info */
     if( size !=0 )
@@ -184,6 +190,7 @@ void ExtMetaManagerDialog::getFromPlaylist()
                 array position X*/
                 row = ui.tableWidget_metadata->rowCount();
                 vlc_array_insert(workspace, p_item, row-1);
+                itemsWereLoaded = true;
             }
         }
 
@@ -196,8 +203,9 @@ void ExtMetaManagerDialog::getFromPlaylist()
         }
     }
 
-    /* If table is empty, show warning */
-    if (ui.tableWidget_metadata->rowCount()<1){
+    /* If playlist was empty, show warning */
+    if (!itemsWereLoaded)
+    {
         emptyPlaylistDialog();
     }
 
@@ -213,7 +221,7 @@ void ExtMetaManagerDialog::getFromFolder()
     /* Hide */
     toggleVisible();
 
-    /* Open a file explorer just with audio files */
+    /* Open a file explorer just with audio files (if it's not an append operation) */
     QStringList uris = THEDP->showSimpleOpen(
         qtr("Open audio files to manage"),
         EXT_FILTER_AUDIO,
@@ -226,7 +234,9 @@ void ExtMetaManagerDialog::getFromFolder()
     if( uris.isEmpty() ) return;
 
     /* Clean before changing the workspace */
-    cleanUp();
+    if (isClearSelected()){
+        cleanUp();
+    }
 
     int row; //This is where each item's position will be stored
 
@@ -658,7 +668,7 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
     msg_Dbg( p_intf, "[EMM_Dialog] updateArtwork" );
 
-    UNUSED(column); //FIXME: delete this
+    UNUSED(column); //FIXME: delete this, jus avoids a warning
     /* Get the item form the row, decode it's Artwork and update it in the UI */
     art_cover->showArtUpdate( getItemFromRow(row) );
 }
@@ -721,4 +731,9 @@ void ExtMetaManagerDialog::emptyPlaylistDialog()
       this,
       qtr("Playlist empty! - Extended Metadata Manager"), //Title
       emptyPlaylist_text ); //Text
+}
+
+bool ExtMetaManagerDialog::isClearSelected()
+{
+    return ui.checkBox_cleaTable->isChecked();
 }
