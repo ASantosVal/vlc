@@ -196,6 +196,11 @@ void ExtMetaManagerDialog::getFromPlaylist()
         }
     }
 
+    /* If table is empty, show warning */
+    if (ui.tableWidget_metadata->rowCount()<1){
+        emptyPlaylistDialog();
+    }
+
     /* Always unlock the playlist */
     playlist_Unlock(THEPL);
 }
@@ -705,4 +710,15 @@ void ExtMetaManagerDialog::aboutDialog()
       this,
       tr("About - Extended Metadata Manager"), //Title
       tr(about_text) ); //Text
+}
+
+/* Launches the "Help" dialog */
+void ExtMetaManagerDialog::emptyPlaylistDialog()
+{
+    msg_Dbg( p_intf, "[EMM_Dialog] emptyPlaylistDialog" );
+
+    QMessageBox::information(
+      this,
+      tr("Playlist empty! - Extended Metadata Manager"), //Title
+      tr(emptyPlaylist_text) ); //Text
 }

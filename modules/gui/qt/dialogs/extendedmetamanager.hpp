@@ -94,6 +94,9 @@ private:
     "<b>GitHub for the project:</b> "
     "<a href=\"https://github.com/ASantosVal/vlc-extension-trials\">Repository</a></a><br>";
 
+    const char *emptyPlaylist_text = "There were no items to be loaded on the "
+    "current playlist";
+
     /* Text for the "tips" */
     const char *getFromPlaylist_tip = "Load files into the table from the current playlist. ONLY THE AUDIO FILES.";
     const char *getFromFolder_tip = "Load files into the table from a file/folder. ONLY THE AUDIO FILES.";
@@ -148,6 +151,7 @@ private slots:
     void cleanUp();
     void helpDialog();
     void aboutDialog();
+    void emptyPlaylistDialog();
     void clearTable();
     void multipleItemsChanged( QTableWidgetItem *item );
     void addTableEntry(input_item_t *p_item);
