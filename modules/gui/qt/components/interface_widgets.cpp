@@ -895,16 +895,16 @@ CoverArtLabelExt::~CoverArtLabelExt()
     QList< QAction* > artActions = actions();
     foreach( QAction *act, artActions )
         removeAction( act );
-    if ( p_item ) vlc_gc_decref( p_item );
+    if ( p_item ) input_item_Release( p_item );
 }
 
 void CoverArtLabelExt::setItem( input_item_t *_p_item )
 {
     msg_Dbg( p_intf, "[CoverArtLabelExt] setItem" );
 
-    if ( p_item ) vlc_gc_decref( p_item );
+    if ( p_item ) input_item_Release( p_item );
     p_item = _p_item;
-    if ( p_item ) vlc_gc_incref( p_item );
+    if ( p_item ) input_item_Hold( p_item );
 }
 
 void CoverArtLabelExt::showArtUpdate( const QString& url )
