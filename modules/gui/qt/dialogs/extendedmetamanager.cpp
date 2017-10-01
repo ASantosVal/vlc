@@ -289,7 +289,7 @@ void ExtMetaManagerDialog::saveAll()
     /* Iterate over all the items on the table */
     int rows = ui.tableWidget_metadata->rowCount();
 
-    for(int row = 0;  row < rows; row++) //The list starts at 4 because the first 3 are not files
+    for(int row = 0;  row < rows; row++) //Iterate over the table
     {
         /* Check if the row is checked/selected and ignore if not */
         if (rowIsSelected(row))
@@ -357,13 +357,22 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     /* Get the number of items we'll be working with and if there are no
     items, finish */
     int rows = ui.tableWidget_metadata->rowCount();
-    if (rows == 0)
+    int selectedRowsCount=0;
+
+    for(int row = 0;  row < rows; row++) //Iterate over table
+    {
+        /* Check if the row is checked/selected and ignore if not */
+        if (rowIsSelected(row)){
+            selectedRowsCount++;
+        }
+    }
+    if (selectedRowsCount == 0)
         return;
 
     /* Calculate how much the progress bar will advance each step (progressBar
     goes from 0 to 100). Then progress variable is set to 0 and the widget is
     updated */
-    int progress_unit= 100/rows;
+    int progress_unit= 100/selectedRowsCount;
     int progress=0;
     ui.progressBar_search->setValue(progress);
 
@@ -395,10 +404,11 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
 
             /* Update the table with the new info */
             updateTableEntry(p_item, row);
+
+            /* Update the progress bar */
+            progress=progress+progress_unit; // Increase the progress
+            ui.progressBar_search->setValue(progress); // Update the progressBar
         }
-        /* Update the progress bar */
-        progress=progress+progress_unit; // Increase the progress
-        ui.progressBar_search->setValue(progress); // Update the progressBar
     }
 
     /* Lost decimals can cause the progress bar to not reach 100, so here is
@@ -413,7 +423,7 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
         if ( p_r ) fingerprint_request_Delete( p_r );
     }
 
-    /* We have finished, so we unlock al the table's signals. */
+    /* We have finished, so we unlock all the table's signals. */
     ui.tableWidget_metadata->blockSignals(false);
 }
 
