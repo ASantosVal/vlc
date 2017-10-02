@@ -23,15 +23,16 @@
 
 //aliases for the table's columns' name
 #define COL_CHECKBOX 0
-#define COL_TITLE 1
-#define COL_ARTIST 2
-#define COL_ALBUM 3
-#define COL_GENRE 4
-#define COL_TRACKNUM 5
-#define COL_PUBLISHER 6
-#define COL_COPYRIGHT 7
-#define COL_ARTWORK 8
-#define COL_PATH 9
+#define COL_PREVIEW 1
+#define COL_TITLE 2
+#define COL_ARTIST 3
+#define COL_ALBUM 4
+#define COL_GENRE 5
+#define COL_TRACKNUM 6
+#define COL_PUBLISHER 7
+#define COL_COPYRIGHT 8
+#define COL_ARTWORK 9
+#define COL_PATH 10
 
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
@@ -119,6 +120,7 @@ private:
     QString disableFastSearch_tip = qtr("With this option selected, instead of "
     "choosing automatically the \"best\" option, a window will show asking you "
     "to choose which entry is the correct.");
+    QString previewButton_tip = qtr("Play this song.");
 
     /* Declarations for the fingerprinter */
     Chromaprint *t;
@@ -133,9 +135,10 @@ private:
     /* The User interface (UI) made in QT */
     Ui::ExtMetaManagerWidget ui;
 
-    /* Mapper used on the buttons on the table to know from which row is the
+    /* Mappers used on the buttons on the table to know from which row is the
     call being made */
-    QSignalMapper ButtonSignalMapper;
+    QSignalMapper changeArtwork_SignalMapper;
+    QSignalMapper preview_SignalMapper;
 
 private slots:
     void close() Q_DECL_OVERRIDE;
@@ -159,6 +162,7 @@ private slots:
     bool rowIsSelected(int row);
     void updateArtwork(int row, int column);
     void changeArtwork(int row);
+    void previewItem(int);
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
     bool isAudioFile(const char* uri);

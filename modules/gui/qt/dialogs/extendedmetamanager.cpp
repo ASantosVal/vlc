@@ -71,14 +71,15 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 
     /* Set de table columns' size */
     ui.tableWidget_metadata->setColumnWidth(COL_CHECKBOX, 30);
+    ui.tableWidget_metadata->setColumnWidth(COL_PREVIEW, 70);
     ui.tableWidget_metadata->setColumnWidth(COL_TITLE, 200);
     ui.tableWidget_metadata->setColumnWidth(COL_ARTIST, 200);
     ui.tableWidget_metadata->setColumnWidth(COL_ALBUM, 200);
     ui.tableWidget_metadata->setColumnWidth(COL_GENRE, 120);
-    ui.tableWidget_metadata->setColumnWidth(COL_TRACKNUM, 70);
+    ui.tableWidget_metadata->setColumnWidth(COL_TRACKNUM, 80);
     ui.tableWidget_metadata->setColumnWidth(COL_PUBLISHER, 120);
     ui.tableWidget_metadata->setColumnWidth(COL_COPYRIGHT, 120);
-    ui.tableWidget_metadata->setColumnWidth(COL_ARTWORK, 70);
+    ui.tableWidget_metadata->setColumnWidth(COL_ARTWORK, 80);
     ui.tableWidget_metadata->setColumnWidth(COL_PATH, 50);
 
     /* Add the Artwork label */
@@ -102,7 +103,8 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     /* Set the mapper's connection to changeArtwork. This is used to be able
     to know from which row the button (added later on each row) it's being
     clicked */
-    connect(&ButtonSignalMapper, SIGNAL(mapped(int)), this, SLOT(changeArtwork(int)));
+    connect(&changeArtwork_SignalMapper, SIGNAL(mapped(int)), this, SLOT(changeArtwork(int)));
+    connect(&preview_SignalMapper, SIGNAL(mapped(int)), this, SLOT(previewItem(int)));
 
     /* Initilize the array for the currently working items */
     workspace = new vlc_array_t();
@@ -549,6 +551,17 @@ bool ExtMetaManagerDialog::isAudioFile(const char* uri)
     msg_Dbg( p_intf, "[EMM_Dialog] file is NOT audio" );
     return false;
 }
+
+void ExtMetaManagerDialog::previewItem(int item_index){
+    msg_Dbg( p_intf, "[EMM_Dialog] previewItem" );
+    input_item_t *p_item = getItemFromRow(item_index);
+
+    //TODO: implement this
+    // PlayItem(THEPL, p_item);
+    // playlist_AddInput( THEPL, p_item, false, true );
+    // playlist_Control( THEPL, vlc_action_id[CTIONID_PLAY_PAUSE], false );
+}
+
 /*----------------------------------------------------------------------------*/
 /*--------------------------Table management----------------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -577,6 +590,7 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     int row = ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
     ui.tableWidget_metadata->insertRow(row);
 
+
     /* Create checkbox for the first column and set it as checked(and set it's tip). */
     QCheckBox *checkbox = new QCheckBox ();
     checkbox->setChecked(1);
@@ -584,19 +598,35 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     /* Insert the checkbox in the cell */
     ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
 
+
     /* Create button for the artwork update (and set it's tip). We don't add
     it to the UI yet, it will be added in each row later */
-    QPushButton *button_changeArtwork = new QPushButton( qtr("Change"), this);
+    QPushButton *button_changeArtwork = new QPushButton( qtr("Change Art"), this);
     button_changeArtwork->setToolTip(artworkButton_tip);
 
     /* Prepare the mapping with the row and connect teh button to it.
     The mapper is used to be able to know from which row is the button is
     being clicked */
-    ButtonSignalMapper.setMapping(button_changeArtwork, row);
-    connect(button_changeArtwork, SIGNAL(clicked()), &ButtonSignalMapper, SLOT(map()));
+    changeArtwork_SignalMapper.setMapping(button_changeArtwork, row);
+    connect(button_changeArtwork, SIGNAL(clicked()), &changeArtwork_SignalMapper, SLOT(map()));
 
     /* Insert the button in the cell (we have created it on the constructor) */
     ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, button_changeArtwork );
+
+
+    /* Create button for the artwork update (and set it's tip). We don't add
+    it to the UI yet, it will be added in each row later */
+    QPushButton *button_previewItem = new QPushButton( qtr("Preview"), this);
+    button_previewItem->setToolTip(previewButton_tip);
+
+    /* Prepare the mapping with the row and connect teh button to it.
+    The mapper is used to be able to know from which row is the button is
+    being clicked */
+    preview_SignalMapper.setMapping(button_previewItem, row);
+    connect(button_previewItem, SIGNAL(clicked()), &preview_SignalMapper, SLOT(map()));
+
+    /* Insert the button in the cell (we have created it on the constructor) */
+    ui.tableWidget_metadata->setCellWidget(row, COL_PREVIEW, button_previewItem );
 
     updateTableEntry(p_item,row);
 }
