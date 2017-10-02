@@ -697,8 +697,8 @@ void ExtMetaManagerDialog::helpDialog()
 
     QMessageBox::information(
       this,
-      tr("Help - Extended Metadata Manager"), //Title
-      tr(help_text) ); //Text
+      qtr("Help - Extended Metadata Manager"), //Title
+      help_text ); //Text
 }
 
 /* Launches the "About" dialog */
@@ -708,8 +708,8 @@ void ExtMetaManagerDialog::aboutDialog()
 
     QMessageBox::information(
       this,
-      tr("About - Extended Metadata Manager"), //Title
-      tr(about_text) ); //Text
+      qtr("About - Extended Metadata Manager"), //Title
+      about_text ); //Text
 }
 
 /* Launches the "Help" dialog */
@@ -719,6 +719,6 @@ void ExtMetaManagerDialog::emptyPlaylistDialog()
 
     QMessageBox::information(
       this,
-      tr("Playlist empty! - Extended Metadata Manager"), //Title
-      tr(emptyPlaylist_text) ); //Text
+      qtr("Playlist empty! - Extended Metadata Manager"), //Title
+      emptyPlaylist_text ); //Text
 }
