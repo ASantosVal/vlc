@@ -154,7 +154,7 @@ static int vlclua_var_inherit( lua_State *L )
     }
     const char *psz_var = luaL_checkstring( L, 2 );
 
-    int i_type = config_GetType( p_obj, psz_var );
+    int i_type = config_GetType( psz_var );
     if( var_Inherit( p_obj, psz_var, i_type, &val ) != VLC_SUCCESS )
         return 0;
 
@@ -305,12 +305,6 @@ int vlclua_var_toggle_or_set( lua_State *L, vlc_object_t *p_obj,
 end:
     lua_pushboolean( L, b_bool );
     return 1;
-}
-
-static inline const void *luaL_checklightuserdata( lua_State *L, int narg )
-{
-    luaL_checktype( L, narg, LUA_TLIGHTUSERDATA ); /* can raise an error */
-    return lua_topointer( L, narg );
 }
 
 static int vlclua_trigger_callback( lua_State *L )

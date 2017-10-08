@@ -29,10 +29,10 @@
 @interface VLCOpenWindowController : NSWindowController <NSTabViewDelegate>
 
 @property (readwrite, weak) IBOutlet NSTextField *mrlTextField;
-@property (readwrite, weak) IBOutlet NSTextField *mrlLabel;
-@property (readwrite, weak) IBOutlet NSView *mrlView;
 @property (readwrite, weak) IBOutlet NSButton *mrlButton;
+@property (readwrite, weak) IBOutlet NSButton *mrlButtonLabel;
 @property (readwrite, weak) IBOutlet NSTabView *tabView;
+@property (readwrite, weak) IBOutlet NSLayoutConstraint *mrlViewHeightConstraint;
 
 @property (readwrite, weak) IBOutlet NSButton *okButton;
 @property (readwrite, weak) IBOutlet NSButton *cancelButton;
@@ -129,7 +129,7 @@
 /* open subtitle file */
 @property (readwrite, weak) IBOutlet NSButton *fileSubCheckbox;
 @property (readwrite, weak) IBOutlet NSButton *fileSubSettingsButton;
-@property (readwrite, weak) IBOutlet NSPanel *fileSubSheet;
+@property (readwrite) IBOutlet NSPanel *fileSubSheet;
 @property (readwrite, weak) IBOutlet NSTextField *fileSubPathLabel;
 @property (readwrite, weak) IBOutlet NSTextField *fileSubPathTextField;
 @property (readwrite, weak) IBOutlet NSImageView *fileSubIconView;
@@ -153,10 +153,9 @@
 
 /* generic capturing stuff */
 @property (readwrite, weak) IBOutlet NSPopUpButton *captureModePopup;
+@property (readwrite, weak) IBOutlet NSTabView *captureTabView;
 
 /* screen support */
-@property (readwrite, weak) IBOutlet NSView *screenView;
-@property (readwrite, weak) IBOutlet NSTextField *screenlongLabel;
 @property (readwrite, weak) IBOutlet NSTextField *screenFPSTextField;
 @property (readwrite, weak) IBOutlet NSTextField *screenFPSLabel;
 @property (readwrite, weak) IBOutlet NSStepper *screenFPSStepper;
@@ -179,7 +178,6 @@
 @property (readwrite, weak) IBOutlet NSButton *screenqtkAudioCheckbox;
 
 /* QTK support */
-@property (readwrite, weak) IBOutlet NSView *qtkView;
 @property (readwrite, weak) IBOutlet NSPopUpButton *qtkVideoDevicePopup;
 @property (readwrite, weak) IBOutlet NSButton *qtkVideoCheckbox;
 @property (readwrite, weak) IBOutlet NSPopUpButton *qtkAudioDevicePopup;
@@ -215,10 +213,15 @@
 
 - (void)openCapture;
 - (IBAction)openCaptureModeChanged:(id)sender;
+
+// Screen actions
+- (IBAction)screenChanged:(id)sender;
+- (IBAction)screenAudioChanged:(id)sender;
+
+// QTKit actions
 - (IBAction)qtkChanged:(id)sender;
 - (IBAction)qtkAudioChanged:(id)sender;
 - (IBAction)qtkToggleUIElements:(id)sender;
-- (IBAction)screenChanged:(id)sender;
 
 - (IBAction)subsChanged:(id)sender;
 - (IBAction)subSettings:(id)sender;

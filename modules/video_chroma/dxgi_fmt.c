@@ -80,12 +80,14 @@ static const d3d_format_t d3d_formats[] = {
     { "Y410",     DXGI_FORMAT_Y410,           VLC_CODEC_I444,         10, 1, 1, { DXGI_FORMAT_R10G10B10A2_UNORM } },
     { "NV11",     DXGI_FORMAT_NV11,           VLC_CODEC_I411,          8, 4, 1, { DXGI_FORMAT_R8_UNORM,           DXGI_FORMAT_R8G8_UNORM} },
 #endif
+    { "I420",     DXGI_FORMAT_UNKNOWN,        VLC_CODEC_I420,          8, 2, 2, { DXGI_FORMAT_R8_UNORM,      DXGI_FORMAT_R8_UNORM, DXGI_FORMAT_R8_UNORM } },
     { "R8G8B8A8", DXGI_FORMAT_R8G8B8A8_UNORM, VLC_CODEC_RGBA,          8, 1, 1, { DXGI_FORMAT_R8G8B8A8_UNORM } },
     { "VA_RGBA",  DXGI_FORMAT_R8G8B8A8_UNORM, VLC_CODEC_D3D11_OPAQUE,  8, 1, 1, { DXGI_FORMAT_R8G8B8A8_UNORM } },
     { "B8G8R8A8", DXGI_FORMAT_B8G8R8A8_UNORM, VLC_CODEC_BGRA,          8, 1, 1, { DXGI_FORMAT_B8G8R8A8_UNORM } },
     { "VA_BGRA",  DXGI_FORMAT_B8G8R8A8_UNORM, VLC_CODEC_D3D11_OPAQUE,  8, 1, 1, { DXGI_FORMAT_B8G8R8A8_UNORM } },
     { "R8G8B8X8", DXGI_FORMAT_B8G8R8X8_UNORM, VLC_CODEC_RGB32,         8, 1, 1, { DXGI_FORMAT_B8G8R8X8_UNORM } },
     { "B5G6R5",   DXGI_FORMAT_B5G6R5_UNORM,   VLC_CODEC_RGB16,         5, 1, 1, { DXGI_FORMAT_B5G6R5_UNORM } },
+    { "I420_OPAQUE", DXGI_FORMAT_420_OPAQUE,  VLC_CODEC_D3D11_OPAQUE,  8, 2, 2, { DXGI_FORMAT_UNKNOWN } },
 
     { NULL, 0, 0, 0, 0, 0, {} }
 };
@@ -155,6 +157,22 @@ bool isXboxHardware(ID3D11Device *d3ddev)
             adapterDesc.DeviceId == 0 &&
             !wcscmp(L"ROOT\\SraKmd\\0000", adapterDesc.Description))
             result = true;
+    }
+
+    IDXGIAdapter_Release(p_adapter);
+    return result;
+}
+
+bool isNvidiaHardware(ID3D11Device *d3ddev)
+{
+    IDXGIAdapter *p_adapter = D3D11DeviceAdapter(d3ddev);
+    if (!p_adapter)
+        return NULL;
+
+    bool result = false;
+    DXGI_ADAPTER_DESC adapterDesc;
+    if (SUCCEEDED(IDXGIAdapter_GetDesc(p_adapter, &adapterDesc))) {
+        result = adapterDesc.VendorId == 0x10DE;
     }
 
     IDXGIAdapter_Release(p_adapter);

@@ -27,6 +27,9 @@
 
 #include <unistd.h>
 #include <ctype.h>
+#ifdef HAVE_SYS_UIO_H
+# include <sys/uio.h>
+#endif
 
 #include <vlc_common.h>
 #include <vlc_plugin.h>
@@ -145,7 +148,7 @@ static int parse_port(char *str, uint16_t *port)
     return 0;
 }
 
-static int parse_transport(access_t *access, char *request_line) {
+static int parse_transport(stream_t *access, char *request_line) {
     access_sys_t *sys = access->p_sys;
     char *state;
     char *tok;
@@ -259,7 +262,7 @@ error:
 }
 
 #define skip_whitespace(x) while(*x == ' ') x++
-static enum rtsp_result rtsp_handle(access_t *access, bool *interrupted) {
+static enum rtsp_result rtsp_handle(stream_t *access, bool *interrupted) {
     access_sys_t *sys = access->p_sys;
     uint8_t buffer[512];
     int rtsp_result = 0;
@@ -333,7 +336,7 @@ static void satip_cleanup_blocks(void *data)
 }
 #endif
 
-static int check_rtp_seq(access_t *access, block_t *block)
+static int check_rtp_seq(stream_t *access, block_t *block)
 {
     access_sys_t *sys = access->p_sys;
     uint16_t seq_nr = block->p_buffer[2] << 8 | block->p_buffer[3];
@@ -355,7 +358,7 @@ static int check_rtp_seq(access_t *access, block_t *block)
 }
 
 static void satip_teardown(void *data) {
-    access_t *access = data;
+    stream_t *access = data;
     access_sys_t *sys = access->p_sys;
     int ret;
 
@@ -419,7 +422,7 @@ static void satip_teardown(void *data) {
 
 #define RECV_TIMEOUT 2 * 1000 * 1000
 static void *satip_thread(void *data) {
-    access_t *access = data;
+    stream_t *access = data;
     access_sys_t *sys = access->p_sys;
     int sock = sys->udp_sock;
     mtime_t last_recv = mdate();
@@ -435,7 +438,7 @@ static void *satip_thread(void *data) {
         memset(&msgs[i], 0, sizeof (msgs[i]));
         msgs[i].msg_hdr.msg_iov = &iovecs[i];
         msgs[i].msg_hdr.msg_iovlen = 1;
-        memset(&iovecs[i], 0, sizeof (iovecs[i]));
+        iovecs[i].iov_base = NULL;
         iovecs[i].iov_len = RTSP_RECEIVE_BUFFER;
         input_blocks[i] = NULL;
     }
@@ -532,7 +535,7 @@ static void *satip_thread(void *data) {
     return NULL;
 }
 
-static block_t* satip_block(access_t *access, bool *restrict eof) {
+static block_t* satip_block(stream_t *access, bool *restrict eof) {
     access_sys_t *sys = access->p_sys;
     block_t *block;
 
@@ -552,7 +555,7 @@ static block_t* satip_block(access_t *access, bool *restrict eof) {
     return block;
 }
 
-static int satip_control(access_t *access, int i_query, va_list args) {
+static int satip_control(stream_t *access, int i_query, va_list args) {
     bool *pb_bool;
     int64_t *pi_64;
 
@@ -561,12 +564,12 @@ static int satip_control(access_t *access, int i_query, va_list args) {
         case STREAM_CAN_CONTROL_PACE:
         case STREAM_CAN_SEEK:
         case STREAM_CAN_PAUSE:
-            pb_bool = (bool*)va_arg(args, bool*);
+            pb_bool = va_arg(args, bool *);
             *pb_bool = false;
             break;
 
         case STREAM_GET_PTS_DELAY:
-            pi_64 = (int64_t*)va_arg(args, int64_t *);
+            pi_64 = va_arg(args, int64_t *);
             *pi_64 = INT64_C(1000) * var_InheritInteger(access, "live-caching");
             break;
 
@@ -580,7 +583,7 @@ static int satip_control(access_t *access, int i_query, va_list args) {
 /* Bind two adjacent free ports, of which the first one is even (for RTP data)
  * and the second is odd (RTCP). This is a requirement of the satip
  * specification */
-static int satip_bind_ports(access_t *access)
+static int satip_bind_ports(stream_t *access)
 {
     access_sys_t *sys = access->p_sys;
     uint8_t rnd;
@@ -617,13 +620,13 @@ static int satip_bind_ports(access_t *access)
 
 static int satip_open(vlc_object_t *obj)
 {
-    access_t *access = (access_t *)obj;
+    stream_t *access = (stream_t *)obj;
     access_sys_t *sys;
     vlc_url_t url;
 
     bool multicast = var_InheritBool(access, "satip-multicast");
 
-    access->p_sys = sys = calloc(1, sizeof(*sys));
+    access->p_sys = sys = vlc_calloc(obj, 1, sizeof(*sys));
     if (sys == NULL)
         return VLC_ENOMEM;
 
@@ -633,6 +636,7 @@ static int satip_open(vlc_object_t *obj)
 
     sys->udp_sock = -1;
     sys->rtcp_sock = -1;
+    sys->tcp_sock = -1;
 
     /* convert url to lowercase, some famous m3u playlists for satip contain
      * uppercase parameters while most (all?) satip servers do only understand
@@ -645,11 +649,6 @@ static int satip_open(vlc_object_t *obj)
     for (unsigned i = 0; i < strlen(psz_lower_url); i++)
         psz_lower_url[i] = tolower(psz_lower_url[i]);
 
-    const char* psz_lower_location = strstr( psz_lower_url, "://" );
-    if ( psz_lower_location == NULL )
-        goto error;
-    psz_lower_location += 3;
-
     vlc_UrlParse(&url, psz_lower_url);
     if (url.i_port <= 0)
         url.i_port = RTSP_DEFAULT_PORT;
@@ -657,6 +656,12 @@ static int satip_open(vlc_object_t *obj)
         psz_host = strdup(url.psz_host);
     if (psz_host == NULL )
         goto error;
+
+    if (url.psz_host == NULL || url.psz_host[0] == '\0')
+    {
+        msg_Dbg(access, "malformed URL: %s", psz_lower_url);
+        goto error;
+    }
 
     msg_Dbg(access, "connect to host '%s'", psz_host);
     sys->tcp_sock = net_ConnectTCP(access, psz_host, url.i_port);
@@ -684,11 +689,16 @@ static int satip_open(vlc_object_t *obj)
     }
 
     // reverse the satip protocol trick, as SAT>IP believes to be RTSP
-    if( !strncasecmp( setup_url.psz_protocol, "satip", 5 ) ) {
+    if( setup_url.psz_protocol == NULL ||
+        strncasecmp( setup_url.psz_protocol, "satip", 5 ) == 0 )
+    {
         setup_url.psz_protocol = (char *)"rtsp";
     }
 
     char *psz_setup_url = vlc_uri_compose(&setup_url);
+    if( psz_setup_url == NULL )
+        goto error;
+
     if (multicast) {
         net_Printf(access, sys->tcp_sock,
                 "SETUP %s RTSP/1.0\r\n"
@@ -794,13 +804,12 @@ error:
 
     free(sys->content_base);
     free(sys->control);
-    free(sys);
     return VLC_EGENERIC;
 }
 
 static void satip_close(vlc_object_t *obj)
 {
-    access_t *access = (access_t *)obj;
+    stream_t *access = (stream_t *)obj;
     access_sys_t *sys = access->p_sys;
 
     vlc_cancel(sys->thread);
@@ -814,5 +823,4 @@ static void satip_close(vlc_object_t *obj)
     net_Close(sys->tcp_sock);
     free(sys->content_base);
     free(sys->control);
-    free(sys);
 }

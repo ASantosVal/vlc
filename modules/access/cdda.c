@@ -160,7 +160,7 @@ static int Demux(demux_t *demux)
     date_Increment(&sys->pts, block->i_nb_samples);
 
     es_out_Send(demux->out, sys->es, block);
-    es_out_Control(demux->out, ES_OUT_SET_PCR, VLC_TS_0 + date_Get(&sys->pts));
+    es_out_SetPCR(demux->out, VLC_TS_0 + date_Get(&sys->pts));
     return VLC_DEMUXER_SUCCESS;
 }
 
@@ -191,7 +191,7 @@ static int DemuxControl(demux_t *demux, int query, va_list args)
             *va_arg(args, double *) = (double)(sys->position)
                                       / (double)(sys->length);
             break;
- 
+
         case DEMUX_SET_POSITION:
             sys->position = lround(va_arg(args, double) * sys->length);
             break;
@@ -223,17 +223,11 @@ static int DemuxOpen(vlc_object_t *obj)
         return VLC_EGENERIC;
 
     if (track == 0 /* Whole disc -> use access plugin */)
-    {
-        ioctl_Close(obj, dev);
-        return VLC_EGENERIC;
-    }
+        goto error;
 
-    demux_sys_t *sys = malloc(sizeof (*sys));
+    demux_sys_t *sys = vlc_malloc(obj, sizeof (*sys));
     if (unlikely(sys == NULL))
-    {
-        ioctl_Close(obj, dev);
-        return VLC_ENOMEM;
-    }
+        goto error;
 
     demux->p_sys = sys;
     sys->vcddev = dev;
@@ -275,7 +269,6 @@ static int DemuxOpen(vlc_object_t *obj)
 
 error:
     ioctl_Close(obj, dev);
-    free(sys);
     return VLC_EGENERIC;
 }
 
@@ -285,7 +278,6 @@ static void DemuxClose(vlc_object_t *obj)
     demux_sys_t *sys = demux->p_sys;
 
     ioctl_Close(obj, sys->vcddev);
-    free(sys);
 }
 
 /*****************************************************************************
@@ -409,10 +401,9 @@ error:
 }
 #endif /* HAVE_LIBCDDB */
 
-static void AccessGetMeta(access_t *access, vlc_meta_t *meta)
+static void AccessGetMeta(stream_t *access, vlc_meta_t *meta)
 {
     access_sys_t *sys = access->p_sys;
-    const char *str;
 
     vlc_meta_SetTitle(meta, "Audio CD");
 
@@ -429,7 +420,7 @@ static void AccessGetMeta(access_t *access, vlc_meta_t *meta)
 #ifdef HAVE_LIBCDDB
     if (sys->cddb != NULL)
     {
-        str = cddb_disc_get_title(sys->cddb);
+        const char *str = cddb_disc_get_title(sys->cddb);
         if (NONEMPTY(str))
             vlc_meta_SetTitle(meta, str);
 
@@ -474,7 +465,7 @@ static void AccessGetMeta(access_t *access, vlc_meta_t *meta)
 #endif
 }
 
-static int ReadDir(access_t *access, input_item_node_t *node)
+static int ReadDir(stream_t *access, input_item_node_t *node)
 {
     access_sys_t *sys = access->p_sys;
 
@@ -602,7 +593,7 @@ static int ReadDir(access_t *access, input_item_node_t *node)
     return VLC_SUCCESS;
 }
 
-static int AccessControl(access_t *access, int query, va_list args)
+static int AccessControl(stream_t *access, int query, va_list args)
 {
     if (query == STREAM_GET_META)
     {
@@ -614,7 +605,7 @@ static int AccessControl(access_t *access, int query, va_list args)
 
 static int AccessOpen(vlc_object_t *obj)
 {
-    access_t *access = (access_t *)obj;
+    stream_t *access = (stream_t *)obj;
     unsigned track;
 
     vcddev_t *dev = DiscOpen(obj, access->psz_location, access->psz_filepath,
@@ -628,7 +619,7 @@ static int AccessOpen(vlc_object_t *obj)
         return VLC_EGENERIC;
     }
 
-    access_sys_t *sys = malloc(sizeof (*sys));
+    access_sys_t *sys = vlc_malloc(obj, sizeof (*sys));
     if (unlikely(sys == NULL))
     {
         ioctl_Close(obj, dev);
@@ -679,13 +670,12 @@ static int AccessOpen(vlc_object_t *obj)
 error:
     free(sys->p_sectors);
     ioctl_Close(obj, dev);
-    free(sys);
     return VLC_EGENERIC;
 }
 
 static void AccessClose(vlc_object_t *obj)
 {
-    access_t *access = (access_t *)obj;
+    stream_t *access = (stream_t *)obj;
     access_sys_t *sys = access->p_sys;
 
     for (int i = 0; i < sys->cdtextc; i++)
@@ -703,7 +693,6 @@ static void AccessClose(vlc_object_t *obj)
 
     free(sys->p_sectors);
     ioctl_Close(obj, sys->vcddev);
-    free(sys);
 }
 
 /*****************************************************************************

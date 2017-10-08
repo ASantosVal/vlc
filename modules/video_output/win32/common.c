@@ -44,6 +44,7 @@
 #define vout_display_sys_win32_t vout_display_sys_t
 
 #include "common.h"
+#include "../video_chroma/copy.h"
 
 #if !defined(NDEBUG) && defined(HAVE_DXGIDEBUG_H)
 # include <initguid.h>
@@ -116,7 +117,7 @@ int CommonInit(vout_display_t *vd)
 
     if (vd->cfg->is_fullscreen) {
         if (CommonControlSetFullscreen(vd, true))
-            vout_display_SendEventFullscreen(vd, false);
+            vout_display_SendEventFullscreen(vd, false, false);
     }
 
     DisableScreensaver (vd);
@@ -144,10 +145,10 @@ picture_pool_t *CommonPool(vout_display_t *vd, unsigned count)
 *****************************************************************************/
 void UpdateRects(vout_display_t *vd,
     const vout_display_cfg_t *cfg,
-    const video_format_t *source,
     bool is_forced)
 {
     vout_display_sys_t *sys = vd->sys;
+    const video_format_t *source = &vd->source;
 #define rect_src sys->rect_src
 #define rect_src_clipped sys->rect_src_clipped
 #define rect_dest sys->rect_dest
@@ -159,8 +160,6 @@ void UpdateRects(vout_display_t *vd,
     /* */
     if (!cfg)
         cfg = vd->cfg;
-    if (!source)
-        source = &vd->source;
 
     /* Retrieve the window size */
     if (!sys->pf_GetRect(sys, &rect))
@@ -194,6 +193,14 @@ void UpdateRects(vout_display_t *vd,
     vout_display_cfg_t place_cfg = *cfg;
     place_cfg.display.width = rect.right;
     place_cfg.display.height = rect.bottom;
+
+#if (defined(MODULE_NAME_IS_glwin32))
+    /* Reverse vertical alignment as the GL tex are Y inverted */
+    if (place_cfg.align.vertical == VOUT_DISPLAY_ALIGN_TOP)
+        place_cfg.align.vertical = VOUT_DISPLAY_ALIGN_BOTTOM;
+    else if (place_cfg.align.vertical == VOUT_DISPLAY_ALIGN_BOTTOM)
+        place_cfg.align.vertical = VOUT_DISPLAY_ALIGN_TOP;
+#endif
 
     vout_display_place_t place;
     vout_display_PlacePicture(&place, source, &place_cfg, false);
@@ -287,7 +294,7 @@ void UpdateRects(vout_display_t *vd,
     /* Apply overlay hardware constraints */
     if (sys->use_overlay)
         AlignRect(&rect_src_clipped, sys->i_align_src_boundary, sys->i_align_src_size);
-#elif defined(MODULE_NAME_IS_direct3d9) || defined(MODULE_NAME_IS_direct3d11)
+#elif defined(MODULE_NAME_IS_direct3d11)
     /* Needed at least with YUV content */
     rect_src_clipped.left &= ~1;
     rect_src_clipped.right &= ~1;
@@ -296,7 +303,7 @@ void UpdateRects(vout_display_t *vd,
 #endif
 
 #ifndef NDEBUG
-    msg_Dbg(vd, "DirectXUpdateRects souce"
+    msg_Dbg(vd, "DirectXUpdateRects source"
         " offset: %i,%i visible: %ix%i",
         source->i_x_offset, source->i_y_offset,
         source->i_visible_width, source->i_visible_height);
@@ -405,13 +412,13 @@ void CommonManage(vout_display_t *vd)
                          rect_parent.bottom - rect_parent.top,
                          SWP_NOZORDER);
 
-            UpdateRects(vd, NULL, NULL, true);
+            UpdateRects(vd, NULL, true);
         }
     }
 
     /* HasMoved means here resize or move */
     if (EventThreadGetAndResetHasMoved(sys->event))
-        UpdateRects(vd, NULL, NULL, false);
+        UpdateRects(vd, NULL, false);
 }
 
 /**
@@ -459,57 +466,7 @@ int CommonUpdatePicture(picture_t *picture, picture_t **fallback,
         }
         return VLC_SUCCESS;
     }
-    /* fill in buffer info in first plane */
-    picture->p->p_pixels = data;
-    picture->p->i_pitch  = pitch;
-    picture->p->i_lines  = picture->format.i_height;
-    assert(picture->p->i_visible_pitch <= picture->p->i_pitch);
-    assert(picture->p->i_visible_lines <= picture->p->i_lines);
-
-    /*  Fill chroma planes for biplanar YUV */
-    if (picture->format.i_chroma == VLC_CODEC_NV12 ||
-        picture->format.i_chroma == VLC_CODEC_NV21 ||
-        picture->format.i_chroma == VLC_CODEC_P010) {
-
-        for (int n = 1; n < picture->i_planes; n++) {
-            const plane_t *o = &picture->p[n-1];
-            plane_t *p = &picture->p[n];
-
-            p->p_pixels = o->p_pixels + o->i_lines * o->i_pitch;
-            p->i_pitch  = pitch;
-            p->i_lines  = picture->format.i_height;
-            assert(p->i_visible_pitch <= p->i_pitch);
-            assert(p->i_visible_lines <= p->i_lines);
-        }
-        /* The dx/d3d buffer is always allocated as NV12 */
-        if (vlc_fourcc_AreUVPlanesSwapped(picture->format.i_chroma, VLC_CODEC_NV12)) {
-            /* TODO : Swap NV21 UV planes to match NV12 */
-            return VLC_EGENERIC;
-        }
-    }
-
-    /*  Fill chroma planes for planar YUV */
-    else
-    if (picture->format.i_chroma == VLC_CODEC_I420 ||
-        picture->format.i_chroma == VLC_CODEC_J420 ||
-        picture->format.i_chroma == VLC_CODEC_YV12) {
-
-        for (int n = 1; n < picture->i_planes; n++) {
-            const plane_t *o = &picture->p[n-1];
-            plane_t *p = &picture->p[n];
-
-            p->p_pixels = o->p_pixels + o->i_lines * o->i_pitch;
-            p->i_pitch  = pitch / 2;
-            p->i_lines  = picture->format.i_height / 2;
-        }
-        /* The dx/d3d buffer is always allocated as YV12 */
-        if (vlc_fourcc_AreUVPlanesSwapped(picture->format.i_chroma, VLC_CODEC_YV12)) {
-            uint8_t *p_tmp = picture->p[1].p_pixels;
-            picture->p[1].p_pixels = picture->p[2].p_pixels;
-            picture->p[2].p_pixels = p_tmp;
-        }
-    }
-    return VLC_SUCCESS;
+    return picture_UpdatePlanes(picture, data, pitch);
 }
 
 void AlignRect(RECT *r, int align_boundary, int align_size)
@@ -544,20 +501,25 @@ static void CommonChangeThumbnailClip(vout_display_t *vd, bool show)
         taskbl->lpVtbl->HrInit(taskbl);
 
         HWND hroot = GetAncestor(sys->hwnd,GA_ROOT);
-        RECT relative;
+        RECT video;
         if (show) {
-            RECT video, parent;
-            GetWindowRect(sys->hvideownd, &video);
-            GetWindowRect(hroot, &parent);
-            relative.left   = video.left   - parent.left - 8;
-            relative.top    = video.top    - parent.top - 10;
-
-            relative.right  = video.right  - video.left + relative.left;
-            relative.bottom = video.bottom - video.top  + relative.top - 25;
+            GetWindowRect(sys->hparent, &video);
+            POINT client = {video.left, video.top};
+            if (ScreenToClient(hroot, &client))
+            {
+                unsigned int width = video.right - video.left;
+                unsigned int height = video.bottom - video.top;
+                video.left = client.x;
+                video.top = client.y;
+                video.right = video.left + width;
+                video.bottom = video.top + height;
+            }
         }
-        if (S_OK != taskbl->lpVtbl->SetThumbnailClip(taskbl, hroot,
-                                                 show ? &relative : NULL))
-            msg_Err(vd, "SetThumbNailClip failed");
+        HRESULT hr;
+        hr = taskbl->lpVtbl->SetThumbnailClip(taskbl, hroot,
+                                                 show ? &video : NULL);
+        if ( hr != S_OK )
+            msg_Err(vd, "SetThumbNailClip failed: 0x%0lx", hr);
 
         taskbl->lpVtbl->Release(taskbl);
     }
@@ -651,82 +613,6 @@ static int CommonControlSetFullscreen(vout_display_t *vd, bool is_fullscreen)
     return VLC_SUCCESS;
 }
 
-int CommonControl(vout_display_t *vd, int query, va_list args)
-{
-    vout_display_sys_t *sys = vd->sys;
-
-    switch (query) {
-    case VOUT_DISPLAY_CHANGE_DISPLAY_SIZE:   /* const vout_display_cfg_t *p_cfg */
-    {   /* Update dimensions */
-        const vout_display_cfg_t *cfg = va_arg(args, const vout_display_cfg_t *);
-        RECT rect_window = {
-            .top    = 0,
-            .left   = 0,
-            .right  = cfg->display.width,
-            .bottom = cfg->display.height,
-        };
-
-        AdjustWindowRect(&rect_window, EventThreadGetWindowStyle(sys->event), 0);
-        SetWindowPos(sys->hwnd, 0, 0, 0,
-                     rect_window.right - rect_window.left,
-                     rect_window.bottom - rect_window.top, SWP_NOMOVE);
-        UpdateRects(vd, cfg, NULL, false);
-        return VLC_SUCCESS;
-    }
-    case VOUT_DISPLAY_CHANGE_DISPLAY_FILLED: /* const vout_display_cfg_t *p_cfg */
-    case VOUT_DISPLAY_CHANGE_ZOOM:           /* const vout_display_cfg_t *p_cfg */
-    case VOUT_DISPLAY_CHANGE_SOURCE_ASPECT:  /* const video_format_t *p_source */
-    case VOUT_DISPLAY_CHANGE_SOURCE_CROP: {  /* const video_format_t *p_source */
-        const vout_display_cfg_t *cfg;
-
-        if (query == VOUT_DISPLAY_CHANGE_SOURCE_CROP ||
-            query == VOUT_DISPLAY_CHANGE_SOURCE_ASPECT) {
-            const video_format_t *source = va_arg(args, const video_format_t *);
-            cfg    = vd->cfg;
-            UpdateRects(vd, cfg, source, true);
-        } else {
-            cfg    = va_arg(args, const vout_display_cfg_t *);
-            UpdateRects(vd, cfg, NULL, false);
-        }
-        return VLC_SUCCESS;
-    }
-    case VOUT_DISPLAY_CHANGE_WINDOW_STATE: {       /* unsigned state */
-        const unsigned state = va_arg(args, unsigned);
-        const bool is_on_top = (state & VOUT_WINDOW_STATE_ABOVE) != 0;
-#ifdef MODULE_NAME_IS_direct3d9
-        if (sys->use_desktop && is_on_top)
-            return VLC_EGENERIC;
-#endif
-        HMENU hMenu = GetSystemMenu(sys->hwnd, FALSE);
-
-        if (is_on_top && !(GetWindowLong(sys->hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST)) {
-            CheckMenuItem(hMenu, IDM_TOGGLE_ON_TOP, MF_BYCOMMAND | MFS_CHECKED);
-            SetWindowPos(sys->hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
-        } else if (!is_on_top && (GetWindowLong(sys->hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST)) {
-            CheckMenuItem(hMenu, IDM_TOGGLE_ON_TOP, MF_BYCOMMAND | MFS_UNCHECKED);
-            SetWindowPos(sys->hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE|SWP_NOMOVE);
-        }
-        sys->is_on_top = is_on_top;
-        return VLC_SUCCESS;
-    }
-    case VOUT_DISPLAY_CHANGE_FULLSCREEN: {
-        bool fs = va_arg(args, int);
-        if (CommonControlSetFullscreen(vd, fs))
-            return VLC_EGENERIC;
-        UpdateRects(vd, NULL, NULL, false);
-        return VLC_SUCCESS;
-    }
-
-    case VOUT_DISPLAY_HIDE_MOUSE:
-        EventThreadMouseHide(sys->event);
-        return VLC_SUCCESS;
-    case VOUT_DISPLAY_RESET_PICTURES:
-        vlc_assert_unreachable();
-    default:
-        return VLC_EGENERIC;
-    }
-}
-
 static void DisableScreensaver(vout_display_t *vd)
 {
     vout_display_sys_t *sys = vd->sys;
@@ -757,18 +643,85 @@ static void RestoreScreensaver(vout_display_t *vd)
 
 #else
 
-int CommonControl(vout_display_t *vd, int query, va_list args)
-{
-    switch (query) {
-    default:
-        return VLC_EGENERIC;
-    }
-}
-
 void CommonManage(vout_display_t *vd) {
-    UpdateRects(vd, NULL, NULL, false);
+    UpdateRects(vd, NULL, false);
 }
 void CommonClean(vout_display_t *vd) {}
 void CommonDisplay(vout_display_t *vd) {}
 void CommonChangeThumbnailClip(vout_display_t *vd, bool show) {}
 #endif
+
+int CommonControl(vout_display_t *vd, int query, va_list args)
+{
+    vout_display_sys_t *sys = vd->sys;
+
+    switch (query) {
+    case VOUT_DISPLAY_CHANGE_DISPLAY_FILLED: /* const vout_display_cfg_t *p_cfg */
+    case VOUT_DISPLAY_CHANGE_ZOOM:           /* const vout_display_cfg_t *p_cfg */
+    case VOUT_DISPLAY_CHANGE_SOURCE_ASPECT:
+    case VOUT_DISPLAY_CHANGE_SOURCE_CROP: {
+        const vout_display_cfg_t *cfg;
+
+        if (query == VOUT_DISPLAY_CHANGE_SOURCE_CROP ||
+            query == VOUT_DISPLAY_CHANGE_SOURCE_ASPECT) {
+            cfg    = vd->cfg;
+        } else {
+            cfg    = va_arg(args, const vout_display_cfg_t *);
+        }
+        UpdateRects(vd, cfg, true);
+        return VLC_SUCCESS;
+    }
+#if !VLC_WINSTORE_APP
+    case VOUT_DISPLAY_CHANGE_DISPLAY_SIZE:   /* const vout_display_cfg_t *p_cfg */
+    {   /* Update dimensions */
+        const vout_display_cfg_t *cfg = va_arg(args, const vout_display_cfg_t *);
+        RECT rect_window = {
+            .top    = 0,
+            .left   = 0,
+            .right  = cfg->display.width,
+            .bottom = cfg->display.height,
+        };
+
+        if (!cfg->is_fullscreen) {
+            AdjustWindowRect(&rect_window, EventThreadGetWindowStyle(sys->event), 0);
+            SetWindowPos(sys->hwnd, 0, 0, 0,
+                         rect_window.right - rect_window.left,
+                         rect_window.bottom - rect_window.top, SWP_NOMOVE);
+        }
+        UpdateRects(vd, cfg, false);
+        return VLC_SUCCESS;
+    }
+    case VOUT_DISPLAY_CHANGE_WINDOW_STATE: {       /* unsigned state */
+        const unsigned state = va_arg(args, unsigned);
+        const bool is_on_top = (state & VOUT_WINDOW_STATE_ABOVE) != 0;
+#ifdef MODULE_NAME_IS_direct3d9
+        if (sys->use_desktop && is_on_top)
+            return VLC_EGENERIC;
+#endif
+        HMENU hMenu = GetSystemMenu(sys->hwnd, FALSE);
+
+        if (is_on_top && !(GetWindowLong(sys->hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST)) {
+            CheckMenuItem(hMenu, IDM_TOGGLE_ON_TOP, MF_BYCOMMAND | MFS_CHECKED);
+            SetWindowPos(sys->hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+        } else if (!is_on_top && (GetWindowLong(sys->hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST)) {
+            CheckMenuItem(hMenu, IDM_TOGGLE_ON_TOP, MF_BYCOMMAND | MFS_UNCHECKED);
+            SetWindowPos(sys->hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE|SWP_NOMOVE);
+        }
+        sys->is_on_top = is_on_top;
+        return VLC_SUCCESS;
+    }
+    case VOUT_DISPLAY_CHANGE_FULLSCREEN: {
+        bool fs = va_arg(args, int);
+        if (CommonControlSetFullscreen(vd, fs))
+            return VLC_EGENERIC;
+        UpdateRects(vd, NULL, false);
+        return VLC_SUCCESS;
+    }
+
+    case VOUT_DISPLAY_RESET_PICTURES:
+        vlc_assert_unreachable();
+#endif
+    default:
+        return VLC_EGENERIC;
+    }
+}

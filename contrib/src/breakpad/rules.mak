@@ -1,6 +1,6 @@
 # breakpad
 
-BREAKPAD_HASH := bbebd8d5e7d61666c3a2dae82867bb7b5aeda639
+BREAKPAD_HASH := 94b6309aecaddfcf11672f6cfad9575d68ad3b40
 BREAKPAD_URL := https://chromium.googlesource.com/breakpad/breakpad/+archive/$(BREAKPAD_HASH).tar.gz
 
 ifdef HAVE_MACOSX
@@ -15,13 +15,20 @@ $(TARBALLS)/breakpad-$(BREAKPAD_HASH).tar.gz:
 	touch $@
 
 breakpad: breakpad-$(BREAKPAD_HASH).tar.gz .sum-breakpad
-	mkdir $@
-	tar xvzf $(TARBALLS)/breakpad-$(BREAKPAD_HASH).tar.gz -C breakpad
+	rm -Rf $@ breakpad-$(BREAKPAD_HASH)
+	mkdir breakpad-$(BREAKPAD_HASH)
+	tar xvzf $(TARBALLS)/breakpad-$(BREAKPAD_HASH).tar.gz -C breakpad-$(BREAKPAD_HASH)
+	$(MOVE)
 
 .breakpad: breakpad
+	# Framework
 	cd $</src/client/mac/ && xcodebuild $(XCODE_FLAGS) CLANG_CXX_LIBRARY=libc++ WARNING_CFLAGS=-Wno-error
-	cd $</src/tools/mac/dump_syms && xcodebuild $(XCODE_FLAGS) CLANG_CXX_LIBRARY=libc++ WARNING_CFLAGS=-Wno-error
-	install -d $(PREFIX)
-	cd $</src/client/mac/ && mkdir -p "$(PREFIX)/Frameworks" && cp -R build/Release/Breakpad.framework "$(PREFIX)/Frameworks"
-	cd $</src/tools/mac/dump_syms && cp -R build/Release/dump_syms "$(PREFIX)/bin"
+	cd $</src/client/mac/ && \
+		mkdir -p "$(PREFIX)/Frameworks" && \
+		rm -Rf $(PREFIX)/Frameworks/Breakpad.framework && \
+		cp -R build/Release/Breakpad.framework "$(PREFIX)/Frameworks"
+	# Tools
+	cd $</src/tools/mac/dump_syms && \
+		xcodebuild $(XCODE_FLAGS) CLANG_CXX_LIBRARY=libc++ WARNING_CFLAGS=-Wno-error && \
+		cp -R build/Release/dump_syms "$(PREFIX)/bin"
 	touch $@

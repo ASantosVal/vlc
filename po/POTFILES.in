@@ -1,5 +1,6 @@
 # main sources
 include/vlc_access.h
+include/vlc_actions.h
 include/vlc_aout.h
 include/vlc_arrays.h
 include/vlc_bits.h
@@ -8,7 +9,6 @@ include/vlc_block_helper.h
 include/vlc_charset.h
 include/vlc_codec.h
 include/vlc_codecs.h
-include/vlc_codec_synchro.h
 include/vlc_common.h
 include/vlc_config_cat.h
 include/vlc_config.h
@@ -27,7 +27,6 @@ include/vlc_image.h
 include/vlc_input.h
 include/vlc_intf_strings.h
 include/vlc_iso_lang.h
-include/vlc_keys.h
 include/vlc/libvlc_events.h
 include/vlc/libvlc.h
 include/vlc/libvlc_media_list.h
@@ -71,7 +70,6 @@ src/config/core.c
 src/config/file.c
 src/config/help.c
 src/config/intf.c
-src/config/keys.c
 src/darwin/error.c
 src/extras/libc.c
 src/extras/tdestroy.c
@@ -81,7 +79,6 @@ src/input/clock.h
 src/input/control.c
 src/input/decoder.c
 src/input/decoder.h
-src/input/decoder_synchro.c
 src/input/demux.c
 src/input/demux.h
 src/input/es_out.c
@@ -102,6 +99,7 @@ src/interface/interface.c
 src/libvlc.c
 src/libvlc.h
 src/libvlc-module.c
+src/misc/actions.c
 src/misc/block.c
 src/misc/cpu.c
 src/misc/error.c
@@ -175,7 +173,6 @@ lib/vlm.c
 
 # modules
 modules/access/alsa.c
-modules/access/archive/archive.c
 modules/access/attachment.c
 modules/access/avio.h
 modules/access/bluray.c
@@ -226,10 +223,6 @@ modules/access_output/livehttp.c
 modules/access_output/shout.c
 modules/access_output/udp.c
 modules/access/pulse.c
-modules/access/rar/access.c
-modules/access/rar/rar.c
-modules/access/rar/rar.h
-modules/access/rar/stream.c
 modules/access/rdp.c
 modules/access/rtp/input.c
 modules/access/rtp/rtp.c
@@ -269,7 +262,6 @@ modules/access/vcd/vcd.c
 modules/access/vdr.c
 modules/access/vnc.c
 modules/access/wasapi.c
-modules/access/zip/zipstream.c
 modules/arm_neon/chroma_yuv.c
 modules/arm_neon/volume.c
 modules/arm_neon/yuv_rgb.c
@@ -279,6 +271,7 @@ modules/audio_filter/channel_mixer/headphone.c
 modules/audio_filter/channel_mixer/mono.c
 modules/audio_filter/channel_mixer/remap.c
 modules/audio_filter/channel_mixer/simple.c
+modules/audio_filter/channel_mixer/spatialaudio.cpp
 modules/audio_filter/channel_mixer/trivial.c
 modules/audio_filter/chorus_flanger.c
 modules/audio_filter/compressor.c
@@ -311,7 +304,6 @@ modules/audio_mixer/integer.c
 modules/audio_output/adummy.c
 modules/audio_output/alsa.c
 modules/audio_output/amem.c
-modules/audio_output/audioqueue.c
 modules/audio_output/audiotrack.c
 modules/audio_output/audiounit_ios.m
 modules/audio_output/auhal.c
@@ -319,6 +311,7 @@ modules/audio_output/directsound.c
 modules/audio_output/file.c
 modules/audio_output/jack.c
 modules/audio_output/kai.c
+modules/audio_output/mmdevice.c
 modules/audio_output/opensles_android.c
 modules/audio_output/oss.c
 modules/audio_output/pulse.c
@@ -342,7 +335,6 @@ modules/codec/avcodec/dxva2.c
 modules/codec/avcodec/encoder.c
 modules/codec/avcodec/fourcc.c
 modules/codec/avcodec/vaapi.c
-modules/codec/avcodec/vda.c
 modules/codec/avcodec/video.c
 modules/codec/bpg.c
 modules/codec/cc.c
@@ -453,6 +445,7 @@ modules/demux/caf.c
 modules/demux/cdg.c
 modules/demux/demuxdump.c
 modules/demux/dirac.c
+modules/demux/filter/noseek.c
 modules/demux/flac.c
 modules/demux/gme.c
 modules/demux/image.c
@@ -477,7 +470,6 @@ modules/demux/mkv/util.hpp
 modules/demux/mkv/virtual_segment.cpp
 modules/demux/mkv/virtual_segment.hpp
 modules/demux/mod.c
-modules/demux/mp4/id3genres.h
 modules/demux/mp4/libmp4.c
 modules/demux/mp4/libmp4.h
 modules/demux/mp4/mp4.c
@@ -496,7 +488,6 @@ modules/demux/ogg.c
 modules/demux/playlist/asx.c
 modules/demux/playlist/b4s.c
 modules/demux/playlist/dvb.c
-modules/demux/playlist/gvp.c
 modules/demux/playlist/ifo.c
 modules/demux/playlist/itml.c
 modules/demux/playlist/itml.h
@@ -542,8 +533,6 @@ modules/gui/macosx/VLCAudioEffectsWindowController.h
 modules/gui/macosx/VLCAudioEffectsWindowController.m
 modules/gui/macosx/VLCBookmarksWindowController.h
 modules/gui/macosx/VLCBookmarksWindowController.m
-modules/gui/macosx/BWQuincyUI.h
-modules/gui/macosx/BWQuincyUI.m
 modules/gui/macosx/VLCControlsBarCommon.h
 modules/gui/macosx/VLCControlsBarCommon.m
 modules/gui/macosx/VLCConvertAndSaveWindowController.h
@@ -552,6 +541,8 @@ modules/gui/macosx/VLCCoreDialogProvider.h
 modules/gui/macosx/VLCCoreDialogProvider.m
 modules/gui/macosx/VLCCoreInteraction.h
 modules/gui/macosx/VLCCoreInteraction.m
+modules/gui/macosx/VLCErrorWindowController.h
+modules/gui/macosx/VLCErrorWindowController.m
 modules/gui/macosx/VLCExtensionsDialogProvider.h
 modules/gui/macosx/VLCExtensionsDialogProvider.m
 modules/gui/macosx/VLCExtensionsManager.h
@@ -590,8 +581,10 @@ modules/gui/macosx/prefs_widgets.h
 modules/gui/macosx/prefs_widgets.m
 modules/gui/macosx/VLCResumeDialogController.h
 modules/gui/macosx/VLCResumeDialogController.m
-modules/gui/macosx/simple_prefs.h
-modules/gui/macosx/simple_prefs.m
+modules/gui/macosx/VLCRendererMenuController.h
+modules/gui/macosx/VLCRendererMenuController.m
+modules/gui/macosx/VLCSimplePrefsController.h
+modules/gui/macosx/VLCSimplePrefsController.m
 modules/gui/macosx/VLCStringUtility.h
 modules/gui/macosx/VLCStringUtility.m
 modules/gui/macosx/VLCTrackSynchronizationWindowController.h
@@ -925,6 +918,7 @@ modules/hw/vdpau/chroma.c
 modules/hw/vdpau/deinterlace.c
 modules/hw/vdpau/display.c
 modules/hw/vdpau/sharpen.c
+modules/hw/vaapi/filters.c
 modules/keystore/keychain.m
 modules/lua/demux.c
 modules/lua/intf.c
@@ -953,6 +947,7 @@ modules/lua/meta.c
 modules/lua/vlc.c
 modules/lua/vlc.h
 modules/meta_engine/folder.c
+modules/meta_engine/ID3Genres.h
 modules/meta_engine/taglib.cpp
 modules/misc/audioscrobbler.c
 modules/misc/gnutls.c
@@ -1019,6 +1014,7 @@ modules/spu/mosaic.c
 modules/spu/remoteosd.c
 modules/spu/rss.c
 modules/spu/subsdelay.c
+modules/stream_extractor/archive.c
 modules/stream_filter/adf.c
 modules/stream_filter/aribcam.c
 modules/stream_filter/cache_block.c
@@ -1028,6 +1024,7 @@ modules/stream_filter/hds/hds.c
 modules/stream_filter/inflate.c
 modules/stream_filter/prefetch.c
 modules/stream_filter/record.c
+modules/stream_filter/skiptags.c
 modules/stream_out/autodel.c
 modules/stream_out/bridge.c
 modules/stream_out/cycle.c
@@ -1057,7 +1054,7 @@ modules/text_renderer/sapi.cpp
 modules/text_renderer/svg.c
 modules/text_renderer/tdummy.c
 modules/video_chroma/chain.c
-modules/video_chroma/cvpx_i420.c
+modules/video_chroma/cvpx.c
 modules/video_chroma/d3d11_surface.c
 modules/video_chroma/dxa9.c
 modules/video_chroma/grey_yuv.c
@@ -1130,14 +1127,17 @@ modules/video_output/android/window.c
 modules/video_output/caca.c
 modules/video_output/caopengllayer.m
 modules/video_output/decklink.cpp
-modules/video_output/directfb.c
 modules/video_output/drawable.c
 modules/video_output/evas.c
 modules/video_output/fb.c
 modules/video_output/glx.c
-modules/video_output/ios2.m
+modules/video_output/ios.m
 modules/video_output/kva.c
 modules/video_output/macosx.m
+modules/video_output/opengl/converter_android.c
+modules/video_output/opengl/converter_cvpx.c
+modules/video_output/opengl/converter_vaapi.c
+modules/video_output/opengl/converter_vdpau.c
 modules/video_output/opengl/display.c
 modules/video_output/opengl/egl.c
 modules/video_output/win32/direct3d9.c
@@ -1146,7 +1146,6 @@ modules/video_output/win32/directdraw.c
 modules/video_output/win32/events.c
 modules/video_output/win32/glwin32.c
 modules/video_output/win32/wingdi.c
-modules/video_output/sdl.c
 modules/video_output/vdummy.c
 modules/video_output/vmem.c
 modules/video_output/wayland/shell.c

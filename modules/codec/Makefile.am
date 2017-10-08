@@ -40,7 +40,7 @@ libaraw_plugin_la_SOURCES = codec/araw.c
 libaraw_plugin_la_LIBADD = $(LIBM)
 codec_LTLIBRARIES += libaraw_plugin.la
 
-libfaad_plugin_la_SOURCES = codec/faad.c
+libfaad_plugin_la_SOURCES = codec/faad.c packetizer/mpeg4audio.h
 libfaad_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) $(CPPFLAGS_faad)
 libfaad_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'
 libfaad_plugin_la_LIBADD = $(LIBS_faad) $(LIBM)
@@ -99,7 +99,8 @@ codec_LTLIBRARIES += $(LTLIBwma_fixed)
 libcdg_plugin_la_SOURCES = codec/cdg.c
 codec_LTLIBRARIES += libcdg_plugin.la
 
-liblibmpeg2_plugin_la_SOURCES = codec/libmpeg2.c
+liblibmpeg2_plugin_la_SOURCES = codec/libmpeg2.c \
+	codec/synchro.c codec/synchro.h
 liblibmpeg2_plugin_la_CFLAGS = $(AM_CFLAGS) $(CFLAGS_libmpeg2)
 liblibmpeg2_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'
 liblibmpeg2_plugin_la_LIBADD = $(LIBS_libmpeg2)
@@ -144,7 +145,7 @@ EXTRA_LTLIBRARIES += libbpg_plugin.la
 codec_LTLIBRARIES += $(LTLIBbpg)
 
 libsvgdec_plugin_la_SOURCES = codec/svg.c
-libsvgdec_plugin_la_CFLAGS = $(AM_CLAGS) $(CFLAGS_svgdec)
+libsvgdec_plugin_la_CFLAGS = $(AM_CFLAGS) $(CFLAGS_svgdec)
 libsvgdec_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'  $(LDFLAGS_svg)
 libsvgdec_plugin_la_LIBADD = $(LIBS_svgdec)
 EXTRA_LTLIBRARIES += libsvgdec_plugin.la
@@ -315,9 +316,14 @@ liboggspots_plugin_la_LIBADD = $(OGGSPOTS_LIBS)
 EXTRA_LTLIBRARIES += liboggspots_plugin.la
 codec_LTLIBRARIES += $(LTLIBoggspots)
 
-libvideotoolbox_plugin_la_SOURCES = video_chroma/copy.c video_chroma/copy.h codec/videotoolbox.m \
-                                    packetizer/h264_nal.c packetizer/h264_nal.h \
-                                    packetizer/hxxx_nal.c packetizer/hxxx_nal.h
+libvideotoolbox_plugin_la_SOURCES = video_chroma/copy.c video_chroma/copy.h \
+	codec/vt_utils.c codec/vt_utils.h \
+	codec/videotoolbox.m codec/hxxx_helper.c codec/hxxx_helper.h \
+	packetizer/hxxx_nal.h packetizer/hxxx_nal.c \
+	packetizer/hxxx_sei.h packetizer/hxxx_sei.c \
+	packetizer/h264_slice.c packetizer/h264_slice.h \
+	packetizer/h264_nal.c packetizer/h264_nal.h \
+	packetizer/hevc_nal.c packetizer/hevc_nal.h
 if HAVE_OSX
 libvideotoolbox_plugin_la_OBJCFLAGS = $(AM_CFLAGS) -mmacosx-version-min=10.8
 endif
@@ -369,32 +375,29 @@ endif
 ### avcodec hardware acceleration ###
 
 libvaapi_drm_plugin_la_SOURCES = \
-	video_chroma/copy.c video_chroma/copy.h \
-	codec/avcodec/vaapi.c
+	codec/avcodec/vaapi.c hw/vaapi/vlc_vaapi.c hw/vaapi/vlc_vaapi.h
 libvaapi_drm_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -DVLC_VA_BACKEND_DRM
 libvaapi_drm_plugin_la_CFLAGS = $(AM_CFLAGS) \
 	$(LIBVA_DRM_CFLAGS) $(AVCODEC_CFLAGS)
 libvaapi_drm_plugin_la_LIBADD = $(LIBVA_DRM_LIBS)
-libvaapi_x11_plugin_la_SOURCES = \
-	video_chroma/copy.c video_chroma/copy.h \
-	codec/avcodec/vaapi.c
-libvaapi_x11_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -DVLC_VA_BACKEND_XLIB
-libvaapi_x11_plugin_la_CFLAGS = $(AM_CFLAGS) \
-	$(LIBVA_X11_CFLAGS) $(X_CFLAGS) $(AVCODEC_CFLAGS)
-libvaapi_x11_plugin_la_LIBADD = $(LIBVA_X11_LIBS) $(X_LIBS) $(X_PRE_LIBS) -lX11
+libvaapi_plugin_la_SOURCES = \
+	codec/avcodec/vaapi.c hw/vaapi/vlc_vaapi.c hw/vaapi/vlc_vaapi.h
+libvaapi_plugin_la_CPPFLAGS = $(AM_CPPFLAGS)
+libvaapi_plugin_la_CFLAGS = $(AM_CFLAGS) $(AVCODEC_CFLAGS)
+libvaapi_plugin_la_LIBADD = $(LIBVA_LIBS)
 if HAVE_AVCODEC_VAAPI
 if HAVE_VAAPI_DRM
 codec_LTLIBRARIES += libvaapi_drm_plugin.la
 endif
-if HAVE_VAAPI_X11
-codec_LTLIBRARIES += libvaapi_x11_plugin.la
-endif
+codec_LTLIBRARIES += libvaapi_plugin.la
 endif
 
 libdxva2_plugin_la_SOURCES = \
 	codec/avcodec/dxva2.c codec/avcodec/directx_va.c codec/avcodec/directx_va.h \
+        codec/avcodec/va_surface.c codec/avcodec/va_surface.h codec/avcodec/va_surface_internal.h \
 	packetizer/h264_nal.c packetizer/h264_nal.h \
-	packetizer/hevc_nal.c packetizer/hevc_nal.h
+	packetizer/hevc_nal.c packetizer/hevc_nal.h \
+	video_chroma/d3d9_fmt.h
 libdxva2_plugin_la_LIBADD = $(LIBCOM) -lshlwapi -luuid
 if HAVE_AVCODEC_DXVA2
 codec_LTLIBRARIES += libdxva2_plugin.la
@@ -402,6 +405,7 @@ endif
 
 libd3d11va_plugin_la_SOURCES = \
 	codec/avcodec/d3d11va.c codec/avcodec/directx_va.c codec/avcodec/directx_va.h \
+        codec/avcodec/va_surface.c codec/avcodec/va_surface.h codec/avcodec/va_surface_internal.h \
 	video_chroma/d3d11_fmt.h video_chroma/dxgi_fmt.c video_chroma/dxgi_fmt.h \
 	packetizer/h264_nal.c packetizer/h264_nal.h \
 	packetizer/hevc_nal.c packetizer/hevc_nal.h
@@ -412,17 +416,6 @@ endif
 if HAVE_AVCODEC_D3D11VA
 codec_LTLIBRARIES += libd3d11va_plugin.la
 endif
-
-libvda_plugin_la_SOURCES = \
-	video_chroma/copy.c video_chroma/copy.h \
-	codec/avcodec/vda.c
-libvda_plugin_la_CFLAGS = $(AM_CFLAGS) $(AVCODEC_CFLAGS)
-libvda_plugin_la_LDFLAGS = -Wl,-framework,CoreFoundation,-framework,VideoDecodeAcceleration,-framework,QuartzCore
-libvda_plugin_la_LIBADD = $(AVCODEC_LIBS)
-if HAVE_AVCODEC_VDA
-codec_LTLIBRARIES += libvda_plugin.la
-endif
-
 
 ### OpenMAX ###
 
@@ -468,7 +461,9 @@ libmediacodec_plugin_la_SOURCES = codec/omxil/mediacodec.c codec/omxil/mediacode
 	video_chroma/copy.c \
 	video_output/android/utils.c video_output/android/utils.h \
 	video_output/android/display.h \
-	packetizer/hxxx_nal.h packetizer/h264_nal.c packetizer/h264_nal.h \
+	codec/hxxx_helper.c codec/hxxx_helper.h \
+	packetizer/hxxx_nal.h packetizer/hxxx_nal.c \
+	packetizer/h264_nal.c packetizer/h264_nal.h \
 	packetizer/hevc_nal.c packetizer/hevc_nal.h
 
 codec_LTLIBRARIES += $(LTLIBomxil) $(LTLIBomxil_vout)
@@ -480,9 +475,9 @@ endif
 
 ### X26x encoders ###
 
-libx265_plugin_la_SOURCES = codec/x265.c
+libx265_plugin_la_SOURCES = codec/x265.c dummy.cpp
 libx265_plugin_la_CPPFLAGS = $(AM_CPPFLAGS)
-libx265_plugin_la_CFLAGS = $(AM_CFLAGS) $(CFLAGS_x265)
+libx265_plugin_la_CXXFLAGS = $(AM_CFLAGS) $(CFLAGS_x265)
 libx265_plugin_la_LDFLAGS = $(AM_LDFLAGS) $(LDFLAGS_x265) -rpath '$(codecdir)'
 libx265_plugin_la_LIBADD = $(LIBS_x265)
 EXTRA_LTLIBRARIES += libx265_plugin.la

@@ -248,7 +248,7 @@ static int Demux( demux_t *p_demux )
         bool b_data = Block_Dequeue( p_demux, p_sys->i_time + CHUNK );
 
         p_sys->i_time += CHUNK;
-        es_out_Control( p_demux->out, ES_OUT_SET_PCR, VLC_TS_0 + p_sys->i_time );
+        es_out_SetPCR( p_demux->out, VLC_TS_0 + p_sys->i_time );
 #ifdef ASF_DEBUG
         msg_Dbg( p_demux, "Demux Loop Setting PCR to %"PRId64, VLC_TS_0 + p_sys->i_time );
 #endif
@@ -266,7 +266,7 @@ static int Demux( demux_t *p_demux )
                     vlc_dialog_display_error( p_demux,
                         _("Could not demux ASF stream"), "%s",
                         _("VLC failed to load the ASF header.") );
-                    return 0;
+                    return VLC_DEMUXER_EOF;
                 }
                 es_out_Control( p_demux->out, ES_OUT_RESET_PCR );
             }
@@ -423,12 +423,12 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
     switch( i_query )
     {
     case DEMUX_GET_LENGTH:
-        pi64 = (int64_t*)va_arg( args, int64_t * );
+        pi64 = va_arg( args, int64_t * );
         *pi64 = p_sys->i_length;
         return VLC_SUCCESS;
 
     case DEMUX_GET_TIME:
-        pi64 = (int64_t*)va_arg( args, int64_t * );
+        pi64 = va_arg( args, int64_t * );
         if( p_sys->i_time < 0 ) return VLC_EGENERIC;
         *pi64 = p_sys->i_time;
         return VLC_SUCCESS;
@@ -444,7 +444,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         {
             va_list acpy;
             va_copy( acpy, args );
-            i64 = (int64_t)va_arg( acpy, int64_t );
+            i64 = va_arg( acpy, int64_t );
             va_end( acpy );
 
             if( !SeekIndex( p_demux, i64, -1 ) )
@@ -454,7 +454,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
     case DEMUX_SET_ES:
     {
-        i = (int)va_arg( args, int );
+        i = va_arg( args, int );
         int i_ret;
         if ( i >= 0 )
         {
@@ -482,13 +482,10 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
                 for( int j = 0; j < MAX_ASF_TRACKS ; j++ )
                 {
                     tk = p_sys->track[j];
-                    if( !tk->p_fmt || tk->p_fmt->i_cat != -1 * i )
+                    if( !tk || !tk->p_fmt || tk->i_cat != -1 * i )
                         continue;
-                    if( tk )
-                    {
-                        FlushQueue( tk );
-                        tk->i_time = -1;
-                    }
+                    FlushQueue( tk );
+                    tk->i_time = -1;
                 }
             }
 
@@ -503,7 +500,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         if( p_sys->i_time < 0 ) return VLC_EGENERIC;
         if( p_sys->i_length > 0 )
         {
-            pf = (double*)va_arg( args, double * );
+            pf = va_arg( args, double * );
             *pf = p_sys->i_time / (double)p_sys->i_length;
             return VLC_SUCCESS;
         }
@@ -525,7 +522,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         {
             va_list acpy;
             va_copy( acpy, args );
-            f = (double)va_arg( acpy, double );
+            f = va_arg( acpy, double );
             va_end( acpy );
 
             if( !SeekIndex( p_demux, -1, f ) )
@@ -534,7 +531,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         return SeekPercent( p_demux, i_query, args );
 
     case DEMUX_GET_META:
-        p_meta = (vlc_meta_t*)va_arg( args, vlc_meta_t* );
+        p_meta = va_arg( args, vlc_meta_t * );
         vlc_meta_Merge( p_meta, p_sys->meta );
         return VLC_SUCCESS;
 
@@ -542,12 +539,11 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         if ( p_sys->p_fp &&
              ! ( p_sys->p_fp->i_flags & ASF_FILE_PROPERTIES_SEEKABLE ) )
         {
-            bool *pb_bool = (bool*)va_arg( args, bool * );
+            bool *pb_bool = va_arg( args, bool * );
             *pb_bool = false;
             return VLC_SUCCESS;
         }
-        // ft
-
+        /* fall through */
     default:
         return demux_vaControlHelper( p_demux->s,
                                       __MIN( INT64_MAX, p_sys->i_data_begin ),
@@ -682,7 +678,7 @@ static bool Block_Dequeue( demux_t *p_demux, mtime_t i_nexttime )
 
             if( p_sys->i_time < VLC_TS_0 )
             {
-                es_out_Control( p_demux->out, ES_OUT_SET_PCR, VLC_TS_0 + p_sys->i_time );
+                es_out_SetPCR( p_demux->out, VLC_TS_0 + p_sys->i_time );
 #ifdef ASF_DEBUG
                 msg_Dbg( p_demux, "    dequeue setting PCR to %"PRId64, VLC_TS_0 + p_sys->i_time );
 #endif
@@ -879,6 +875,8 @@ static int DemuxInit( demux_t *p_demux )
         p_esp = NULL;
 
         tk = p_sys->track[p_sp->i_stream_number] = malloc( sizeof( asf_track_t ) );
+        if (!tk)
+            goto error;
         memset( tk, 0, sizeof( asf_track_t ) );
 
         tk->i_time = -1;
@@ -962,9 +960,8 @@ static int DemuxInit( demux_t *p_demux )
                 memcpy( fmt.p_extra, &p_data[sizeof( WAVEFORMATEX )],
                         fmt.i_extra );
             }
-
-            msg_Dbg( p_demux, "added new audio stream(codec:0x%x,ID:%d)",
-                    GetWLE( p_data ), p_sp->i_stream_number );
+            msg_Dbg( p_demux, "added new audio stream (codec:%4.4s(0x%x),ID:%d)",
+                (char*)&fmt.i_codec, GetWLE( p_data ), p_sp->i_stream_number );
         }
         else if( guidcmp( &p_sp->i_stream_type,
                               &asf_object_stream_type_video ) &&
@@ -1048,8 +1045,8 @@ static int DemuxInit( demux_t *p_demux )
             /* If there is a video track then use the index for seeking */
             p_sys->b_index = b_index;
 
-            msg_Dbg( p_demux, "added new video stream(ID:%d)",
-                     p_sp->i_stream_number );
+            msg_Dbg( p_demux, "added new video stream(codec:%4.4s,ID:%d)",
+                     (char*)&fmt.i_codec, p_sp->i_stream_number );
         }
         else if( guidcmp( &p_sp->i_stream_type, &asf_object_stream_type_binary ) &&
             p_sp->i_type_specific_data_length >= 64 )
@@ -1114,8 +1111,8 @@ static int DemuxInit( demux_t *p_demux )
                         fmt.i_extra = 0;
                 }
 
-                msg_Dbg( p_demux, "added new audio stream (codec:0x%x,ID:%d)",
-                    i_format, p_sp->i_stream_number );
+                msg_Dbg( p_demux, "added new audio stream (codec:%4.4s(0x%x),ID:%d)",
+                    (char*)&fmt.i_codec, i_format, p_sp->i_stream_number );
             }
             else
             {
@@ -1132,10 +1129,9 @@ static int DemuxInit( demux_t *p_demux )
             fmt.i_original_fourcc = VLC_FOURCC( 'D','V','R',' ');
             fmt.b_packetized = false;
         }
-        else
-        {
-            fmt.b_packetized = true;
-        }
+
+        if( fmt.i_codec == VLC_CODEC_MP4A )
+            fmt.b_packetized = false;
 
         tk->i_cat = tk->info.i_cat = fmt.i_cat;
         if( fmt.i_cat != UNKNOWN_ES )
@@ -1298,6 +1294,7 @@ static int DemuxInit( demux_t *p_demux )
             else set_meta( "WM/Genre",        vlc_meta_Genre )
             else set_meta( "WM/AlbumArtist",  vlc_meta_Artist )
             else set_meta( "WM/Publisher",    vlc_meta_Publisher )
+            else set_meta( "WM/PartOfSet",    vlc_meta_DiscNumber )
             else if( p_ecd->ppsz_value[i] != NULL && p_ecd->ppsz_name[i] &&
                     *p_ecd->ppsz_value[i] != '\0' && /* no empty value */
                     *p_ecd->ppsz_value[i] != '{'  && /* no guid value */
@@ -1346,7 +1343,7 @@ static int DemuxInit( demux_t *p_demux )
     return VLC_SUCCESS;
 
 error:
-    ASF_FreeObjectRoot( p_demux->s, p_sys->p_root );
+    DemuxEnd( p_demux );
     return VLC_EGENERIC;
 }
 

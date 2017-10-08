@@ -70,7 +70,7 @@ static int  Decode( decoder_t *, block_t * );
 vlc_module_begin ()
     set_description( N_("Teletext subtitles decoder") )
     set_shortname( "Teletext" )
-    set_capability( "decoder", 50 )
+    set_capability( "spu decoder", 50 )
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_SCODEC )
     set_callbacks( Open, Close )
@@ -183,7 +183,6 @@ static int Open( vlc_object_t *p_this )
     p_sys = p_dec->p_sys = calloc( 1, sizeof(*p_sys) );
     if( p_sys == NULL )
         return VLC_ENOMEM;
-    p_dec->fmt_out.i_cat = SPU_ES;
     p_dec->fmt_out.i_codec = 0;
 
     p_sys->i_align = 0;
@@ -443,7 +442,7 @@ static int Decode( decoder_t *p_dec, block_t *p_block )
     bool b_update = false;
     char psz_text[512], *pt = psz_text;
     char psz_line[256];
-    int i, total;
+    int total;
 
     if( p_block == NULL ) /* No Drain */
         return VLCDEC_SUCCESS;
@@ -648,7 +647,7 @@ static int Decode( decoder_t *p_dec, block_t *p_block )
         goto error;
 
     total = 0;
-    for ( i = 1; i < 24; i++ )
+    for ( int i = 1; i < 24; i++ )
     {
         size_t l = strlen( p_sys->ppsz_lines[i] );
 

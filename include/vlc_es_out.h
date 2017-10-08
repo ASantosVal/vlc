@@ -35,14 +35,18 @@
 
 enum es_out_query_e
 {
-    /* set ES selected for the es category (audio/video/spu) */
+    /* set or change the selected ES in its category (audio/video/spu) */
     ES_OUT_SET_ES,      /* arg1= es_out_id_t*                   */
     ES_OUT_RESTART_ES,  /* arg1= es_out_id_t*                   */
+    /* Restart all ES, destroying and recreating decoder/sout and potential
+     * video/audio outputs. This is not recommended and might not even work */
+    ES_OUT_RESTART_ALL_ES, /* No arg */
 
     /* set 'default' tag on ES (copied across from container) */
     ES_OUT_SET_ES_DEFAULT, /* arg1= es_out_id_t*                */
 
-    /* force selection/unselection of the ES (bypass current mode) */
+    /* force (un)selection of the ES (bypass current mode)
+       XXX: this will not change the state of any other ES ! (see SET_ES) */
     ES_OUT_SET_ES_STATE,/* arg1= es_out_id_t* arg2=bool   */
     ES_OUT_GET_ES_STATE,/* arg1= es_out_id_t* arg2=bool*  */
 
@@ -93,6 +97,8 @@ enum es_out_query_e
     /* PCR system clock manipulation for external clock synchronization */
     ES_OUT_GET_PCR_SYSTEM, /* arg1=mtime_t *, arg2=mtime_t * res=can fail */
     ES_OUT_MODIFY_PCR_SYSTEM, /* arg1=int is_absolute, arg2=mtime_t, res=can fail */
+
+    ES_OUT_POST_SUBNODE, /* arg1=input_item_node_t *, res=can fail */
 
     /* First value usable for private control */
     ES_OUT_PRIVATE_START = 0x10000,
@@ -151,6 +157,11 @@ static inline int es_out_Control( es_out_t *out, int i_query, ... )
 static inline void es_out_Delete( es_out_t *p_out )
 {
     p_out->pf_destroy( p_out );
+}
+
+static inline int es_out_SetPCR( es_out_t *out, int64_t pcr )
+{
+    return es_out_Control( out, ES_OUT_SET_PCR, pcr );
 }
 
 static inline int es_out_ControlSetMeta( es_out_t *out, const vlc_meta_t *p_meta )

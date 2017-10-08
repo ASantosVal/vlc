@@ -77,6 +77,8 @@ struct filter_t
     es_format_t         fmt_out;
     bool                b_allow_fmt_out_change;
 
+    /* Name of the "video filter" shortcut that is requested, can be NULL */
+    const char *        psz_name;
     /* Filter configuration */
     config_chain_t *    p_cfg;
 
@@ -115,6 +117,14 @@ struct filter_t
      * Flush (i.e. discard) any internal buffer in a video or audio filter.
      */
     void (*pf_flush)( filter_t * );
+
+    /** Change viewpoint
+     *
+     * Pass a new viewpoint to audio filters. Filters like the spatialaudio one
+     * used for Ambisonics rendering will change its output according to this
+     * viewpoint.
+     */
+    void (*pf_change_viewpoint)( filter_t *, const vlc_viewpoint_t * );
 
     union
     {
@@ -169,6 +179,13 @@ static inline void filter_Flush( filter_t *p_filter )
         p_filter->pf_flush( p_filter );
 }
 
+static inline void filter_ChangeViewpoint( filter_t *p_filter,
+                                           const vlc_viewpoint_t *vp)
+{
+    if( p_filter->pf_change_viewpoint != NULL )
+        p_filter->pf_change_viewpoint( p_filter, vp );
+}
+
 /**
  * This function will drain, then flush an audio filter.
  */
@@ -211,6 +228,29 @@ static inline int filter_GetInputAttachments( filter_t *p_filter,
     return p_filter->pf_get_attachments( p_filter,
                                          ppp_attachment, pi_attachment );
 }
+
+/**
+ * This function duplicates every variables from the filter, and adds a proxy
+ * callback to trigger filter events from obj.
+ *
+ * \param restart_cb a vlc_callback_t to call if the event means restarting the
+ * filter (i.e. an event on a non-command variable)
+ */
+VLC_API void filter_AddProxyCallbacks( vlc_object_t *obj, filter_t *filter,
+                                       vlc_callback_t restart_cb );
+# define filter_AddProxyCallbacks(a, b, c) \
+    filter_AddProxyCallbacks(VLC_OBJECT(a), b, c)
+
+/**
+ * This function removes the callbacks previously added to every duplicated
+ * variables, and removes them afterward.
+ *
+ * \param restart_cb the same vlc_callback_t passed to filter_AddProxyCallbacks
+ */
+VLC_API void filter_DelProxyCallbacks( vlc_object_t *obj, filter_t *filter,
+                                       vlc_callback_t restart_cb);
+# define filter_DelProxyCallbacks(a, b, c) \
+    filter_DelProxyCallbacks(VLC_OBJECT(a), b, c)
 
 /**
  * It creates a blend filter.
@@ -273,9 +313,9 @@ typedef struct filter_chain_t filter_chain_t;
  * \param psz_capability vlc capability of filters in filter chain
  * \return pointer to a filter chain
  */
-filter_chain_t * filter_chain_New( vlc_object_t *, const char * )
+filter_chain_t * filter_chain_New( vlc_object_t *, const char *, enum es_format_category_e )
 VLC_USED;
-#define filter_chain_New( a, b ) filter_chain_New( VLC_OBJECT( a ), b )
+#define filter_chain_New( a, b, c ) filter_chain_New( VLC_OBJECT( a ), b, c )
 
 /**
  * Creates a new video filter chain.
@@ -304,8 +344,8 @@ VLC_API void filter_chain_Delete( filter_chain_t * );
  * reset p_fmt_in and p_fmt_out to the new values.
  *
  * \param p_chain pointer to filter chain
- * \param p_fmt_in new fmt_in params
- * \param p_fmt_out new fmt_out params
+ * \param p_fmt_in new fmt_in params, may be NULL to leave input fmt unchanged
+ * \param p_fmt_out new fmt_out params, may be NULL to leave output fmt unchanged
  */
 VLC_API void filter_chain_Reset( filter_chain_t *, const es_format_t *, const es_format_t * );
 
@@ -355,12 +395,12 @@ VLC_API void filter_chain_DeleteFilter(filter_chain_t *chain,
                                        filter_t *filter);
 
 /**
- * Get the number of filters in the filter chain.
+ * Checks if the filter chain is empty.
  *
  * \param chain pointer to filter chain
- * \return number of filters in this filter chain
+ * \return true if and only if there are no filters in this filter chain
  */
-VLC_API int filter_chain_GetLength(filter_chain_t *chain);
+VLC_API bool filter_chain_IsEmpty(const filter_chain_t *chain);
 
 /**
  * Get last output format of the last element in the filter chain.

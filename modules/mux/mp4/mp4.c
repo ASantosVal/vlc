@@ -372,12 +372,12 @@ static int Control(sout_mux_t *p_mux, int i_query, va_list args)
     switch(i_query)
     {
     case MUX_CAN_ADD_STREAM_WHILE_MUXING:
-        pb_bool = (bool*)va_arg(args, bool *);
+        pb_bool = va_arg(args, bool *);
         *pb_bool = false;
         return VLC_SUCCESS;
 
     case MUX_GET_ADD_STREAM_WAIT:
-        pb_bool = (bool*)va_arg(args, bool *);
+        pb_bool = va_arg(args, bool *);
         *pb_bool = true;
         return VLC_SUCCESS;
 
@@ -578,6 +578,11 @@ static block_t * BlockDequeue(sout_input_t *p_input, mp4_stream_t *p_stream)
     return p_block;
 }
 
+static inline mtime_t dts_fb_pts( const block_t *p_data )
+{
+    return p_data->i_dts > VLC_TS_INVALID ? p_data->i_dts: p_data->i_pts;
+}
+
 static int Mux(sout_mux_t *p_mux)
 {
     sout_mux_sys_t *p_sys = p_mux->p_sys;
@@ -619,9 +624,9 @@ static int Mux(sout_mux_t *p_mux)
         /* Set current segment ranges */
         if( p_stream->i_first_dts == VLC_TS_INVALID )
         {
-            p_stream->i_first_dts = p_data->i_dts;
+            p_stream->i_first_dts = dts_fb_pts( p_data );
             if( p_sys->i_start_dts == VLC_TS_INVALID )
-                p_sys->i_start_dts = p_data->i_dts;
+                p_sys->i_start_dts = p_stream->i_first_dts;
         }
 
         if (p_stream->mux.fmt.i_cat != SPU_ES) {
@@ -635,6 +640,8 @@ static int Mux(sout_mux_t *p_mux)
                         p_data->i_length = CLOCK_FREQ *
                                            p_stream->mux.fmt.video.i_frame_rate_base /
                                            p_stream->mux.fmt.video.i_frame_rate;
+                        if( p_data->i_flags & BLOCK_FLAG_SINGLE_FIELD )
+                            p_data->i_length >>= 1;
                         msg_Dbg( p_mux, "video track %u fixup to %"PRId64" for sample %u",
                                  p_stream->mux.i_track_id, p_data->i_length, p_stream->mux.i_entry_count );
                     }
@@ -656,7 +663,7 @@ static int Mux(sout_mux_t *p_mux)
                 }
                 else
                 {
-                    int64_t i_diff  = p_next->i_dts - p_data->i_dts;
+                    int64_t i_diff  = dts_fb_pts( p_next ) - dts_fb_pts( p_data );
                     if (i_diff < CLOCK_FREQ) /* protection */
                         p_data->i_length = i_diff;
                 }
@@ -676,7 +683,7 @@ static int Mux(sout_mux_t *p_mux)
         if (p_stream->mux.fmt.i_cat == SPU_ES && p_stream->mux.i_entry_count > 0)
         {
              /* length of previous spu, stored in spu clearer */
-            int64_t i_length = p_data->i_dts - p_stream->i_last_dts;
+            int64_t i_length = dts_fb_pts( p_data ) - p_stream->i_last_dts;
             if(i_length < 0)
                 i_length = 0;
             assert( p_stream->mux.entry[p_stream->mux.i_entry_count-1].i_length == 0 );
@@ -687,7 +694,7 @@ static int Mux(sout_mux_t *p_mux)
         }
 
         /* Update (Not earlier for SPU!) */
-        p_stream->i_last_dts = p_data->i_dts;
+        p_stream->i_last_dts = dts_fb_pts( p_data );
         if( p_data->i_pts > p_stream->i_last_pts )
             p_stream->i_last_pts = p_data->i_pts;
 
@@ -709,7 +716,7 @@ static int Mux(sout_mux_t *p_mux)
 
         /* update */
         p_stream->mux.i_read_duration += __MAX( 0, p_data->i_length );
-        p_stream->i_last_dts = p_data->i_dts;
+        p_stream->i_last_dts = dts_fb_pts( p_data );
 
         /* write data */
         p_sys->i_pos += p_data->i_buffer;

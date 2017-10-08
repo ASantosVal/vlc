@@ -135,7 +135,7 @@ Representation * M3U8Parser::createRepresentation(BaseAdaptationSet *adaptSet, c
         if(resAttr)
         {
             std::pair<int, int> res = resAttr->getResolution();
-            if(res.first * res.second)
+            if(res.first && res.second)
             {
                 rep->setWidth(res.first);
                 rep->setHeight(res.second);
@@ -179,7 +179,7 @@ bool M3U8Parser::appendSegmentsFromPlaylistURI(vlc_object_t *p_obj, Representati
     return false;
 }
 
-void M3U8Parser::parseSegments(vlc_object_t *p_obj, Representation *rep, const std::list<Tag *> &tagslist)
+void M3U8Parser::parseSegments(vlc_object_t *, Representation *rep, const std::list<Tag *> &tagslist)
 {
     SegmentList *segmentList = new (std::nothrow) SegmentList(rep);
 
@@ -235,10 +235,12 @@ void M3U8Parser::parseSegments(vlc_object_t *p_obj, Representation *rep, const s
 
                 if(ctx_extinf)
                 {
-                    if(ctx_extinf->getAttributeByName("DURATION"))
+                    const Attribute *attribute = ctx_extinf->getAttributeByName("DURATION");
+                    if(attribute)
                     {
-                        const mtime_t nzDuration = CLOCK_FREQ * ctx_extinf->getAttributeByName("DURATION")->floatingPoint();
-                        segment->duration.Set(ctx_extinf->getAttributeByName("DURATION")->floatingPoint() * (uint64_t) rep->getTimescale());
+                        const double duration = attribute->floatingPoint();
+                        const mtime_t nzDuration = CLOCK_FREQ * duration;
+                        segment->duration.Set(duration * (uint64_t) rep->getTimescale());
                         segment->startTime.Set(rep->getTimescale().ToScaled(nzStartTime));
                         nzStartTime += nzDuration;
                         totalduration += nzDuration;
@@ -309,17 +311,9 @@ void M3U8Parser::parseSegments(vlc_object_t *p_obj, Representation *rep, const s
                         keyurl.prepend(Helper::getDirectoryPath(rep->getPlaylistUrl().toString()).append("/"));
                     }
 
-                    block_t *p_block = Retrieve::HTTP(p_obj, keyurl.toString());
-                    if(p_block)
-                    {
-                        if(p_block->i_buffer == 16)
-                        {
-                            encryption.key.resize(16);
-                            memcpy(&encryption.key[0], p_block->p_buffer, 16);
-                        }
-                        block_Release(p_block);
-                    }
-
+                    M3U8 *m3u8 = dynamic_cast<M3U8 *>(rep->getPlaylist());
+                    if(likely(m3u8))
+                        encryption.key = m3u8->getEncryptionKey(keyurl.toString());
                     if(keytag->getAttributeByName("IV"))
                     {
                         encryption.iv.clear();
@@ -449,6 +443,7 @@ M3U8 * M3U8Parser::parse(vlc_object_t *p_object, stream_t *p_stream, const std::
         }
 
         /* Finally add all groups */
+        unsigned set_id = 1;
         std::map<std::string, AttributesTag *>::const_iterator groupsit;
         for(groupsit = groupsmap.begin(); groupsit != groupsmap.end(); ++groupsit)
         {
@@ -462,8 +457,22 @@ M3U8 * M3U8Parser::parse(vlc_object_t *p_object, stream_t *p_stream, const std::
                     altAdaptSet->addRepresentation(rep);
                 }
 
+                std::string desc;
+                if(pair.second->getAttributeByName("GROUP-ID"))
+                    desc = pair.second->getAttributeByName("GROUP-ID")->quotedString();
                 if(pair.second->getAttributeByName("NAME"))
-                   altAdaptSet->description.Set(pair.second->getAttributeByName("NAME")->quotedString());
+                {
+                    if(!desc.empty())
+                        desc += " ";
+                    desc += pair.second->getAttributeByName("NAME")->quotedString();
+                }
+
+                if(!desc.empty())
+                {
+                    altAdaptSet->description.Set(desc);
+                    altAdaptSet->setID(ID(desc));
+                }
+                else altAdaptSet->setID(ID(set_id++));
 
                 /* Subtitles unsupported for now */
                 if(pair.second->getAttributeByName("TYPE")->value != "AUDIO" &&

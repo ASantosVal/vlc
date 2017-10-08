@@ -287,21 +287,20 @@
         input_item_AddOption(p_input, [[NSString stringWithFormat:@"ttl=%@", [_streamTTLField stringValue]] UTF8String], VLC_INPUT_OPTION_TRUSTED);
 
     int returnValue;
-    returnValue = playlist_AddInput(p_playlist, p_input, PLAYLIST_STOP, true );
+    returnValue = playlist_AddInput(p_playlist, p_input, false, true );
 
     if (returnValue == VLC_SUCCESS) {
         /* let's "play" */
         PL_LOCK;
         playlist_item_t *p_item = playlist_ItemGetByInput(p_playlist, p_input);
-        playlist_Control(p_playlist, PLAYLIST_VIEWPLAY, pl_Locked, NULL,
-                         p_item);
+        playlist_ViewPlay(p_playlist, NULL, p_item);
         PL_UNLOCK;
     }
     else
         msg_Err(getIntf(), "CAS: playlist add input failed :(");
 
     /* we're done with this input */
-    vlc_gc_decref(p_input);
+    input_item_Release(p_input);
 
     [self.window performClose:sender];
 }

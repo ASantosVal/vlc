@@ -39,7 +39,7 @@
 
 #import <QuartzCore/QuartzCore.h>
 
-#import <vlc_keys.h>
+#import <vlc_actions.h>
 
 
 /*****************************************************************************
@@ -82,6 +82,13 @@
     f_cumulated_magnification = 0.0;
 
     return self;
+}
+
+- (void)drawRect:(NSRect)rect
+{
+    // Draw black area in case first frame is not drawn yet
+    [[NSColor blackColor] setFill];
+    NSRectFill(rect);
 }
 
 - (void)addVoutLayer:(CALayer *)aLayer
@@ -334,7 +341,12 @@
 
 - (BOOL)mouseDownCanMoveWindow
 {
-    return NO;
+    if (p_vout) {
+        bool b_vrnav_can_change = var_GetBool(p_vout, "viewpoint-changeable");
+        return !b_vrnav_can_change;
+    }
+
+    return YES;
 }
 
 - (BOOL)acceptsFirstResponder

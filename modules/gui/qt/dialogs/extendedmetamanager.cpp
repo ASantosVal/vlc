@@ -96,7 +96,6 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.pushButton_clearTable->setToolTip(clearTable_tip);
     ui.pushButton_cancel->setToolTip(cancel_tip);
     ui.progressBar_search->setToolTip(progressBar_tip);
-    ui.checkBox_acoustid->setToolTip(acoustid_tip);
     ui.checkBox_disableFastSearch->setToolTip(disableFastSearch_tip);
     art_cover->setToolTip(artwork_tip);
 
@@ -117,7 +116,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
 /* Destructor */
 ExtMetaManagerDialog::~ExtMetaManagerDialog()
 {
-    msg_Dbg( p_intf, "[EMM_Dialog] Destructing" );
+    msg_Dbg( p_intf, "[EMM_Dialog] Destroying" );
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
 
@@ -197,6 +196,11 @@ void ExtMetaManagerDialog::getFromPlaylist()
         }
     }
 
+    /* If table is empty, show warning */
+    if (ui.tableWidget_metadata->rowCount()<1){
+        emptyPlaylistDialog();
+    }
+
     /* Always unlock the playlist */
     playlist_Unlock(THEPL);
 }
@@ -257,16 +261,14 @@ void ExtMetaManagerDialog::searchNow()
 {
     msg_Dbg( p_intf, "[EMM_Dialog] searchNow" );
 
-    if (ui.checkBox_acoustid->isChecked())
+
+    if (ui.checkBox_disableFastSearch->isChecked())
     {
-        if (ui.checkBox_disableFastSearch->isChecked())
-        {
-            fingerprintTable(false);
-        }
-        else
-        {
-            fingerprintTable(true);
-        }
+        fingerprintTable(false);
+    }
+    else
+    {
+        fingerprintTable(true);
     }
     // if (ui.checkBox_filenameAnalysis->isChecked()) //TODO: implement this
     // {
@@ -292,7 +294,7 @@ void ExtMetaManagerDialog::saveAll()
     /* Iterate over all the items on the table */
     int rows = ui.tableWidget_metadata->rowCount();
 
-    for(int row = 0;  row < rows; row++) //The list starts at 4 because the first 3 are not files
+    for(int row = 0;  row < rows; row++) //Iterate over the table
     {
         /* Check if the row is checked/selected and ignore if not */
         if (rowIsSelected(row))
@@ -360,13 +362,22 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     /* Get the number of items we'll be working with and if there are no
     items, finish */
     int rows = ui.tableWidget_metadata->rowCount();
-    if (rows == 0)
+    int selectedRowsCount=0;
+
+    for(int row = 0;  row < rows; row++) //Iterate over table
+    {
+        /* Check if the row is checked/selected and ignore if not */
+        if (rowIsSelected(row)){
+            selectedRowsCount++;
+        }
+    }
+    if (selectedRowsCount == 0)
         return;
 
     /* Calculate how much the progress bar will advance each step (progressBar
     goes from 0 to 100). Then progress variable is set to 0 and the widget is
     updated */
-    int progress_unit= 100/rows;
+    int progress_unit= 100/selectedRowsCount;
     int progress=0;
     ui.progressBar_search->setValue(progress);
 
@@ -398,10 +409,11 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
 
             /* Update the table with the new info */
             updateTableEntry(p_item, row);
+
+            /* Update the progress bar */
+            progress=progress+progress_unit; // Increase the progress
+            ui.progressBar_search->setValue(progress); // Update the progressBar
         }
-        /* Update the progress bar */
-        progress=progress+progress_unit; // Increase the progress
-        ui.progressBar_search->setValue(progress); // Update the progressBar
     }
 
     /* Lost decimals can cause the progress bar to not reach 100, so here is
@@ -416,7 +428,7 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
         if ( p_r ) fingerprint_request_Delete( p_r );
     }
 
-    /* We have finished, so we unlock al the table's signals. */
+    /* We have finished, so we unlock all the table's signals. */
     ui.tableWidget_metadata->blockSignals(false);
 }
 
@@ -685,8 +697,8 @@ void ExtMetaManagerDialog::helpDialog()
 
     QMessageBox::information(
       this,
-      tr("Help - Extended Metadata Manager"), //Title
-      tr(help_text) ); //Text
+      qtr("Help - Extended Metadata Manager"), //Title
+      help_text ); //Text
 }
 
 /* Launches the "About" dialog */
@@ -696,6 +708,17 @@ void ExtMetaManagerDialog::aboutDialog()
 
     QMessageBox::information(
       this,
-      tr("About - Extended Metadata Manager"), //Title
-      tr(about_text) ); //Text
+      qtr("About - Extended Metadata Manager"), //Title
+      about_text ); //Text
+}
+
+/* Launches the "Help" dialog */
+void ExtMetaManagerDialog::emptyPlaylistDialog()
+{
+    msg_Dbg( p_intf, "[EMM_Dialog] emptyPlaylistDialog" );
+
+    QMessageBox::information(
+      this,
+      qtr("Playlist empty! - Extended Metadata Manager"), //Title
+      emptyPlaylist_text ); //Text
 }

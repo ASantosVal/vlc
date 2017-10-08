@@ -143,7 +143,7 @@ enum stream_query_e
     STREAM_CAN_CONTROL_PACE,    /**< arg1= bool *   res=cannot fail*/
     /* */
     STREAM_GET_SIZE=6,          /**< arg1= uint64_t *     res=can fail */
-    STREAM_IS_DIRECTORY,        /**< arg1= bool *, res=can fail*/
+    STREAM_IS_DIRECTORY,        /**< res=can fail */
 
     /* */
     STREAM_GET_PTS_DELAY = 0x101,/**< arg1= int64_t* res=cannot fail */
@@ -153,6 +153,7 @@ enum stream_query_e
     STREAM_GET_META,        /**< arg1= vlc_meta_t *       res=can fail */
     STREAM_GET_CONTENT_TYPE,    /**< arg1= char **         res=can fail */
     STREAM_GET_SIGNAL,      /**< arg1=double *pf_quality, arg2=double *pf_strength   res=can fail */
+    STREAM_GET_TAGS,        /**< arg1=const block_t ** res=can fail */
 
     STREAM_SET_PAUSE_STATE = 0x200, /**< arg1= bool        res=can fail */
     STREAM_SET_TITLE,       /**< arg1= int          res=can fail */
@@ -315,6 +316,15 @@ static inline int64_t stream_Size( stream_t *s )
     return i_pos;
 }
 
+VLC_USED
+static inline bool stream_HasExtension( stream_t *s, const char *extension )
+{
+    const char *name = (s->psz_filepath != NULL) ? s->psz_filepath
+                                                 : s->psz_url;
+    const char *ext = strrchr( name, '.' );
+    return ext != NULL && !strcasecmp( ext, extension );
+}
+
 /**
  * Get the Content-Type of a stream, or NULL if unknown.
  * Result must be free()'d.
@@ -325,6 +335,40 @@ static inline char *stream_ContentType( stream_t *s )
     if( vlc_stream_Control( s, STREAM_GET_CONTENT_TYPE, &res ) )
         return NULL;
     return res;
+}
+
+/**
+ * Get the mime-type of a stream
+ *
+ * \warning the returned resource is to be freed by the caller
+ * \return the mime-type, or `NULL` if unknown
+ **/
+VLC_USED
+static inline char *stream_MimeType( stream_t *s )
+{
+    char* mime_type = stream_ContentType( s );
+
+    if( mime_type ) /* strip parameters */
+        mime_type[strcspn( mime_type, " ;" )] = '\0';
+
+    return mime_type;
+}
+
+/**
+ * Checks for a MIME type.
+ *
+ * Checks if the stream has a specific MIME type.
+ */
+VLC_USED
+static inline bool stream_IsMimeType(stream_t *s, const char *type)
+{
+    char *mime = stream_MimeType(s);
+    if (mime == NULL)
+        return false;
+
+    bool ok = !strcasecmp(mime, type);
+    free(mime);
+    return ok;
 }
 
 /**

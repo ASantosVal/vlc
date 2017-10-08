@@ -90,15 +90,15 @@ vlc_module_end ()
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-static ssize_t Read( access_t *, void *, size_t );
-static int Seek( access_t *, uint64_t );
-static int Control( access_t *, int, va_list );
-static int BrowserInit( access_t *p_access );
+static ssize_t Read( stream_t *, void *, size_t );
+static int Seek( stream_t *, uint64_t );
+static int Control( stream_t *, int, va_list );
+static int BrowserInit( stream_t *p_access );
 
-static int get_address( access_t *p_access );
-static int login( access_t *p_access );
-static bool get_path( access_t *p_access );
-static int add_item( access_t *p_access,  struct access_fsdir *p_fsdir,
+static int get_address( stream_t *p_access );
+static int login( stream_t *p_access );
+static bool get_path( stream_t *p_access );
+static int add_item( stream_t *p_access,  struct vlc_readdir_helper *p_rdh,
                      const char *psz_name, int i_type );
 
 struct access_sys_t
@@ -123,7 +123,7 @@ struct access_sys_t
  *****************************************************************************/
 static int Open( vlc_object_t *p_this )
 {
-    access_t     *p_access = (access_t*)p_this;
+    stream_t     *p_access = (stream_t*)p_this;
     access_sys_t *p_sys;
     smb_stat st;
 
@@ -196,7 +196,7 @@ static int Open( vlc_object_t *p_this )
  *****************************************************************************/
 static void Close( vlc_object_t *p_this )
 {
-    access_t     *p_access = (access_t*)p_this;
+    stream_t     *p_access = (stream_t*)p_this;
     access_sys_t *p_sys = p_access->p_sys;
 
     if( p_sys->p_ns )
@@ -216,7 +216,7 @@ static void Close( vlc_object_t *p_this )
  *****************************************************************************/
 
 /* Returns VLC_EGENERIC if it wasn't able to get an ip address to connect to */
-static int get_address( access_t *p_access )
+static int get_address( stream_t *p_access )
 {
     access_sys_t *p_sys = p_access->p_sys;
 
@@ -267,7 +267,7 @@ static int get_address( access_t *p_access )
     return VLC_SUCCESS;
 }
 
-static int smb_connect( access_t *p_access, const char *psz_login,
+static int smb_connect( stream_t *p_access, const char *psz_login,
                         const char *psz_password, const char *psz_domain)
 {
     access_sys_t *p_sys = p_access->p_sys;
@@ -295,7 +295,7 @@ static int smb_connect( access_t *p_access, const char *psz_login,
         return VLC_EGENERIC;
 }
 
-static bool smb_has_invalid_creds( access_t *p_access )
+static bool smb_has_invalid_creds( stream_t *p_access )
 {
     access_sys_t *p_sys = p_access->p_sys;
     uint32_t i_nt_status = smb_session_get_nt_status( p_sys->p_session );
@@ -305,7 +305,7 @@ static bool smb_has_invalid_creds( access_t *p_access )
 
 /* Performs login with existing credentials and ask the user for new ones on
    failure */
-static int login( access_t *p_access )
+static int login( stream_t *p_access )
 {
     int i_ret = VLC_EGENERIC;
     access_sys_t *p_sys = p_access->p_sys;
@@ -389,7 +389,7 @@ static void backslash_path( char *psz_path )
 }
 
 /* Get the share and filepath from uri (also replace all / by \ in url.psz_path) */
-static bool get_path( access_t *p_access )
+static bool get_path( stream_t *p_access )
 {
     access_sys_t *p_sys = p_access->p_sys;
     char *iter;
@@ -437,7 +437,7 @@ static bool get_path( access_t *p_access )
 /*****************************************************************************
  * Seek: try to go at the right place
  *****************************************************************************/
-static int Seek( access_t *p_access, uint64_t i_pos )
+static int Seek( stream_t *p_access, uint64_t i_pos )
 {
     access_sys_t *p_sys = p_access->p_sys;
 
@@ -455,7 +455,7 @@ static int Seek( access_t *p_access, uint64_t i_pos )
 /*****************************************************************************
  * Read:
  *****************************************************************************/
-static ssize_t Read( access_t *p_access, void *p_buffer, size_t i_len )
+static ssize_t Read( stream_t *p_access, void *p_buffer, size_t i_len )
 {
     access_sys_t *p_sys = p_access->p_sys;
     int i_read;
@@ -473,7 +473,7 @@ static ssize_t Read( access_t *p_access, void *p_buffer, size_t i_len )
 /*****************************************************************************
  * Control:
  *****************************************************************************/
-static int Control( access_t *p_access, int i_query, va_list args )
+static int Control( stream_t *p_access, int i_query, va_list args )
 {
     access_sys_t *p_sys = p_access->p_sys;
 
@@ -511,7 +511,7 @@ static int Control( access_t *p_access, int i_query, va_list args )
     return VLC_SUCCESS;
 }
 
-static int add_item( access_t *p_access, struct access_fsdir *p_fsdir,
+static int add_item( stream_t *p_access, struct vlc_readdir_helper *p_rdh,
                      const char *psz_name, int i_type )
 {
     char         *psz_uri;
@@ -529,10 +529,11 @@ static int add_item( access_t *p_access, struct access_fsdir *p_fsdir,
     if( i_ret == -1 )
         return VLC_ENOMEM;
 
-    return access_fsdir_additem( p_fsdir, psz_uri, psz_name, i_type, ITEM_NET );
+    return vlc_readdir_helper_additem( p_rdh, psz_uri, NULL, psz_name, i_type,
+                                       ITEM_NET );
 }
 
-static int BrowseShare( access_t *p_access, input_item_node_t *p_node )
+static int BrowseShare( stream_t *p_access, input_item_node_t *p_node )
 {
     access_sys_t *p_sys = p_access->p_sys;
     smb_share_list  shares;
@@ -544,8 +545,8 @@ static int BrowseShare( access_t *p_access, input_item_node_t *p_node )
         != DSM_SUCCESS )
         return VLC_EGENERIC;
 
-    struct access_fsdir fsdir;
-    access_fsdir_init( &fsdir, p_access, p_node );
+    struct vlc_readdir_helper rdh;
+    vlc_readdir_helper_init( &rdh, p_access, p_node );
 
     for( size_t i = 0; i < share_count && i_ret == VLC_SUCCESS; i++ )
     {
@@ -554,16 +555,16 @@ static int BrowseShare( access_t *p_access, input_item_node_t *p_node )
         if( psz_name[strlen( psz_name ) - 1] == '$')
             continue;
 
-        i_ret = add_item( p_access, &fsdir, psz_name, ITEM_TYPE_DIRECTORY );
+        i_ret = add_item( p_access, &rdh, psz_name, ITEM_TYPE_DIRECTORY );
     }
 
-    access_fsdir_finish( &fsdir, i_ret == VLC_SUCCESS );
+    vlc_readdir_helper_finish( &rdh, i_ret == VLC_SUCCESS );
 
     smb_share_list_destroy( shares );
     return i_ret;
 }
 
-static int BrowseDirectory( access_t *p_access, input_item_node_t *p_node )
+static int BrowseDirectory( stream_t *p_access, input_item_node_t *p_node )
 {
     access_sys_t *p_sys = p_access->p_sys;
     smb_stat_list   files;
@@ -586,8 +587,8 @@ static int BrowseDirectory( access_t *p_access, input_item_node_t *p_node )
     if( files == NULL )
         return VLC_EGENERIC;
 
-    struct access_fsdir fsdir;
-    access_fsdir_init( &fsdir, p_access, p_node );
+    struct vlc_readdir_helper rdh;
+    vlc_readdir_helper_init( &rdh, p_access, p_node );
 
     files_count = smb_stat_list_count( files );
     for( size_t i = 0; i < files_count && i_ret == VLC_SUCCESS; i++ )
@@ -605,31 +606,16 @@ static int BrowseDirectory( access_t *p_access, input_item_node_t *p_node )
 
         i_type = smb_stat_get( st, SMB_STAT_ISDIR ) ?
                  ITEM_TYPE_DIRECTORY : ITEM_TYPE_FILE;
-        i_ret = add_item( p_access, &fsdir, psz_name, i_type );
+        i_ret = add_item( p_access, &rdh, psz_name, i_type );
     }
 
-    access_fsdir_finish( &fsdir, i_ret == VLC_SUCCESS );
+    vlc_readdir_helper_finish( &rdh, i_ret == VLC_SUCCESS );
 
     smb_stat_list_destroy( files );
     return i_ret;
 }
 
-static int DirControl( access_t *p_access, int i_query, va_list args )
-{
-    switch( i_query )
-    {
-    case STREAM_IS_DIRECTORY:
-        *va_arg( args, bool * ) = p_access->pf_readdir == BrowseDirectory;
-                                  /* might loop */
-        break;
-    default:
-        return access_vaDirectoryControlHelper( p_access, i_query, args );
-    }
-
-    return VLC_SUCCESS;
-}
-
-static int BrowserInit( access_t *p_access )
+static int BrowserInit( stream_t *p_access )
 {
     access_sys_t *p_sys = p_access->p_sys;
 
@@ -637,7 +623,7 @@ static int BrowserInit( access_t *p_access )
         p_access->pf_readdir = BrowseShare;
     else
         p_access->pf_readdir = BrowseDirectory;
-    p_access->pf_control = DirControl;
+    p_access->pf_control = access_vaDirectoryControlHelper;
 
     return VLC_SUCCESS;
 }

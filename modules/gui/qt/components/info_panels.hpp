@@ -37,7 +37,7 @@
 
 class QTreeWidget;
 class QTreeWidgetItem;
-class QSpinBox;
+class QTableWidget;
 class QLineEdit;
 class CoverArtLabel;
 class QTextEdit;
@@ -69,9 +69,7 @@ private:
     QLineEdit *seqtot_text;
 
     QTextEdit *description_text;
-//    QSpinBox *rating_text;
     QLineEdit *date_text;
-//    QLineEdit *setting_text;
     QLineEdit *language_text;
     QLineEdit *nowplaying_text;
     QLineEdit *publisher_text;
@@ -103,7 +101,7 @@ class ExtraMetaPanel: public QWidget
 public:
     ExtraMetaPanel( QWidget * );
 private:
-    QTreeWidget *extraMetaTree;
+    QTableWidget *extraMeta;
 public slots:
     void update( input_item_t * );
     void clear();

@@ -25,7 +25,9 @@
 #import <Cocoa/Cocoa.h>
 #import "misc.h"
 
-@class VLCResizeControl;
+#import "VLCBottomBarView.h"
+#import "VLCTimeField.h"
+#import "VLCSlider.h"
 
 /*****************************************************************************
  * VLCControlsBarCommon
@@ -42,17 +44,13 @@
 @property (readwrite, strong) IBOutlet NSButton *backwardButton;
 @property (readwrite, strong) IBOutlet NSButton *forwardButton;
 
-@property (readwrite, strong) IBOutlet VLCProgressView *progressView;
-@property (readwrite, strong) IBOutlet TimeLineSlider *timeSlider;
-@property (readwrite, strong) IBOutlet VLCThreePartImageView *timeSliderGradientView;
-@property (readwrite, strong) IBOutlet VLCThreePartImageView *timeSliderBackgroundView;
-@property (readwrite, strong) IBOutlet NSProgressIndicator *progressBar;
+@property (readwrite, strong) IBOutlet VLCSlider *timeSlider;
 
 @property (readwrite, strong) IBOutlet VLCTimeField *timeField;
 @property (readwrite, strong) IBOutlet NSButton *fullscreenButton;
-@property (readwrite, strong) IBOutlet VLCResizeControl *resizeView;
+@property (readwrite, strong) IBOutlet NSLayoutConstraint *fullscreenButtonWidthConstraint;
 
-@property (readwrite, strong) IBOutlet VLCThreePartImageView *bottomBarView;
+@property (readwrite, strong) IBOutlet VLCBottomBarView *bottomBarView;
 
 @property (readonly) BOOL darkInterface;
 @property (readonly) BOOL nativeFullscreenMode;
@@ -68,7 +66,6 @@
 - (IBAction)fullscreen:(id)sender;
 
 - (void)updateTimeSlider;
-- (void)drawFancyGradientEffectForTimeSlider;
 - (void)updateControls;
 - (void)setPause;
 - (void)setPlay;

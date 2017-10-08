@@ -31,6 +31,7 @@
 /* generic */
 @property (readwrite, weak) IBOutlet NSTabView *tabView;
 @property (readwrite, weak) IBOutlet NSPopUpButton *profilePopup;
+@property (readwrite, weak) IBOutlet NSButton *applyProfileCheckbox;
 
 /* basic */
 @property (readwrite, weak) IBOutlet NSButton *adjustCheckbox;
@@ -107,7 +108,6 @@
 @property (readwrite, weak) IBOutlet NSTextField *sepiaLabel;
 @property (readwrite, weak) IBOutlet NSTextField *sepiaTextField;
 @property (readwrite, weak) IBOutlet NSStepper *sepiaStepper;
-@property (readwrite, weak) IBOutlet NSButton *noiseCheckbox;
 @property (readwrite, weak) IBOutlet NSButton *gradientCheckbox;
 @property (readwrite, weak) IBOutlet NSTextField *gradientModeLabel;
 @property (readwrite, weak) IBOutlet NSPopUpButton *gradientModePopup;
@@ -168,10 +168,11 @@
 
 /* generic */
 - (void)updateCocoaWindowLevel:(NSInteger)i_level;
-- (void)saveCurrentProfile;
+- (void)saveCurrentProfileAtTerminate;
 
 - (void)toggleWindow:(id)sender;
 - (IBAction)profileSelectorAction:(id)sender;
+- (IBAction)applyProfileCheckboxChanged:(id)sender;
 
 /* basic */
 - (IBAction)enableAdjust:(id)sender;
@@ -203,7 +204,6 @@
 - (IBAction)thresholdModifierChanged:(id)sender;
 - (IBAction)enableSepia:(id)sender;
 - (IBAction)sepiaModifierChanged:(id)sender;
-- (IBAction)enableNoise:(id)sender;
 - (IBAction)enableGradient:(id)sender;
 - (IBAction)gradientModifierChanged:(id)sender;
 - (IBAction)enableExtract:(id)sender;

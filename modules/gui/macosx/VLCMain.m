@@ -37,7 +37,7 @@
 #include <string.h>
 #include <vlc_common.h>
 #include <vlc_atomic.h>
-#include <vlc_keys.h>
+#include <vlc_actions.h>
 #include <vlc_dialog.h>
 #include <vlc_url.h>
 #include <vlc_variables.h>
@@ -53,13 +53,12 @@
 #import "VLCOpenWindowController.h"
 #import "VLCBookmarksWindowController.h"
 #import "VLCCoreDialogProvider.h"
-#import "simple_prefs.h"
+#import "VLCSimplePrefsController.h"
 #import "VLCCoreInteraction.h"
 #import "VLCTrackSynchronizationWindowController.h"
 #import "VLCExtensionsManager.h"
-#import "BWQuincyManager.h"
 #import "VLCResumeDialogController.h"
-#import "VLCDebugMessageWindowController.h"
+#import "VLCLogWindowController.h"
 #import "VLCConvertAndSaveWindowController.h"
 
 #import "VLCVideoEffectsWindowController.h"
@@ -153,22 +152,20 @@ static int ShowController(vlc_object_t *p_this, const char *psz_variable,
 #pragma mark -
 #pragma mark Private
 
-@interface VLCMain () <BWQuincyManagerDelegate
+@interface VLCMain ()
 #ifdef HAVE_SPARKLE
-    , SUUpdaterDelegate
+    <SUUpdaterDelegate>
 #endif
->
 {
     intf_thread_t *p_intf;
     BOOL launched;
-    int items_at_launch;
 
     BOOL b_active_videoplayback;
 
     NSWindowController *_mainWindowController;
     VLCMainMenu *_mainmenu;
     VLCPrefs *_prefs;
-    VLCSimplePrefs *_sprefs;
+    VLCSimplePrefsController *_sprefs;
     VLCOpenWindowController *_open;
     VLCCoreDialogProvider *_coredialogs;
     VLCBookmarksWindowController *_bookmarks;
@@ -176,7 +173,7 @@ static int ShowController(vlc_object_t *p_this, const char *psz_variable,
     VLCResumeDialogController *_resume_dialog;
     VLCInputManager *_input_manager;
     VLCPlaylist *_playlist;
-    VLCDebugMessageWindowController *_messagePanelController;
+    VLCLogWindowController *_messagePanelController;
     VLCStatusBarIcon *_statusBarIcon;
     VLCTrackSynchronizationWindowController *_trackSyncPanel;
     VLCAudioEffectsWindowController *_audioEffectsPanel;
@@ -258,6 +255,8 @@ static VLCMain *sharedInstance = nil;
 
             if (dayOfYear >= 354)
                 [[VLCApplication sharedApplication] setApplicationIconImage: [NSImage imageNamed:@"VLC-Xmas"]];
+            else
+                [[VLCApplication sharedApplication] setApplicationIconImage: [NSImage imageNamed:@"VLC"]];
         }
     }
 
@@ -273,11 +272,6 @@ static VLCMain *sharedInstance = nil;
 {
     _coreinteraction = [VLCCoreInteraction sharedInstance];
 
-    playlist_t * p_playlist = pl_Get(getIntf());
-    PL_LOCK;
-    items_at_launch = p_playlist->p_playing->i_children;
-    PL_UNLOCK;
-
 #ifdef HAVE_SPARKLE
     [[SUUpdater sharedUpdater] setDelegate:self];
 #endif
@@ -290,20 +284,9 @@ static VLCMain *sharedInstance = nil;
     if (!p_intf)
         return;
 
-    NSString *appVersion = [[[NSBundle mainBundle] infoDictionary] valueForKey: @"CFBundleVersion"];
-    NSRange endRande = [appVersion rangeOfString:@"-"];
-    if (endRande.location != NSNotFound)
-        appVersion = [appVersion substringToIndex:endRande.location];
-
-    BWQuincyManager *quincyManager = [BWQuincyManager sharedQuincyManager];
-    [quincyManager setApplicationVersion:appVersion];
-    [quincyManager setSubmissionURL:@"http://crash.videolan.org/crash_v200.php"];
-    [quincyManager setDelegate:self];
-    [quincyManager setCompanyName:@"VideoLAN"];
-
     [_coreinteraction updateCurrentlyUsedHotkeys];
 
-    [self removeOldPreferences];
+    [self migrateOldPreferences];
 
     /* Handle sleep notification */
     [[[NSWorkspace sharedWorkspace] notificationCenter] addObserver:self selector:@selector(computerWillSleep:)
@@ -338,7 +321,7 @@ static VLCMain *sharedInstance = nil;
         return;
     b_intf_terminating = true;
 
-    [_input_manager resumeItunesPlayback:nil];
+    [_input_manager onPlaybackHasEnded:nil];
 
     if (notification == nil)
         [[NSNotificationCenter defaultCenter] postNotificationName: NSApplicationWillTerminateNotification object: nil];
@@ -346,8 +329,8 @@ static VLCMain *sharedInstance = nil;
     playlist_t * p_playlist = pl_Get(p_intf);
 
     /* save current video and audio profiles */
-    [[self videoEffectsPanel] saveCurrentProfile];
-    [[self audioEffectsPanel] saveCurrentProfile];
+    [[self videoEffectsPanel] saveCurrentProfileAtTerminate];
+    [[self audioEffectsPanel] saveCurrentProfileAtTerminate];
 
     /* Save some interface state in configuration, at module quit */
     config_PutInt(p_intf, "random", var_GetBool(p_playlist, "random"));
@@ -361,10 +344,8 @@ static VLCMain *sharedInstance = nil;
 
     [[NSNotificationCenter defaultCenter] removeObserver: self];
 
-    [_voutController.lock lock];
     // closes all open vouts
     _voutController = nil;
-    [_voutController.lock unlock];
 
     /* write cached user defaults to disk */
     [[NSUserDefaults standardUserDefaults] synchronize];
@@ -426,18 +407,19 @@ static VLCMain *sharedInstance = nil;
     // or are given at startup. If a file is passed via command line, libvlccore
     // will add the item, but cocoa also calls this function. In this case, the
     // invocation is ignored here.
+    NSArray *resultItems = o_names;
     if (launched == NO) {
-        if (items_at_launch) {
-            int items = [o_names count];
-            if (items > items_at_launch)
-                items_at_launch = 0;
-            else
-                items_at_launch -= items;
-            return;
+        NSArray *launchArgs = [[NSProcessInfo processInfo] arguments];
+
+        if (launchArgs) {
+            NSSet *launchArgsSet = [NSSet setWithArray:launchArgs];
+            NSMutableSet *itemSet = [NSMutableSet setWithArray:o_names];
+            [itemSet minusSet:launchArgsSet];
+            resultItems = [itemSet allObjects];
         }
     }
 
-    NSArray *o_sorted_names = [o_names sortedArrayUsingSelector: @selector(caseInsensitiveCompare:)];
+    NSArray *o_sorted_names = [resultItems sortedArrayUsingSelector: @selector(caseInsensitiveCompare:)];
     NSMutableArray *o_result = [NSMutableArray arrayWithCapacity: [o_sorted_names count]];
     for (NSUInteger i = 0; i < [o_sorted_names count]; i++) {
         char *psz_uri = vlc_path2uri([[o_sorted_names objectAtIndex:i] UTF8String], "file");
@@ -509,10 +491,10 @@ static VLCMain *sharedInstance = nil;
     return _extensionsManager;
 }
 
-- (VLCDebugMessageWindowController *)debugMsgPanel
+- (VLCLogWindowController *)debugMsgPanel
 {
     if (!_messagePanelController)
-        _messagePanelController = [[VLCDebugMessageWindowController alloc] init];
+        _messagePanelController = [[VLCLogWindowController alloc] init];
 
     return _messagePanelController;
 }
@@ -573,10 +555,10 @@ static VLCMain *sharedInstance = nil;
     return _convertAndSaveWindow;
 }
 
-- (VLCSimplePrefs *)simplePreferences
+- (VLCSimplePrefsController *)simplePreferences
 {
     if (!_sprefs)
-        _sprefs = [[VLCSimplePrefs alloc] init];
+        _sprefs = [[VLCSimplePrefsController alloc] init];
 
     return _sprefs;
 }

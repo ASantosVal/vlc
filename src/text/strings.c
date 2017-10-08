@@ -38,6 +38,10 @@
 #include <time.h>
 #include <limits.h>
 #include <math.h>
+#include <string.h>
+#ifndef HAVE_STRCOLL
+# define strcoll strcasecmp
+#endif
 
 /* Needed by vlc_strfinput */
 #include <vlc_input.h>
@@ -47,6 +51,7 @@
 
 #include <vlc_strings.h>
 #include <vlc_charset.h>
+#include <vlc_arrays.h>
 #include <libvlc.h>
 #include <errno.h>
 
@@ -254,7 +259,7 @@ void vlc_xml_decode( char *psz_value )
                 const struct xml_entity_s *ent;
 
                 ent = bsearch (psz_value + 1, xml_entities,
-                               sizeof (xml_entities) / sizeof (*ent),
+                               ARRAY_SIZE (xml_entities),
                                sizeof (*ent), cmp_entity);
                 if (ent != NULL)
                 {
@@ -284,38 +289,46 @@ void vlc_xml_decode( char *psz_value )
 
 char *vlc_xml_encode (const char *str)
 {
-    assert (str != NULL);
-
-    const size_t len = strlen (str);
-    char *const buf = malloc (6 * len + 1), *ptr = buf;
-    if (unlikely(buf == NULL))
-        return NULL;
-
+    struct vlc_memstream stream;
     size_t n;
     uint32_t cp;
+
+    assert(str != NULL);
+    vlc_memstream_open(&stream);
 
     while ((n = vlc_towc (str, &cp)) != 0)
     {
         if (unlikely(n == (size_t)-1))
         {
-            free (buf);
+            if (vlc_memstream_close(&stream) == 0)
+                free(stream.ptr);
             errno = EILSEQ;
             return NULL;
         }
 
         switch (cp)
         {
-            case '\"': strcpy (ptr, "&quot;"); ptr += 6; break;
-            case '&':  strcpy (ptr, "&amp;");  ptr += 5; break;
-            case '\'': strcpy (ptr, "&#39;");  ptr += 5; break;
-            case '<':  strcpy (ptr, "&lt;");   ptr += 4; break;
-            case '>':  strcpy (ptr, "&gt;");   ptr += 4; break;
+            case '\"':
+                vlc_memstream_puts(&stream, "&quot;");
+                break;
+            case '&':
+                vlc_memstream_puts(&stream, "&amp;");
+                break;
+            case '\'':
+                vlc_memstream_puts(&stream, "&#39;");
+                break;
+            case '<':
+                vlc_memstream_puts(&stream, "&lt;");
+                break;
+            case '>':
+                vlc_memstream_puts(&stream, "&gt;");
+                break;
             default:
                 if (cp < 32) /* C0 code not allowed (except 9, 10 and 13) */
                     break;
                 if (cp >= 128 && cp < 160) /* C1 code encoded (except 133) */
                 {
-                    ptr += sprintf (ptr, "&#%"PRIu32";", cp);
+                    vlc_memstream_printf(&stream, "&#%"PRIu32";", cp);
                     break;
                 }
                 /* fall through */
@@ -323,16 +336,15 @@ char *vlc_xml_encode (const char *str)
             case 10:
             case 13:
             case 133:
-                memcpy (ptr, str, n);
-                ptr += n;
+                vlc_memstream_write(&stream, str, n);
                 break;
         }
         str += n;
     }
-    *(ptr++) = '\0';
 
-    ptr = realloc (buf, ptr - buf);
-    return likely(ptr != NULL) ? ptr : buf; /* cannot fail */
+    if (vlc_memstream_close(&stream))
+        return NULL;
+    return stream.ptr;
 }
 
 /* Base64 encoding */
@@ -807,6 +819,41 @@ char *vlc_strfinput(input_thread_t *input, const char *s)
     if (vlc_memstream_close(stream))
         return NULL;
     return stream->ptr;
+}
+
+int vlc_filenamecmp(const char *a, const char *b)
+{
+    size_t i;
+    char ca, cb;
+
+    /* Attempt to guess if the sorting algorithm should be alphabetic
+     * (i.e. collation) or numeric:
+     * - If the first mismatching characters are not both digits,
+     *   then collation is the only option.
+     * - If one of the first mismatching characters is 0 and the other is also
+     *   a digit, the comparands are probably left-padded numerical values.
+     *   It does not matter which algorithm is used: the zero will be smaller
+     *   than non-zero either way.
+     * - Otherwise, the comparands are numerical values, and might not be
+     *   aligned (i.e. not same order of magnitude). If so, collation would
+     *   fail. So numerical comparison is performed. */
+    for (i = 0; (ca = a[i]) == (cb = b[i]); i++)
+        if (ca == '\0')
+            return 0; /* strings are exactly identical */
+
+    if ((unsigned)(ca - '0') > 9 || (unsigned)(cb - '0') > 9)
+        return strcoll(a, b);
+
+    unsigned long long ua = strtoull(a + i, NULL, 10);
+    unsigned long long ub = strtoull(b + i, NULL, 10);
+
+    /* The number may be identical in two cases:
+     * - leading zero (e.g. "012" and "12")
+     * - overflow on both sides (#ULLONG_MAX) */
+    if (ua == ub)
+        return strcoll(a, b);
+
+    return (ua > ub) ? +1 : -1;
 }
 
 /**

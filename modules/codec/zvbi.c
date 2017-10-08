@@ -94,12 +94,12 @@ static const int level_zvbi_values[] =
 vlc_module_begin ()
     set_description( N_("VBI and Teletext decoder") )
     set_shortname( N_("VBI & Teletext") )
-    set_capability( "decoder", 51 )
+    set_capability( "spu decoder", 51 )
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_SCODEC )
     set_callbacks( Open, Close )
 
-    add_integer( "vbi-page", 100,
+    add_integer_with_range( "vbi-page", 100, 0, 'z' << 16,
                  PAGE_TEXT, PAGE_LONGTEXT, false )
     add_bool( "vbi-opaque", false,
                  OPAQUE_TEXT, OPAQUE_LONGTEXT, false )
@@ -208,6 +208,13 @@ static int Open( vlc_object_t *p_this )
     if( p_dec->fmt_in.i_codec != VLC_CODEC_TELETEXT )
         return VLC_EGENERIC;
 
+    int i_page = var_CreateGetInteger( p_dec, "vbi-page" );
+    if( i_page > 999 )
+    {
+        msg_Warn( p_dec, "invalid vbi-page requested");
+        i_page = 0;
+    }
+
     p_sys = p_dec->p_sys = calloc( 1, sizeof(decoder_sys_t) );
     if( p_sys == NULL )
         return VLC_ENOMEM;
@@ -224,9 +231,9 @@ static int Open( vlc_object_t *p_this )
         return VLC_ENOMEM;
     }
 
-    /* Some broadcasters in countries with level 1 and level 1.5 still not send a G0 to do 
+    /* Some broadcasters in countries with level 1 and level 1.5 still not send a G0 to do
      * matches against table 32 of ETSI 300 706. We try to do some best effort guessing
-     * This is not perfect, but might handle some cases where we know the vbi language 
+     * This is not perfect, but might handle some cases where we know the vbi language
      * is known. It would be better if people started sending G0 */
     for( int i = 0; ppsz_default_triplet[i] != NULL; i++ )
     {
@@ -245,7 +252,7 @@ static int Open( vlc_object_t *p_this )
                                 0 , EventHandler, p_dec );
 
     /* Create the var on vlc_global. */
-    p_sys->i_wanted_page = var_CreateGetInteger( p_dec, "vbi-page" );
+    p_sys->i_wanted_page = i_page;
     var_AddCallback( p_dec, "vbi-page", RequestPage, p_sys );
 
     /* Check if the Teletext track has a known "initial page". */
@@ -269,11 +276,7 @@ static int Open( vlc_object_t *p_this )
     /* Listen for keys */
     var_AddCallback( p_dec->obj.libvlc, "key-pressed", EventKey, p_dec );
 
-    es_format_Init( &p_dec->fmt_out, SPU_ES, VLC_CODEC_SPU );
-    if( p_sys->b_text )
-        p_dec->fmt_out.video.i_chroma = VLC_CODEC_TEXT;
-    else
-        p_dec->fmt_out.video.i_chroma = VLC_CODEC_RGBA;
+    p_dec->fmt_out.i_codec = p_sys->b_text ? VLC_CODEC_TEXT : VLC_CODEC_RGBA;
 
     p_dec->pf_decode = Decode;
     return VLC_SUCCESS;
@@ -363,6 +366,12 @@ static int Decode( decoder_t *p_dec, block_t *p_block )
 
     /* */
     vlc_mutex_lock( &p_sys->lock );
+    if( p_sys->i_wanted_page == 0 )
+    {
+        vlc_mutex_unlock( &p_sys->lock );
+        block_Release( p_block );
+        return VLCDEC_SUCCESS;
+    }
     const int i_align = p_sys->i_align;
     const unsigned int i_wanted_page = p_sys->i_wanted_page;
     const unsigned int i_wanted_subpage = p_sys->i_wanted_subpage;
@@ -710,7 +719,7 @@ static int RequestPage( vlc_object_t *p_this, char const *psz_cmd,
             p_sys->i_wanted_subpage = p_sys->nav_link[want_navlink].subno;
         }
     }
-    else if( newval.i_int > 0 && newval.i_int < 999 )
+    else if( newval.i_int >= 0 && newval.i_int < 999 )
     {
         p_sys->i_wanted_page = newval.i_int;
         p_sys->i_wanted_subpage = VBI_ANY_SUBNO;

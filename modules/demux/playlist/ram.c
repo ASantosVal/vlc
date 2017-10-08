@@ -50,7 +50,7 @@ http://service.real.com/help/library/guides/realone/IntroGuide/HTML/htmfiles/ram
 #include <ctype.h>
 
 #include <vlc_common.h>
-#include <vlc_demux.h>
+#include <vlc_access.h>
 #include <vlc_url.h>
 #include <vlc_charset.h>
 
@@ -59,7 +59,7 @@ http://service.real.com/help/library/guides/realone/IntroGuide/HTML/htmfiles/ram
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-static int Demux( demux_t *p_demux);
+static int ReadDir( stream_t *, input_item_node_t * );
 static void ParseClipInfo( const char * psz_clipinfo, char **ppsz_artist, char **ppsz_title,
                            char **ppsz_album, char **ppsz_genre, char **ppsz_year,
                            char **ppsz_cdnum, char **ppsz_comments );
@@ -71,16 +71,16 @@ static void ParseClipInfo( const char * psz_clipinfo, char **ppsz_artist, char *
  */
 int Import_RAM( vlc_object_t *p_this )
 {
-    demux_t *p_demux = (demux_t *)p_this;
+    stream_t *p_demux = (stream_t *)p_this;
     const uint8_t *p_peek;
 
-    CHECK_FILE();
-    if(! demux_IsPathExtension( p_demux, ".ram" ) ||
-         demux_IsPathExtension( p_demux, ".rm" ) )
+    CHECK_FILE(p_demux);
+    if( !stream_HasExtension( p_demux, ".ram" )
+     && !stream_HasExtension( p_demux, ".rm" ) )
         return VLC_EGENERIC;
 
     /* Many Real Media Files are misdetected */
-    if( vlc_stream_Peek( p_demux->s, &p_peek, 4 ) < 4 )
+    if( vlc_stream_Peek( p_demux->p_source, &p_peek, 4 ) < 4 )
         return VLC_EGENERIC;
     if( !memcmp( p_peek, ".ra", 3 ) || !memcmp( p_peek, ".RMF", 4 ) )
     {
@@ -88,8 +88,8 @@ int Import_RAM( vlc_object_t *p_this )
     }
 
     msg_Dbg( p_demux, "found valid RAM playlist" );
-    p_demux->pf_demux = Demux;
-    p_demux->pf_control = Control;
+    p_demux->pf_readdir = ReadDir;
+    p_demux->pf_control = access_vaDirectoryControlHelper;
 
     return VLC_SUCCESS;
 }
@@ -193,15 +193,11 @@ static int ParseTime( const char *s, size_t i_strlen)
     return result;
 }
 
-/**
- * Main demux callback function
- * @param p_demux: this demux object
- */
-static int Demux( demux_t *p_demux )
+static int ReadDir( stream_t *p_demux, input_item_node_t *p_subitems )
 {
-    char *psz_prefix = FindPrefix( p_demux );
+    const char *psz_prefix = p_demux->psz_url;
     if( unlikely(psz_prefix == NULL) )
-        return VLC_DEMUXER_EOF;
+        return VLC_SUCCESS;
 
     char       *psz_line;
     char       *psz_artist = NULL, *psz_album = NULL, *psz_genre = NULL, *psz_year = NULL;
@@ -212,11 +208,7 @@ static int Demux( demux_t *p_demux )
     bool b_cleanup = false;
     input_item_t *p_input;
 
-    input_item_t *p_current_input = GetCurrentItem(p_demux);
-
-    input_item_node_t *p_subitems = input_item_node_Create( p_current_input );
-
-    psz_line = vlc_stream_ReadLine( p_demux->s );
+    psz_line = vlc_stream_ReadLine( p_demux->p_source );
     while( psz_line )
     {
         char *psz_parse = psz_line;
@@ -294,7 +286,7 @@ static int Demux( demux_t *p_demux )
                         if( i_start )
                         {
                             if( asprintf( &temp, ":start-time=%d", i_start ) != -1 )
-                                INSERT_ELEM( ppsz_options, i_options, i_options, temp );
+                                TAB_APPEND( i_options, ppsz_options, temp );
                         }
                     }
                     else if( !strcmp( psz_param, "end" ) )
@@ -304,7 +296,7 @@ static int Demux( demux_t *p_demux )
                         if( i_stop )
                         {
                             if( asprintf( &temp, ":stop-time=%d", i_stop ) != -1 )
-                                INSERT_ELEM( ppsz_options, i_options, i_options, temp );
+                                TAB_APPEND( i_options, ppsz_options, temp );
                         }
                     }
                     else if( !strcmp( psz_param, "title" ) )
@@ -320,7 +312,7 @@ static int Demux( demux_t *p_demux )
                     }
                     else
                     {   /* TODO: insert option anyway? Currently ignores*/
-                        /* INSERT_ELEM( ppsz_options, i_options, i_options, psz_option ); */
+                        //TAB_APPEND( i_options, ppsz_options, psz_option );
                     }
                 }
             }
@@ -333,7 +325,8 @@ static int Demux( demux_t *p_demux )
                 free( psz_mrl );
                 goto error;
             }
-            input_item_AddOptions( p_input, i_options, ppsz_options, 0 );
+            if( ppsz_options )
+                input_item_AddOptions( p_input, i_options, ppsz_options, 0 );
 
             if( !EMPTY_STR( psz_artist ) ) input_item_SetArtist( p_input, psz_artist );
             if( !EMPTY_STR( psz_author ) ) input_item_SetPublisher( p_input, psz_author );
@@ -346,14 +339,14 @@ static int Demux( demux_t *p_demux )
             if( !EMPTY_STR( psz_comments ) ) input_item_SetDescription( p_input, psz_comments );
 
             input_item_node_AppendItem( p_subitems, p_input );
-            vlc_gc_decref( p_input );
+            input_item_Release( p_input );
             free( psz_mrl );
         }
 
  error:
         /* Fetch another line */
         free( psz_line );
-        psz_line = vlc_stream_ReadLine( p_demux->s );
+        psz_line = vlc_stream_ReadLine( p_demux->p_source );
         if( !psz_line ) b_cleanup = true;
 
         if( b_cleanup )
@@ -377,11 +370,7 @@ static int Demux( demux_t *p_demux )
             b_cleanup = false;
         }
     }
-    input_item_node_PostAndDelete( p_subitems );
-    vlc_gc_decref(p_current_input);
-    var_Destroy( p_demux, "m3u-extvlcopt" );
-    free(psz_prefix);
-    return 0; /* Needed for correct operation of go back */
+    return VLC_SUCCESS;
 }
 
 /**

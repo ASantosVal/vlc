@@ -187,7 +187,7 @@ bool AbstractStream::seekAble() const
     return (demuxer &&
             !fakeesout->restarting() &&
             !discontinuity &&
-            !commandsqueue->isFlushing() );
+            !commandsqueue->isDraining() );
 }
 
 bool AbstractStream::isSelected() const
@@ -253,6 +253,10 @@ void AbstractStream::setDisabled(bool b)
 {
     if(disabled != b)
         segmentTracker->notifyBufferingState(!b);
+     /* Ensures unselected ES no longer
+      * have decoder/are seen as selected */
+    if(b)
+        fakeesout->recycleAll();
     disabled = b;
 }
 
@@ -266,9 +270,9 @@ bool AbstractStream::canActivate() const
     return !dead;
 }
 
-bool AbstractStream::drain()
+bool AbstractStream::decodersDrained()
 {
-    return fakeesout->drain();
+    return fakeesout->decodersDrained();
 }
 
 AbstractStream::buffering_status AbstractStream::getLastBufferStatus() const
@@ -306,12 +310,13 @@ AbstractStream::buffering_status AbstractStream::doBufferize(mtime_t nz_deadline
         setDisabled(true);
         segmentTracker->reset();
         commandsqueue->Abort(false);
-        msg_Dbg(p_realdemux, "deactivating stream %s", format.str().c_str());
+        msg_Dbg(p_realdemux, "deactivating %s stream %s",
+                format.str().c_str(), description.c_str());
         vlc_mutex_unlock(&lock);
         return AbstractStream::buffering_end;
     }
 
-    if(commandsqueue->isFlushing())
+    if(commandsqueue->isDraining())
     {
         vlc_mutex_unlock(&lock);
         return AbstractStream::buffering_suspended;
@@ -325,10 +330,10 @@ AbstractStream::buffering_status AbstractStream::doBufferize(mtime_t nz_deadline
             /* If demux fails because of probing failure / wrong format*/
             if(discontinuity)
             {
-                msg_Dbg( p_realdemux, "Flushing on format change" );
+                msg_Dbg( p_realdemux, "Draining on format change" );
                 prepareRestart();
                 discontinuity = false;
-                commandsqueue->setFlush();
+                commandsqueue->setDraining();
                 vlc_mutex_unlock(&lock);
                 return AbstractStream::buffering_ongoing;
             }
@@ -342,7 +347,7 @@ AbstractStream::buffering_status AbstractStream::doBufferize(mtime_t nz_deadline
     const int64_t i_total_buffering = i_min_buffering + i_extra_buffering;
 
     mtime_t i_demuxed = commandsqueue->getDemuxedAmount();
-    segmentTracker->notifyBufferingLevel(i_demuxed, i_total_buffering);
+    segmentTracker->notifyBufferingLevel(i_min_buffering, i_demuxed, i_total_buffering);
     if(i_demuxed < i_total_buffering) /* not already demuxed */
     {
         if(!segmentTracker->segmentsListReady()) /* Live Streams */
@@ -367,8 +372,8 @@ AbstractStream::buffering_status AbstractStream::doBufferize(mtime_t nz_deadline
                 prepareRestart(discontinuity);
                 if(discontinuity)
                 {
-                    msg_Dbg(p_realdemux, "Flushing on discontinuity");
-                    commandsqueue->setFlush();
+                    msg_Dbg(p_realdemux, "Draining on discontinuity");
+                    commandsqueue->setDraining();
                     discontinuity = false;
                 }
                 needrestart = false;
@@ -380,7 +385,7 @@ AbstractStream::buffering_status AbstractStream::doBufferize(mtime_t nz_deadline
             return AbstractStream::buffering_end;
         }
         i_demuxed = commandsqueue->getDemuxedAmount();
-        segmentTracker->notifyBufferingLevel(i_demuxed, i_total_buffering);
+        segmentTracker->notifyBufferingLevel(i_min_buffering, i_demuxed, i_total_buffering);
     }
     vlc_mutex_unlock(&lock);
 
@@ -399,8 +404,12 @@ AbstractStream::status AbstractStream::dequeue(mtime_t nz_deadline, mtime_t *pi_
 
     *pi_pcr = nz_deadline;
 
-    if(commandsqueue->isFlushing())
+    if(commandsqueue->isDraining())
     {
+        AdvDebug(msg_Dbg(p_realdemux, "Stream %s pcr %" PRId64 " dts %" PRId64 " deadline %" PRId64 " [DRAINING]",
+                         description.c_str(), commandsqueue->getPCR(), commandsqueue->getFirstDTS(),
+                         nz_deadline));
+
         *pi_pcr = commandsqueue->Process(p_realdemux->out, VLC_TS_0 + nz_deadline);
         if(!commandsqueue->isEmpty())
             return AbstractStream::status_demuxed;
@@ -418,7 +427,7 @@ AbstractStream::status AbstractStream::dequeue(mtime_t nz_deadline, mtime_t *pi_
         return AbstractStream::status_eof;
     }
 
-    AdvDebug(msg_Dbg(p_realdemux, "Stream %s pcr %ld dts %ld deadline %ld buflevel %ld",
+    AdvDebug(msg_Dbg(p_realdemux, "Stream %s pcr %" PRId64 " dts %" PRId64 " deadline %" PRId64 " buflevel %" PRId64,
                      description.c_str(), commandsqueue->getPCR(), commandsqueue->getFirstDTS(),
                      nz_deadline, commandsqueue->getBufferingLevel()));
 

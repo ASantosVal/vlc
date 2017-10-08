@@ -379,7 +379,7 @@ static int aout_get_native_sample_rate(audio_output_t *aout)
  *****************************************************************************/
 static int Start(audio_output_t *aout, audio_sample_format_t *restrict fmt)
 {
-    if (aout_FormatNbChannels(fmt) == 0)
+    if (aout_FormatNbChannels(fmt) == 0 || !AOUT_FMT_LINEAR(fmt))
         return VLC_EGENERIC;
 
     SLresult       result;
@@ -475,6 +475,7 @@ static int Start(audio_output_t *aout, audio_sample_format_t *restrict fmt)
     // we want 16bit signed data native endian.
     fmt->i_format              = VLC_CODEC_S16N;
     fmt->i_physical_channels   = AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT;
+    fmt->channel_type = AUDIO_CHANNEL_TYPE_BITMAP;
 
     SetPositionUpdatePeriod(sys->playerPlay, AOUT_MIN_PREPARE_TIME * 1000 / CLOCK_FREQ);
 
@@ -486,6 +487,9 @@ error:
     if (sys->playerObject) {
         Destroy(sys->playerObject);
         sys->playerObject = NULL;
+        sys->playerBufferQueue = NULL;
+        sys->volumeItf = NULL;
+        sys->playerPlay = NULL;
     }
 
     return VLC_EGENERIC;

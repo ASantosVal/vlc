@@ -37,7 +37,7 @@ struct access_sys_t
     uint64_t size;
 };
 
-static ssize_t Read(access_t *access, void *buf, size_t len)
+static ssize_t Read(stream_t *access, void *buf, size_t len)
 {
     access_sys_t *sys = access->p_sys;
 
@@ -51,7 +51,7 @@ static ssize_t Read(access_t *access, void *buf, size_t len)
     return val;
 }
 
-static int Seek(access_t *access, uint64_t offset)
+static int Seek(stream_t *access, uint64_t offset)
 {
     access_sys_t *sys = access->p_sys;
 
@@ -62,7 +62,7 @@ static int Seek(access_t *access, uint64_t offset)
    return VLC_SUCCESS;
 }
 
-static int Control(access_t *access, int query, va_list args)
+static int Control(stream_t *access, int query, va_list args)
 {
     access_sys_t *sys = access->p_sys;
 
@@ -110,9 +110,9 @@ static int open_cb_default(void *opaque, void **datap, uint64_t *sizep)
 
 static int Open(vlc_object_t *object)
 {
-    access_t *access = (access_t *)object;
+    stream_t *access = (stream_t *)object;
 
-    access_sys_t *sys = malloc(sizeof (*sys));
+    access_sys_t *sys = vlc_malloc(object, sizeof (*sys));
     if (unlikely(sys == NULL))
         return VLC_ENOMEM;
 
@@ -130,11 +130,11 @@ static int Open(vlc_object_t *object)
     if (open_cb == NULL)
         open_cb = open_cb_default;
     if (sys->read_cb == NULL)
-        goto error;
+        return VLC_EGENERIC;
 
     if (open_cb(opaque, &sys->opaque, &sys->size)) {
         msg_Err(access, "open error");
-        goto error;
+        return VLC_EGENERIC;
     }
 
     access->pf_read = Read;
@@ -144,19 +144,15 @@ static int Open(vlc_object_t *object)
 
     access->p_sys = sys;
     return VLC_SUCCESS;
-error:
-    free(sys);
-    return VLC_EGENERIC;
 }
 
 static void Close(vlc_object_t *object)
 {
-    access_t *access = (access_t *)object;
+    stream_t *access = (stream_t *)object;
     access_sys_t *sys = access->p_sys;
 
     if (sys->close_cb != NULL)
         sys->close_cb(sys->opaque);
-    free(sys);
 }
 
 vlc_module_begin()

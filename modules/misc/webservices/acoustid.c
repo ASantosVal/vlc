@@ -155,7 +155,7 @@ int DoAcoustIdWebRequest( vlc_object_t *p_obj, acoustid_fingerprint_t *p_data )
     if ( !p_data->psz_fingerprint ) return VLC_SUCCESS;
 
     char *psz_url;
-    if( unlikely(asprintf( &psz_url, "http://fingerprint.videolan.org/"
+    if( unlikely(asprintf( &psz_url, "https://fingerprint.videolan.org/"
                            "acoustid.php?meta=recordings+tracks+usermeta+"
                            "releases&duration=%d&fingerprint=%s",
                            p_data->i_duration, p_data->psz_fingerprint ) < 1 ) )
@@ -171,6 +171,10 @@ int DoAcoustIdWebRequest( vlc_object_t *p_obj, acoustid_fingerprint_t *p_data )
     p_obj->obj.flags = i_saved_flags;
     if ( p_stream == NULL )
         return VLC_EGENERIC;
+
+    stream_t *p_chain = vlc_stream_FilterNew( p_stream, "inflate" );
+    if( p_chain )
+        p_stream = p_chain;
 
     /* read answer */
     char *p_buffer = NULL;

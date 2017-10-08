@@ -58,7 +58,7 @@ vlc_http_res_req(const struct vlc_http_resource *res, void *opaque)
     }
 
     /* Authentication */
-    if (res->username != NULL)
+    if (res->username != NULL && res->password != NULL)
         vlc_http_msg_add_creds_basic(req, false, res->username, res->password);
 
     /* Request context */
@@ -298,10 +298,13 @@ char *vlc_http_res_get_redirect(struct vlc_http_resource *restrict res)
     free(fixed);
     free(base);
 
-    /* NOTE: The anchor is discarded if it is present as VLC does not support
-     * HTML anchors so far. */
-    size_t len = strcspn(abs, "#");
-    abs[len] = '\0';
+    if (likely(abs != NULL))
+    {
+        /* NOTE: The anchor is discarded if it is present as VLC does not support
+         * HTML anchors so far. */
+        size_t len = strcspn(abs, "#");
+        abs[len] = '\0';
+    }
     return abs;
 }
 

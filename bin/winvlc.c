@@ -78,7 +78,38 @@ static BOOL SetDefaultDllDirectories_(DWORD flags)
     return SetDefaultDllDirectoriesReal(flags);
 }
 # define SetDefaultDllDirectories SetDefaultDllDirectories_
+
 #endif
+
+static void PrioritizeSystem32(void)
+{
+#ifndef HAVE_PROCESS_MITIGATION_IMAGE_LOAD_POLICY
+    typedef struct _PROCESS_MITIGATION_IMAGE_LOAD_POLICY {
+      union {
+        DWORD  Flags;
+        struct {
+          DWORD NoRemoteImages  :1;
+          DWORD NoLowMandatoryLabelImages  :1;
+          DWORD PreferSystem32Images  :1;
+          DWORD ReservedFlags  :29;
+        };
+      };
+    } PROCESS_MITIGATION_IMAGE_LOAD_POLICY;
+#endif
+#if _WIN32_WINNT < _WIN32_WINNT_WIN8
+    BOOL WINAPI (*SetProcessMitigationPolicy)(PROCESS_MITIGATION_POLICY, PVOID, SIZE_T);
+    HINSTANCE h_Kernel32 = GetModuleHandle(TEXT("kernel32.dll"));
+    if ( !h_Kernel32 )
+        return;
+    SetProcessMitigationPolicy = (BOOL (WINAPI *)(PROCESS_MITIGATION_POLICY, PVOID, SIZE_T))
+                                   GetProcAddress(h_Kernel32, "SetProcessMitigationPolicy");
+    if (SetProcessMitigationPolicy == NULL)
+        return;
+#endif
+    PROCESS_MITIGATION_IMAGE_LOAD_POLICY m = { .Flags = 0 };
+    m.PreferSystem32Images = 1;
+    SetProcessMitigationPolicy( 10 /* ProcessImageLoadPolicy */, &m, sizeof( m ) );
+}
 
 int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
                     LPSTR lpCmdLine,
@@ -101,27 +132,35 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
     SetErrorMode(SEM_FAILCRITICALERRORS);
     HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
 
-    /* SetProcessDEPPolicy */
+    /* SetProcessDEPPolicy, SetDllDirectory, & Co. */
     HINSTANCE h_Kernel32 = GetModuleHandle(TEXT("kernel32.dll"));
     if (h_Kernel32 != NULL)
     {
-        BOOL (WINAPI * mySetProcessDEPPolicy)( DWORD dwFlags);
-        BOOL (WINAPI * mySetDllDirectoryA)(const char* lpPathName);
+        /* Enable DEP */
 # define PROCESS_DEP_ENABLE 1
-
+        BOOL (WINAPI * mySetProcessDEPPolicy)( DWORD dwFlags);
         mySetProcessDEPPolicy = (BOOL (WINAPI *)(DWORD))
                             GetProcAddress(h_Kernel32, "SetProcessDEPPolicy");
         if(mySetProcessDEPPolicy)
             mySetProcessDEPPolicy(PROCESS_DEP_ENABLE);
 
         /* Do NOT load any library from cwd. */
+        BOOL (WINAPI * mySetDllDirectoryA)(const char* lpPathName);
         mySetDllDirectoryA = (BOOL (WINAPI *)(const char*))
                             GetProcAddress(h_Kernel32, "SetDllDirectoryA");
         if(mySetDllDirectoryA)
             mySetDllDirectoryA("");
     }
 
+    /***
+     * The LoadLibrary* calls from the modules and the 3rd party code
+     * will search in SYSTEM32 only
+     * */
     SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
+    /***
+     * Load DLLs from system32 before any other folder (when possible)
+     */
+    PrioritizeSystem32();
 
     /* Args */
     wchar_t **wargv = CommandLineToArgvW (GetCommandLine (), &argc);
@@ -243,11 +282,34 @@ static void check_crashdump(void)
 
     if(answer == IDYES)
     {
-        HINTERNET Hint = InternetOpen(L"VLC Crash Reporter",
+        HMODULE hWininet = LoadLibrary(TEXT("wininet.dll"));
+        if (hWininet == NULL)
+        {
+            fprintf(stderr, "There was an error loading the network"
+                    " 0x%08lx\n", (unsigned long)GetLastError());
+            goto done;
+        }
+
+        HINTERNET (WINAPI *InternetOpenW_)(LPCWSTR ,DWORD dwAccessType,LPCWSTR lpszProxy,LPCWSTR lpszProxyBypass,DWORD dwFlags);
+        HINTERNET (WINAPI *InternetConnectW_)(HINTERNET hInternet,LPCWSTR lpszServerName,INTERNET_PORT nServerPort,LPCWSTR lpszUserName,LPCWSTR lpszPassword,DWORD dwService,DWORD dwFlags,DWORD_PTR dwContext);
+        BOOL (WINAPI *InternetCloseHandle_)(HINTERNET hInternet);
+        BOOL (WINAPI *FtpPutFileW_)(HINTERNET hConnect,LPCWSTR lpszLocalFile,LPCWSTR lpszNewRemoteFile,DWORD dwFlags,DWORD_PTR dwContext);
+        InternetOpenW_       = (void*)GetProcAddress(hWininet, "InternetOpenW");
+        InternetConnectW_    = (void*)GetProcAddress(hWininet, "InternetConnectW");
+        InternetCloseHandle_ = (void*)GetProcAddress(hWininet, "InternetCloseHandle");
+        FtpPutFileW_         = (void*)GetProcAddress(hWininet, "FtpPutFileW");
+        if (!InternetOpenW_ || !InternetConnectW_ || !InternetCloseHandle_ || !FtpPutFileW_)
+        {
+            fprintf(stderr, "There was an error loading the network API entries"
+                    " 0x%08lx\n", (unsigned long)GetLastError());
+            goto done;
+        }
+
+        HINTERNET Hint = InternetOpenW_(L"VLC Crash Reporter",
                 INTERNET_OPEN_TYPE_PRECONFIG, NULL,NULL,0);
         if(Hint)
         {
-            HINTERNET ftp = InternetConnect(Hint, L"crash.videolan.org",
+            HINTERNET ftp = InternetConnectW_(Hint, L"crash.videolan.org",
                         INTERNET_DEFAULT_FTP_PORT, NULL, NULL,
                         INTERNET_SERVICE_FTP, INTERNET_FLAG_PASSIVE, 0);
             if(ftp)
@@ -260,26 +322,29 @@ static void check_crashdump(void)
                         now.wYear, now.wMonth, now.wDay, now.wHour,
                         now.wMinute, now.wSecond );
 
-                if( FtpPutFile( ftp, mv_crashdump_path, remote_file,
+                if( FtpPutFileW_( ftp, mv_crashdump_path, remote_file,
                             FTP_TRANSFER_TYPE_BINARY, 0) )
                     fprintf(stderr, "Report sent correctly to FTP.\n");
                 else
                     fprintf(stderr,"Couldn't send report to FTP server\n");
 
-                InternetCloseHandle(ftp);
+                InternetCloseHandle_(ftp);
             }
             else
             {
                 fprintf(stderr, "Can't connect to FTP server 0x%08lx\n",
                         (unsigned long)GetLastError());
             }
-            InternetCloseHandle(Hint);
+            InternetCloseHandle_(Hint);
         }
         else
         {
               fprintf(stderr, "There was an error while connecting to the "
                       "Internet  0x%08lx\n", (unsigned long)GetLastError());
         }
+done:
+        if (hWininet != NULL)
+            FreeLibrary(hWininet);
         MessageBox( NULL, L"Thanks a lot for helping improving VLC!",
                     L"VLC crash report" , MB_OK);
     }
@@ -324,7 +389,7 @@ LONG WINAPI vlc_exception_filter(struct _EXCEPTION_POINTERS *lpExceptionInfo)
         const EXCEPTION_RECORD *const pException = (const EXCEPTION_RECORD *)
             lpExceptionInfo->ExceptionRecord;
         /* No nested exceptions for now */
-        fwprintf( fd, L"\n\n[exceptions]\n%08x at %px", 
+        fwprintf( fd, L"\n\n[exceptions]\n%08x at %px",
                 pException->ExceptionCode, pException->ExceptionAddress );
 
         for( unsigned int i = 0; i < pException->NumberParameters; i++ )

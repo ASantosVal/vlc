@@ -10,14 +10,14 @@ ifdef HAVE_WIN32
 PKGS += mfx
 endif
 
-$(TARBALLS)/mfx-git.tar.xz:
+$(TARBALLS)/mfx-$(MFX_GITHASH).tar.xz:
 	$(call download_git,$(mfx_GITURL),,$(MFX_GITHASH))
 
-.sum-mfx: mfx-git.tar.xz
+.sum-mfx: mfx-$(MFX_GITHASH).tar.xz
 	$(call check_githash,$(MFX_GITHASH))
 	touch $@
 
-mfx: mfx-git.tar.xz .sum-mfx
+mfx: mfx-$(MFX_GITHASH).tar.xz .sum-mfx
 	$(UNPACK)
 	cd $(UNPACK_DIR) && autoreconf -ivf
 	$(MOVE)

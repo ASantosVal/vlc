@@ -2,7 +2,7 @@
  * libvlc_events.h:  libvlc_events external API structure
  *****************************************************************************
  * Copyright (C) 1998-2010 VLC authors and VideoLAN
- * $Id $
+ * $Id$
  *
  * Authors: Filippo Carone <littlejohn@videolan.org>
  *          Pierre d'Herbemont <pdherbemont@videolan.org>
@@ -277,11 +277,11 @@ typedef struct libvlc_event_t
 
         struct
         {
-            const libvlc_renderer_item_t *item;
+            libvlc_renderer_item_t *item;
         } renderer_discoverer_item_added;
         struct
         {
-            const libvlc_renderer_item_t *item;
+            libvlc_renderer_item_t *item;
         } renderer_discoverer_item_deleted;
     } u; /**< Type-dependent event description */
 } libvlc_event_t;

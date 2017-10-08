@@ -75,28 +75,26 @@
 #define BLOCK_FLAG_TYPE_PB       0x0010
 /** Warn that this block is a header one */
 #define BLOCK_FLAG_HEADER        0x0020
-/** This is the last block of the frame */
-#define BLOCK_FLAG_END_OF_FRAME  0x0040
-/** This is not a key frame for bitrate shaping */
-#define BLOCK_FLAG_NO_KEYFRAME   0x0080
 /** This block contains the last part of a sequence  */
-#define BLOCK_FLAG_END_OF_SEQUENCE 0x0100
+#define BLOCK_FLAG_END_OF_SEQUENCE 0x0040
 /** This block contains a clock reference */
-#define BLOCK_FLAG_CLOCK         0x0200
+#define BLOCK_FLAG_CLOCK         0x0080
 /** This block is scrambled */
-#define BLOCK_FLAG_SCRAMBLED     0x0400
+#define BLOCK_FLAG_SCRAMBLED     0x0100
 /** This block has to be decoded but not be displayed */
-#define BLOCK_FLAG_PREROLL       0x0800
+#define BLOCK_FLAG_PREROLL       0x0200
 /** This block is corrupted and/or there is data loss  */
-#define BLOCK_FLAG_CORRUPTED     0x1000
-/** This block contains an interlaced picture with top field first */
-#define BLOCK_FLAG_TOP_FIELD_FIRST 0x2000
-/** This block contains an interlaced picture with bottom field first */
-#define BLOCK_FLAG_BOTTOM_FIELD_FIRST 0x4000
+#define BLOCK_FLAG_CORRUPTED     0x0400
+/** This block contains an interlaced picture with top field stored first */
+#define BLOCK_FLAG_TOP_FIELD_FIRST 0x0800
+/** This block contains an interlaced picture with bottom field stored first */
+#define BLOCK_FLAG_BOTTOM_FIELD_FIRST 0x1000
+/** This block contains a single field from interlaced picture. */
+#define BLOCK_FLAG_SINGLE_FIELD  0x2000
 
 /** This block contains an interlaced picture */
 #define BLOCK_FLAG_INTERLACED_MASK \
-    (BLOCK_FLAG_TOP_FIELD_FIRST|BLOCK_FLAG_BOTTOM_FIELD_FIRST)
+    (BLOCK_FLAG_TOP_FIELD_FIRST|BLOCK_FLAG_BOTTOM_FIELD_FIRST|BLOCK_FLAG_SINGLE_FIELD)
 
 #define BLOCK_FLAG_TYPE_MASK \
     (BLOCK_FLAG_TYPE_I|BLOCK_FLAG_TYPE_P|BLOCK_FLAG_TYPE_B|BLOCK_FLAG_TYPE_PB)
@@ -144,7 +142,7 @@ VLC_API void block_Init( block_t *, void *, size_t );
  */
 VLC_API block_t *block_Alloc(size_t size) VLC_USED VLC_MALLOC;
 
-block_t *block_TryRealloc(block_t *, ssize_t pre, size_t body) VLC_USED;
+VLC_API block_t *block_TryRealloc(block_t *, ssize_t pre, size_t body) VLC_USED;
 
 /**
  * Reallocates a block.
@@ -160,9 +158,9 @@ block_t *block_TryRealloc(block_t *, ssize_t pre, size_t body) VLC_USED;
  *
  * @return the reallocated block on succes, NULL on error.
  *
- * @note Skipping leading bytes can be achieved directly by substracting from
+ * @note Skipping leading bytes can be achieved directly by subtracting from
  * block_t.i_buffer and adding block_t.p_buffer.
- * @note Discard trailing bytes can be achieved directly by substracting from
+ * @note Discard trailing bytes can be achieved directly by subtracting from
  * block_t.i_buffer.
  * @note On error, the block is discarded.
  * To avoid that, use block_TryRealloc() instead.

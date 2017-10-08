@@ -39,7 +39,7 @@
 #include "modules/modules.h"
 
 //#define Nothing here, this is just to prevent update-po from being stupid
-#include "vlc_keys.h"
+#include "vlc_actions.h"
 #include "vlc_meta.h"
 #include <vlc_aout.h>
 
@@ -187,11 +187,13 @@ static const char *const ppsz_force_dolby_descriptions[] = {
 #define STEREO_MODE_TEXT N_("Stereo audio output mode")
 static const int pi_stereo_mode_values[] = { AOUT_VAR_CHAN_UNSET,
     AOUT_VAR_CHAN_STEREO, AOUT_VAR_CHAN_RSTEREO,
-    AOUT_VAR_CHAN_LEFT, AOUT_VAR_CHAN_RIGHT, AOUT_VAR_CHAN_DOLBYS
+    AOUT_VAR_CHAN_LEFT, AOUT_VAR_CHAN_RIGHT, AOUT_VAR_CHAN_DOLBYS,
+    AOUT_VAR_CHAN_HEADPHONES,
 };
 static const char *const ppsz_stereo_mode_texts[] = { N_("Unset"),
     N_("Stereo"), N_("Reverse stereo"),
-    N_("Left"), N_("Right"), N_("Dolby Surround")
+    N_("Left"), N_("Right"), N_("Dolby Surround"),
+    N_("Headphones"),
 };
 
 #define AUDIO_FILTER_TEXT N_("Audio filters")
@@ -349,12 +351,12 @@ static const char * const  ppsz_deinterlace_text[] = {
 #define DEINTERLACE_MODE_LONGTEXT N_( \
     "Deinterlace method to use for video processing.")
 static const char * const ppsz_deinterlace_mode[] = {
-    "discard", "blend", "mean", "bob",
+    "auto", "discard", "blend", "mean", "bob",
     "linear", "x", "yadif", "yadif2x", "phosphor",
     "ivtc"
 };
 static const char * const ppsz_deinterlace_mode_text[] = {
-    N_("Discard"), N_("Blend"), N_("Mean"), N_("Bob"),
+    N_("Auto"), N_("Discard"), N_("Blend"), N_("Mean"), N_("Bob"),
     N_("Linear"), "X", "Yadif", "Yadif (2x)", N_("Phosphor"),
     N_("Film NTSC (IVTC)")
 };
@@ -687,6 +689,9 @@ static const char *const ppsz_prefres[] = {
     "$a: Artist<br>$b: Album<br>$c: Copyright<br>$t: Title<br>$g: Genre<br>"  \
     "$n: Track num<br>$p: Now playing<br>$A: Date<br>$D: Duration<br>"  \
     "$Z: \"Now playing\" (Fall back on Title - Artist)" )
+
+#define INPUT_LUA_TEXT N_( "Disable lua" )
+#define INPUT_LUA_LONGTEXT N_( "Disable all lua plugins" )
 
 // DEPRECATED
 #define SUB_CAT_LONGTEXT N_( \
@@ -1057,23 +1062,12 @@ static const char *const ppsz_prefres[] = {
        "Writes process id into specified file.")
 
 #define ONEINSTANCE_TEXT N_("Allow only one running instance")
-#if defined( _WIN32 ) || defined( __OS2__ )
 #define ONEINSTANCE_LONGTEXT N_( \
     "Allowing only one running instance of VLC can sometimes be useful, " \
     "for example if you associated VLC with some media types and you " \
     "don't want a new instance of VLC to be opened each time you " \
     "open a file in your file manager. This option will allow you " \
     "to play the file with the already running instance or enqueue it.")
-#elif defined( HAVE_DBUS )
-#define ONEINSTANCE_LONGTEXT N_( \
-    "Allowing only one running instance of VLC can sometimes be useful, " \
-    "for example if you associated VLC with some media types and you " \
-    "don't want a new instance of VLC to be opened each time you " \
-    "open a file in your file manager. This option will allow you " \
-    "to play the file with the already running instance or enqueue it. " \
-    "This option requires the D-Bus session daemon to be active " \
-    "and the running instance of VLC to use D-Bus control interface.")
-#endif
 
 #define STARTEDFROMFILE_TEXT N_("VLC is started from file association")
 #define STARTEDFROMFILE_LONGTEXT N_( \
@@ -1097,6 +1091,10 @@ static const char *const ppsz_prefres[] = {
     "When using the one instance only option, enqueue items to playlist " \
     "and keep playing current item.")
 
+#define DBUS_TEXT N_("Expose media player via D-Bus")
+#define DBUS_LONGTEXT N_("Allow other applications to control " \
+    "the VLC media player using the D-Bus MPRIS protocol.")
+
 /*****************************************************************************
  * Playlist
  ****************************************************************************/
@@ -1106,16 +1104,39 @@ static const char *const ppsz_prefres[] = {
      "These options define the behavior of the playlist. Some " \
      "of them can be overridden in the playlist dialog box." )
 
-#define PREPARSE_TEXT N_( "Automatically preparse files")
+#define PREPARSE_TEXT N_( "Automatically preparse items")
 #define PREPARSE_LONGTEXT N_( \
-    "Automatically preparse files added to the playlist " \
+    "Automatically preparse items added to the playlist " \
     "(to retrieve some metadata)." )
 
 #define PREPARSE_TIMEOUT_TEXT N_( "Preparsing timeout" )
 #define PREPARSE_TIMEOUT_LONGTEXT N_( \
-    "Maximum time allowed to preparse a file" )
+    "Maximum time (in milliseconds) allowed to preparse an item" )
 
 #define METADATA_NETWORK_TEXT N_( "Allow metadata network access" )
+
+static const char *const psz_recursive_list[] = {
+    "none", "collapse", "expand" };
+static const char *const psz_recursive_list_text[] = {
+    N_("None"), N_("Collapse"), N_("Expand") };
+
+#define RECURSIVE_TEXT N_("Subdirectory behavior")
+#define RECURSIVE_LONGTEXT N_( \
+        "Select whether subdirectories must be expanded.\n" \
+        "none: subdirectories do not appear in the playlist.\n" \
+        "collapse: subdirectories appear but are expanded on first play.\n" \
+        "expand: all subdirectories are expanded.\n" )
+
+#define IGNORE_TEXT N_("Ignored extensions")
+#define IGNORE_LONGTEXT N_( \
+        "Files with these extensions will not be added to playlist when " \
+        "opening a directory.\n" \
+        "This is useful if you add directories that contain playlist files " \
+        "for instance. Use a comma-separated list of extensions." )
+
+#define SHOW_HIDDENFILES_TEXT N_("Show hidden files")
+#define SHOW_HIDDENFILES_LONGTEXT N_( \
+        "Ignore files starting with '.'" )
 
 #define SD_TEXT N_( "Services discovery modules")
 #define SD_LONGTEXT N_( \
@@ -1357,6 +1378,8 @@ static const char *const mouse_wheel_texts[] = {
 
 #define AUDIO_TRACK_KEY_TEXT N_("Cycle audio track")
 #define AUDIO_TRACK_KEY_LONGTEXT N_("Cycle through the available audio tracks(languages).")
+#define SUBTITLE_REVERSE_TRACK_KEY_TEXT N_("Cycle subtitle track in reverse order")
+#define SUBTITLE_REVERSE_TRACK_KEY_LONGTEXT N_("Cycle through the available subtitle tracks in reverse order.")
 #define SUBTITLE_TRACK_KEY_TEXT N_("Cycle subtitle track")
 #define SUBTITLE_TRACK_KEY_LONGTEXT N_("Cycle through the available subtitle tracks.")
 #define SUBTITLE_TOGGLE_KEY_TEXT N_("Toggle subtitles")
@@ -1615,7 +1638,7 @@ vlc_module_begin ()
                  DEINTERLACE_TEXT, DEINTERLACE_LONGTEXT, false )
         change_integer_list( pi_deinterlace, ppsz_deinterlace_text )
         change_safe()
-    add_string( "deinterlace-mode", "blend",
+    add_string( "deinterlace-mode", "auto",
                 DEINTERLACE_MODE_TEXT, DEINTERLACE_MODE_LONGTEXT, false )
         change_string_list( ppsz_deinterlace_mode, ppsz_deinterlace_mode_text )
         change_safe()
@@ -1880,6 +1903,8 @@ vlc_module_begin ()
 
     add_string( "input-title-format", "$Z", INPUT_TITLE_FORMAT_TEXT, INPUT_TITLE_FORMAT_LONGTEXT, false );
 
+    add_bool( "lua", true, INPUT_LUA_TEXT, INPUT_LUA_LONGTEXT, true );
+
 /* Decoder options */
     set_subcategory( SUBCAT_INPUT_VCODEC )
     add_category_hint( N_("Decoders"), CODEC_CAT_LONGTEXT , true )
@@ -2047,6 +2072,9 @@ vlc_module_begin ()
     add_bool( "playlist-enqueue", 0, PLAYLISTENQUEUE_TEXT,
               PLAYLISTENQUEUE_LONGTEXT, true )
 #endif
+#ifdef HAVE_DBUS
+    add_bool( "dbus", false, DBUS_TEXT, DBUS_LONGTEXT, true )
+#endif
     add_bool( "media-library", 0, ML_TEXT, ML_LONGTEXT, false )
     add_bool( "playlist-tree", 0, PLTREE_TEXT, PLTREE_LONGTEXT, false )
 
@@ -2061,6 +2089,16 @@ vlc_module_begin ()
     add_obsolete_integer( "album-art" )
     add_bool( "metadata-network-access", false, METADATA_NETWORK_TEXT,
                  METADATA_NETWORK_TEXT, false )
+
+    add_string( "recursive", "collapse" , RECURSIVE_TEXT,
+                RECURSIVE_LONGTEXT, false )
+        change_string_list( psz_recursive_list, psz_recursive_list_text )
+    add_string( "ignore-filetypes", "m3u,db,nfo,ini,jpg,jpeg,ljpg,gif,png,pgm,"
+                "pgmyuv,pbm,pam,tga,bmp,pnm,xpm,xcf,pcx,tif,tiff,lbm,sfv,txt,"
+                "sub,idx,srt,cue,ssa",
+                IGNORE_TEXT, IGNORE_LONGTEXT, false )
+    add_bool( "show-hiddenfiles", false,
+              SHOW_HIDDENFILES_TEXT, SHOW_HIDDENFILES_LONGTEXT, false )
 
     set_subcategory( SUBCAT_PLAYLIST_SD )
     add_string( "services-discovery", "", SD_TEXT, SD_LONGTEXT, true )
@@ -2200,6 +2238,7 @@ vlc_module_begin ()
 #   define KEY_AUDIO_TRACK        "l"
 #   define KEY_SUBTITLE_TRACK     "s"
 #   define KEY_SUBTITLE_TOGGLE    "Shift+s"
+#   define KEY_SUBTITLE_REVTRACK  "Alt+s"
 #   define KEY_PROGRAM_SID_NEXT   "x"
 #   define KEY_PROGRAM_SID_PREV   "Shift+x"
 #   define KEY_ASPECT_RATIO       "a"
@@ -2342,6 +2381,7 @@ vlc_module_begin ()
 #   define KEY_AUDIO_TRACK        "b"
 #   define KEY_SUBTITLE_TRACK     "v"
 #   define KEY_SUBTITLE_TOGGLE    "Shift+v"
+#   define KEY_SUBTITLE_REVTRACK  "Alt+v"
 #   define KEY_PROGRAM_SID_NEXT   "x"
 #   define KEY_PROGRAM_SID_PREV   "Shift+x"
 #   define KEY_ASPECT_RATIO       "a"
@@ -2514,6 +2554,8 @@ vlc_module_begin ()
              AUDIO_TRACK_KEY_LONGTEXT, false )
     add_key( "key-audiodevice-cycle", KEY_AUDIODEVICE_CYCLE, AUDI_DEVICE_CYCLE_KEY_TEXT,
              AUDI_DEVICE_CYCLE_KEY_LONGTEXT, false )
+    add_key("key-subtitle-revtrack", KEY_SUBTITLE_REVTRACK,
+             SUBTITLE_REVERSE_TRACK_KEY_TEXT, SUBTITLE_REVERSE_TRACK_KEY_LONGTEXT, false)
     add_key( "key-subtitle-track", KEY_SUBTITLE_TRACK,
              SUBTITLE_TRACK_KEY_TEXT, SUBTITLE_TRACK_KEY_LONGTEXT, false )
     add_key( "key-subtitle-toggle", KEY_SUBTITLE_TOGGLE,

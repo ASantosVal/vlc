@@ -28,7 +28,7 @@
 /* Example usage:
  *  $ vlc movie.avi --sout="#transcode{aenc=dummy,venc=stats}:\
  *                          std{access=http,mux=dummy,dst=0.0.0.0:8081}"
- *  $ vlc -vvv http://127.0.0.1:8081 --demux=stats --vout=stats --codec=stats
+ *  $ vlc -vv http://127.0.0.1:8081 --demux=stats --vout=stats --codec=stats
  */
 
 #define kBufferSize 0x500
@@ -86,7 +86,7 @@ static int OpenDecoder ( vlc_object_t *p_this )
     p_dec->pf_decode = DecodeBlock;
 
     /* */
-    es_format_Init( &p_dec->fmt_out, VIDEO_ES, VLC_CODEC_I420 );
+    p_dec->fmt_out.i_codec = VLC_CODEC_I420;
     p_dec->fmt_out.video.i_width = 100;
     p_dec->fmt_out.video.i_height = 100;
     p_dec->fmt_out.video.i_sar_num = 1;
@@ -152,9 +152,10 @@ static int Demux( demux_t *p_demux )
     p_block->i_dts = p_block->i_pts =
         date_Increment( &p_sys->pts, kBufferSize );
 
-    msg_Dbg( p_demux, "demux got %d ms offset", (int)(mdate() - *(mtime_t *)p_block->p_buffer) / 1000 );
+    msg_Dbg( p_demux, "demux got %"PRId64" ms offset",
+             (mdate() - *(mtime_t *)p_block->p_buffer) / 1000 );
 
-    //es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_block->i_pts );
+    //es_out_SetPCR( p_demux->out, p_block->i_pts );
 
     es_out_Send( p_demux->out, p_sys->p_es, p_block );
 
@@ -220,7 +221,19 @@ vlc_module_begin ()
 #endif
         set_section( N_( "Stats decoder" ), NULL )
         set_description( N_("Stats decoder function") )
-        set_capability( "decoder", 0 )
+        set_capability( "video decoder", 0 )
+        add_shortcut( "stats" )
+        set_callbacks( OpenDecoder, NULL )
+    add_submodule()
+        set_section( N_( "Stats decoder" ), NULL )
+        set_description( N_("Stats decoder function") )
+        set_capability( "audio decoder", 0 )
+        add_shortcut( "stats" )
+        set_callbacks( OpenDecoder, NULL )
+    add_submodule()
+        set_section( N_( "Stats decoder" ), NULL )
+        set_description( N_("Stats decoder function") )
+        set_capability( "spu decoder", 0 )
         add_shortcut( "stats" )
         set_callbacks( OpenDecoder, NULL )
     add_submodule ()

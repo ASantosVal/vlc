@@ -160,7 +160,7 @@ static int DemuxOpen( vlc_object_t *p_this )
     p_demux->info.i_title = 0;
     p_demux->info.i_seekpoint = 0;
 
-    p_demux->p_sys = p_sys = calloc( 1, sizeof( demux_sys_t ) );
+    p_demux->p_sys = p_sys = vlc_calloc( p_this, 1, sizeof( demux_sys_t ) );
     if( p_sys == NULL ) return VLC_ENOMEM;
 
     p_sys->i_sample_rate = var_InheritInteger( p_demux, CFG_PREFIX "samplerate" );
@@ -196,7 +196,6 @@ static void DemuxClose( vlc_object_t *p_this )
         vlc_close( p_sys->i_fd );
 
     if( p_sys->p_block ) block_Release( p_sys->p_block );
-    free( p_sys );
 }
 
 /*****************************************************************************
@@ -214,23 +213,23 @@ static int DemuxControl( demux_t *p_demux, int i_query, va_list args )
         case DEMUX_CAN_PAUSE:
         case DEMUX_CAN_SEEK:
         case DEMUX_CAN_CONTROL_PACE:
-            pb = (bool*)va_arg( args, bool * );
+            pb = va_arg( args, bool * );
             *pb = false;
             return VLC_SUCCESS;
 
         case DEMUX_GET_PTS_DELAY:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = INT64_C(1000)
                   * var_InheritInteger( p_demux, "live-caching" );
             return VLC_SUCCESS;
 
         case DEMUX_GET_TIME:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = mdate();
             return VLC_SUCCESS;
 
         case DEMUX_SET_NEXT_DEMUX_TIME:
-            p_sys->i_next_demux_date = (int64_t)va_arg( args, int64_t );
+            p_sys->i_next_demux_date = va_arg( args, int64_t );
             return VLC_SUCCESS;
 
         /* TODO implement others */
@@ -272,7 +271,7 @@ static int Demux( demux_t *p_demux )
             {
                 p_block = GrabAudio( p_demux );
                 if( p_block )
-                    es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_block->i_pts );
+                    es_out_SetPCR( p_demux->out, p_block->i_pts );
             }
         }
     } while( p_block && p_sys->i_next_demux_date > 0 &&

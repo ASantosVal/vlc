@@ -528,6 +528,7 @@ static void *ThreadPlatform( void *obj, char *platform_name )
 
 #if HAS_QT56
     QApplication::setAttribute( Qt::AA_EnableHighDpiScaling );
+    QApplication::setAttribute( Qt::AA_UseHighDpiPixmaps );
 #endif
 
     /* Start the QApplication here */
@@ -754,6 +755,7 @@ static int WindowOpen( vout_window_t *p_wnd, const vout_window_cfg_t *cfg )
     if( !p_mi->getVideo( p_wnd, cfg->width, cfg->height, cfg->is_fullscreen ) )
         return VLC_EGENERIC;
 
+    p_wnd->info.has_double_click = true;
     p_wnd->control = WindowControl;
     p_wnd->sys = (vout_window_sys_t*)p_mi;
     return VLC_SUCCESS;

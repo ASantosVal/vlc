@@ -319,7 +319,7 @@ static int LoadFontsFromAttachments( filter_t *p_filter )
                 if( p_face->family_name )
                     psz_lc = ToLower( p_face->family_name );
                 else
-                    if( asprintf( &psz_lc, FB_NAME"-%02d",
+                    if( asprintf( &psz_lc, FB_NAME"-%04d",
                                   p_sys->i_fallback_counter++ ) < 0 )
                         psz_lc = NULL;
 
@@ -424,6 +424,9 @@ static int RenderYUVP( filter_t *p_filter, subpicture_region_t *p_region,
     fmt.i_visible_width  = p_bbox->xMax - p_bbox->xMin + 4;
     fmt.i_height         =
     fmt.i_visible_height = p_bbox->yMax - p_bbox->yMin + 4;
+    const unsigned regionnum = p_region->fmt.i_sar_num;
+    const unsigned regionden = p_region->fmt.i_sar_den;
+    fmt.i_sar_num = fmt.i_sar_den = 1;
 
     assert( !p_region->p_picture );
     p_region->p_picture = picture_NewFromFormat( &fmt );
@@ -431,6 +434,8 @@ static int RenderYUVP( filter_t *p_filter, subpicture_region_t *p_region,
         return VLC_EGENERIC;
     fmt.p_palette = p_region->fmt.p_palette ? p_region->fmt.p_palette : malloc(sizeof(*fmt.p_palette));
     p_region->fmt = fmt;
+    fmt.i_sar_num = regionnum;
+    fmt.i_sar_den = regionden;
 
     /* Calculate text color components
      * Only use the first color */
@@ -824,11 +829,17 @@ static inline int RenderAXYZ( filter_t *p_filter,
     fmt.i_visible_width  = i_text_width  + 2 * i_margin;
     fmt.i_height         =
     fmt.i_visible_height = i_text_height + 2 * i_margin;
+    const unsigned regionnum = p_region->fmt.i_sar_num;
+    const unsigned regionden = p_region->fmt.i_sar_den;
+    fmt.i_sar_num = fmt.i_sar_den = 1;
 
     picture_t *p_picture = p_region->p_picture = picture_NewFromFormat( &fmt );
     if( !p_region->p_picture )
         return VLC_EGENERIC;
+
     p_region->fmt = fmt;
+    p_region->fmt.i_sar_num = regionnum;
+    p_region->fmt.i_sar_den = regionden;
 
     /* Initialize the picture background */
     const text_style_t *p_style = p_filter->p_sys->p_default_style;
@@ -853,14 +864,13 @@ static inline int RenderAXYZ( filter_t *p_filter,
         for( line_desc_t *p_line = p_line_head; p_line != NULL; p_line = p_line->p_next )
         {
             int i_align_left = i_margin;
-            if( p_line->i_width < i_text_width )
+            if( p_line->i_width < i_text_width &&
+               (p_region->i_align & (SUBPICTURE_ALIGN_LEAVETEXT|SUBPICTURE_ALIGN_LEFT)) == 0 )
             {
                 /* Left offset to take into account alignment */
-                if( (p_region->i_align & 0x3) == SUBPICTURE_ALIGN_RIGHT )
+                if( p_region->i_align & SUBPICTURE_ALIGN_RIGHT )
                     i_align_left += ( i_text_width - p_line->i_width );
-                else if( (p_region->i_align & 0x10) == SUBPICTURE_ALIGN_LEAVETEXT)
-                    i_align_left = i_margin; /* Keep it the way it is */
-                else if( (p_region->i_align & 0x3) != SUBPICTURE_ALIGN_LEFT )
+                else /* center */
                     i_align_left += ( i_text_width - p_line->i_width ) / 2;
             }
             int i_align_top = i_margin;
@@ -1121,10 +1131,22 @@ static int Render( filter_t *p_filter, subpicture_region_t *p_region_out,
     line_desc_t *p_lines = NULL;
 
     uint32_t *pi_k_durations   = NULL;
+    unsigned i_max_width = p_filter->fmt_out.video.i_visible_width;
+    if( p_region_in->i_max_width > 0 && (unsigned) p_region_in->i_max_width < i_max_width )
+        i_max_width = p_region_in->i_max_width;
+    else if( p_region_in->i_x > 0 && (unsigned)p_region_in->i_x < i_max_width )
+        i_max_width -= p_region_in->i_x;
+
+    unsigned i_max_height = p_filter->fmt_out.video.i_visible_height;
+    if( p_region_in->i_max_height > 0 && (unsigned) p_region_in->i_max_height < i_max_height )
+        i_max_height = p_region_in->i_max_height;
+    else if( p_region_in->i_y > 0 && (unsigned)p_region_in->i_y < i_max_height )
+        i_max_height -= p_region_in->i_y;
 
     rv = LayoutText( p_filter,
-                     &p_lines, &bbox, &i_max_face_height,
-                     psz_text, pp_styles, pi_k_durations, i_text_length, p_region_in->b_gridmode );
+                     psz_text, pp_styles, pi_k_durations, i_text_length,
+                     p_region_in->b_gridmode, p_region_in->b_balanced_text,
+                     i_max_width, i_max_height, &p_lines, &bbox, &i_max_face_height );
 
     p_region_out->i_x = p_region_in->i_x;
     p_region_out->i_y = p_region_in->i_y;
@@ -1264,7 +1286,9 @@ static int Create( vlc_object_t *p_this )
     p_sys->pf_select = Generic_Select;
     p_sys->pf_get_family = FontConfig_GetFamily;
     p_sys->pf_get_fallbacks = FontConfig_GetFallbacks;
-    FontConfig_Prepare( p_filter );
+    if( FontConfig_Prepare( p_filter ) )
+        goto error;
+
 #elif defined( __APPLE__ )
     p_sys->pf_select = Generic_Select;
     p_sys->pf_get_family = CoreText_GetFamily;
@@ -1297,7 +1321,8 @@ static int Create( vlc_object_t *p_this )
     p_sys->pf_get_fallbacks = Android_GetFallbacks;
     p_sys->pf_select = Generic_Select;
 
-    Android_Prepare( p_filter );
+    if( Android_Prepare( p_filter ) == VLC_ENOMEM )
+        goto error;
 #else
     p_sys->pf_select = Dummy_Select;
 #endif
@@ -1306,6 +1331,9 @@ static int Create( vlc_object_t *p_this )
     if( !p_sys->p_face )
     {
         msg_Err( p_filter, "Error loading default face" );
+#ifdef HAVE_FONTCONFIG
+        FontConfig_Unprepare();
+#endif
         goto error;
     }
 
@@ -1363,7 +1391,11 @@ static void Destroy( vlc_object_t *p_this )
         free( p_sys->pp_font_attachments );
     }
 
-#if defined( _WIN32 )
+#ifdef HAVE_FONTCONFIG
+    if( p_sys->p_face != NULL )
+        FontConfig_Unprepare();
+
+#elif defined( _WIN32 )
     if( p_sys->pf_get_family == DWrite_GetFamily )
         ReleaseDWrite( p_filter );
 #endif

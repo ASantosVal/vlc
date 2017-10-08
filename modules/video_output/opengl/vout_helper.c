@@ -37,9 +37,10 @@
 #include <vlc_subpicture.h>
 #include <vlc_opengl.h>
 #include <vlc_memory.h>
+#include <vlc_modules.h>
 #include <vlc_vout.h>
+#include <vlc_viewpoint.h>
 
-#include "vout_helper.h"
 #include "internal.h"
 
 #ifndef GL_CLAMP_TO_EDGE
@@ -48,16 +49,35 @@
 
 #define SPHERE_RADIUS 1.f
 
-static opengl_tex_converter_init_cb opengl_tex_converter_init_cbs[] =
-{
-    opengl_tex_converter_generic_init,
-#ifdef __ANDROID__
-    opengl_tex_converter_anop_init,
+#ifndef NDEBUG
+# define HAVE_GL_ASSERT_NOERROR
 #endif
-#ifdef VLCGL_CONV_CVPX
-    opengl_tex_converter_cvpx_init,
+
+#ifdef __APPLE__
+/* FIXME: GL_ASSERT_NOERROR disabled for now because:
+ * glClear(GL_COLOR_BUFFER_BIT) throws a GL_INVALID_FRAMEBUFFER_OPERATION on macOS
+ * assert fails on vout_display_opengl_Delete on iOS
+ */
+# undef HAVE_GL_ASSERT_NOERROR
 #endif
-};
+
+#ifdef HAVE_GL_ASSERT_NOERROR
+# define GL_ASSERT_NOERROR() do { \
+    GLenum glError = glGetError(); \
+    switch (glError) \
+    { \
+        case GL_NO_ERROR: break; \
+        case GL_INVALID_ENUM: assert(!"GL_INVALID_ENUM"); \
+        case GL_INVALID_VALUE: assert(!"GL_INVALID_VALUE"); \
+        case GL_INVALID_OPERATION: assert(!"GL_INVALID_OPERATION"); \
+        case GL_INVALID_FRAMEBUFFER_OPERATION: assert(!"GL_INVALID_FRAMEBUFFER_OPERATION"); \
+        case GL_OUT_OF_MEMORY: assert(!"GL_OUT_OF_MEMORY"); \
+        default: assert(!"GL_UNKNOWN_ERROR"); \
+    } \
+} while(0)
+#else
+# define GL_ASSERT_NOERROR()
+#endif
 
 typedef struct {
     GLuint   texture;
@@ -78,7 +98,7 @@ typedef struct {
 struct prgm
 {
     GLuint id;
-    opengl_tex_converter_t tc;
+    opengl_tex_converter_t *tc;
 
     struct {
         GLfloat OrientationMatrix[16];
@@ -106,7 +126,7 @@ struct prgm
 struct vout_display_opengl_t {
 
     vlc_gl_t   *gl;
-    opengl_shaders_api_t api;
+    opengl_vtable_t vt;
 
     video_format_t fmt;
 
@@ -348,8 +368,7 @@ static GLuint BuildVertexShader(const opengl_tex_converter_t *tc,
 {
     /* Basic vertex shader */
     static const char *template =
-        "#version " GLSL_VERSION "\n"
-        PRECISION
+        "#version %u\n"
         "varying vec2 TexCoord0;attribute vec4 MultiTexCoord0;"
         "%s%s"
         "attribute vec3 VertexPosition;"
@@ -375,13 +394,13 @@ static GLuint BuildVertexShader(const opengl_tex_converter_t *tc,
         " TexCoord2 = vec4(OrientationMatrix * MultiTexCoord2).st;" : "";
 
     char *code;
-    if (asprintf(&code, template, coord1_header, coord2_header,
+    if (asprintf(&code, template, tc->glsl_version, coord1_header, coord2_header,
                  coord1_code, coord2_code) < 0)
         return 0;
 
-    GLuint shader = tc->api->CreateShader(GL_VERTEX_SHADER);
-    tc->api->ShaderSource(shader, 1, (const char **) &code, NULL);
-    tc->api->CompileShader(shader);
+    GLuint shader = tc->vt->CreateShader(GL_VERTEX_SHADER);
+    tc->vt->ShaderSource(shader, 1, (const char **) &code, NULL);
+    tc->vt->CompileShader(shader);
     free(code);
     return shader;
 }
@@ -395,7 +414,7 @@ GenTextures(const opengl_tex_converter_t *tc,
 
     for (unsigned i = 0; i < tc->tex_count; i++)
     {
-        glBindTexture(tc->tex_target, textures[i]);
+        tc->vt->BindTexture(tc->tex_target, textures[i]);
 
 #if !defined(USE_OPENGL_ES2)
         /* Set the texture parameters */
@@ -430,22 +449,17 @@ DelTextures(const opengl_tex_converter_t *tc, GLuint *textures)
 }
 
 static int
-opengl_link_program(struct prgm *prgm, GLuint fragment_shader)
+opengl_link_program(struct prgm *prgm)
 {
-    if (fragment_shader == 0)
-        return VLC_EGENERIC;
-
-    opengl_tex_converter_t *tc = &prgm->tc;
-
-    assert(tc->tex_target != 0 && tc->tex_count > 0);
+    opengl_tex_converter_t *tc = prgm->tc;
 
     GLuint vertex_shader = BuildVertexShader(tc, tc->tex_count);
-    GLuint shaders[] = { fragment_shader, vertex_shader };
+    GLuint shaders[] = { tc->fshader, vertex_shader };
 
     /* Check shaders messages */
     for (unsigned i = 0; i < 2; i++) {
         int infoLength;
-        tc->api->GetShaderiv(shaders[i], GL_INFO_LOG_LENGTH, &infoLength);
+        tc->vt->GetShaderiv(shaders[i], GL_INFO_LOG_LENGTH, &infoLength);
         if (infoLength <= 1)
             continue;
 
@@ -453,51 +467,49 @@ opengl_link_program(struct prgm *prgm, GLuint fragment_shader)
         if (infolog != NULL)
         {
             int charsWritten;
-            tc->api->GetShaderInfoLog(shaders[i], infoLength, &charsWritten,
+            tc->vt->GetShaderInfoLog(shaders[i], infoLength, &charsWritten,
                                       infolog);
             msg_Err(tc->gl, "shader %d: %s", i, infolog);
             free(infolog);
         }
     }
 
-    prgm->id = tc->api->CreateProgram();
-    tc->api->AttachShader(prgm->id, fragment_shader);
-    tc->api->AttachShader(prgm->id, vertex_shader);
-    tc->api->LinkProgram(prgm->id);
+    prgm->id = tc->vt->CreateProgram();
+    tc->vt->AttachShader(prgm->id, tc->fshader);
+    tc->vt->AttachShader(prgm->id, vertex_shader);
+    tc->vt->LinkProgram(prgm->id);
 
-    tc->api->DeleteShader(vertex_shader);
-    tc->api->DeleteShader(fragment_shader);
+    tc->vt->DeleteShader(vertex_shader);
+    tc->vt->DeleteShader(tc->fshader);
 
     /* Check program messages */
     int infoLength = 0;
-    tc->api->GetProgramiv(prgm->id, GL_INFO_LOG_LENGTH, &infoLength);
+    tc->vt->GetProgramiv(prgm->id, GL_INFO_LOG_LENGTH, &infoLength);
     if (infoLength > 1)
     {
         char *infolog = malloc(infoLength);
         if (infolog != NULL)
         {
             int charsWritten;
-            tc->api->GetProgramInfoLog(prgm->id, infoLength, &charsWritten,
+            tc->vt->GetProgramInfoLog(prgm->id, infoLength, &charsWritten,
                                        infolog);
-            msg_Err(tc->gl, "shader program %4.4s: %s",
-                    (const char *) &tc->chroma, infolog);
+            msg_Err(tc->gl, "shader program: %s", infolog);
             free(infolog);
         }
 
         /* If there is some message, better to check linking is ok */
         GLint link_status = GL_TRUE;
-        tc->api->GetProgramiv(prgm->id, GL_LINK_STATUS, &link_status);
+        tc->vt->GetProgramiv(prgm->id, GL_LINK_STATUS, &link_status);
         if (link_status == GL_FALSE)
         {
-            msg_Err(tc->gl, "Unable to use program %4.4s\n",
-                    (const char *) &tc->chroma);
+            msg_Err(tc->gl, "Unable to use program");
             goto error;
         }
     }
 
     /* Fetch UniformLocations and AttribLocations */
 #define GET_LOC(type, x, str) do { \
-    x = tc->api->Get##type##Location(prgm->id, str); \
+    x = tc->vt->Get##type##Location(prgm->id, str); \
     assert(x != -1); \
     if (x == -1) { \
         msg_Err(tc->gl, "Unable to Get"#type"Location(%s)\n", str); \
@@ -516,32 +528,156 @@ opengl_link_program(struct prgm *prgm, GLuint fragment_shader)
     GET_ALOC(VertexPosition, "VertexPosition");
     GET_ALOC(MultiTexCoord[0], "MultiTexCoord0");
     /* MultiTexCoord 1 and 2 can be optimized out if not used */
-    if (prgm->tc.tex_count > 1)
+    if (prgm->tc->tex_count > 1)
         GET_ALOC(MultiTexCoord[1], "MultiTexCoord1");
     else
         prgm->aloc.MultiTexCoord[1] = -1;
-    if (prgm->tc.tex_count > 2)
+    if (prgm->tc->tex_count > 2)
         GET_ALOC(MultiTexCoord[2], "MultiTexCoord2");
     else
         prgm->aloc.MultiTexCoord[2] = -1;
 #undef GET_LOC
 #undef GET_ULOC
 #undef GET_ALOC
-    int ret = prgm->tc.pf_fetch_locations(&prgm->tc, prgm->id);
+    int ret = prgm->tc->pf_fetch_locations(prgm->tc, prgm->id);
     assert(ret == VLC_SUCCESS);
     if (ret != VLC_SUCCESS)
     {
-        msg_Err(tc->gl, "Unable to get locations from %4.4s tex_conv\n",
-                (const char *) &tc->chroma);
+        msg_Err(tc->gl, "Unable to get locations from tex_conv");
         goto error;
     }
 
     return VLC_SUCCESS;
 
 error:
-    tc->api->DeleteProgram(prgm->id);
+    tc->vt->DeleteProgram(prgm->id);
     prgm->id = 0;
     return VLC_EGENERIC;
+}
+
+static void
+opengl_deinit_program(vout_display_opengl_t *vgl, struct prgm *prgm)
+{
+    opengl_tex_converter_t *tc = prgm->tc;
+    if (tc->p_module != NULL)
+        module_unneed(tc, tc->p_module);
+    else if (tc->priv != NULL)
+        opengl_tex_converter_generic_deinit(tc);
+    vlc_object_release(tc);
+    if (prgm->id != 0)
+        vgl->vt.DeleteProgram(prgm->id);
+}
+
+static int
+opengl_init_program(vout_display_opengl_t *vgl, struct prgm *prgm,
+                    const char *glexts, const video_format_t *fmt, bool subpics)
+{
+    opengl_tex_converter_t *tc =
+        vlc_object_create(vgl->gl, sizeof(opengl_tex_converter_t));
+    if (tc == NULL)
+        return VLC_ENOMEM;
+
+    tc->gl = vgl->gl;
+    tc->vt = &vgl->vt;
+    tc->pf_fragment_shader_init = opengl_fragment_shader_init_impl;
+    tc->glexts = glexts;
+#if defined(USE_OPENGL_ES2)
+    tc->is_gles = true;
+    tc->glsl_version = 100;
+    tc->glsl_precision_header = "precision highp float;\n";
+#else
+    tc->is_gles = false;
+    tc->glsl_version = 120;
+    tc->glsl_precision_header = "";
+#endif
+    tc->fmt = *fmt;
+
+    int ret;
+    if (subpics)
+    {
+        tc->fmt.i_chroma = VLC_CODEC_RGB32;
+        /* Normal orientation and no projection for subtitles */
+        tc->fmt.orientation = ORIENT_NORMAL;
+        tc->fmt.projection_mode = PROJECTION_MODE_RECTANGULAR;
+
+        ret = opengl_tex_converter_generic_init(tc, false);
+    }
+    else
+    {
+        const vlc_chroma_description_t *desc =
+            vlc_fourcc_GetChromaDescription(fmt->i_chroma);
+
+        if (desc == NULL)
+            return VLC_EGENERIC;
+        if (desc->plane_count == 0)
+        {
+            /* Opaque chroma: load a module to handle it */
+            tc->p_module = module_need(tc, "glconv", "$glconv", true);
+        }
+
+        if (tc->p_module != NULL)
+            ret = VLC_SUCCESS;
+        else
+        {
+            /* Software chroma or gl hw converter failed: use a generic
+             * converter */
+            ret = opengl_tex_converter_generic_init(tc, true);
+        }
+    }
+
+    if (ret != VLC_SUCCESS)
+    {
+        vlc_object_release(tc);
+        return VLC_EGENERIC;
+    }
+
+    assert(tc->fshader != 0 && tc->tex_target != 0 && tc->tex_count > 0 &&
+           tc->pf_update != NULL && tc->pf_fetch_locations != NULL &&
+           tc->pf_prepare_shader != NULL);
+
+    prgm->tc = tc;
+
+    ret = opengl_link_program(prgm);
+    if (ret != VLC_SUCCESS)
+    {
+        opengl_deinit_program(vgl, prgm);
+        return VLC_EGENERIC;
+    }
+
+    getOrientationTransformMatrix(tc->fmt.orientation,
+                                  prgm->var.OrientationMatrix);
+    getViewpointMatrixes(vgl, tc->fmt.projection_mode, prgm);
+
+    return VLC_SUCCESS;
+}
+
+static void
+ResizeFormatToGLMaxTexSize(video_format_t *fmt, unsigned int max_tex_size)
+{
+    if (fmt->i_width > fmt->i_height)
+    {
+        unsigned int const  vis_w = fmt->i_visible_width;
+        unsigned int const  vis_h = fmt->i_visible_height;
+        unsigned int const  nw_w = max_tex_size;
+        unsigned int const  nw_vis_w = nw_w * vis_w / fmt->i_width;
+
+        fmt->i_height = nw_w * fmt->i_height / fmt->i_width;
+        fmt->i_width = nw_w;
+        fmt->i_visible_height = nw_vis_w * vis_h / vis_w;
+        fmt->i_visible_width = nw_vis_w;
+    }
+    else
+    {
+        unsigned int const  vis_w = fmt->i_visible_width;
+        unsigned int const  vis_h = fmt->i_visible_height;
+        unsigned int const  nw_h = max_tex_size;
+        unsigned int const  nw_vis_h = nw_h * vis_h / fmt->i_height;
+
+        fmt->i_width = nw_h * fmt->i_width / fmt->i_height;
+        fmt->i_height = nw_h;
+        fmt->i_visible_width = nw_vis_h * vis_w / vis_h;
+        fmt->i_visible_height = nw_vis_h;
+    }
 }
 
 vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
@@ -553,6 +689,7 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
     if (!vgl)
         return NULL;
 
+    GL_ASSERT_NOERROR();
     vgl->gl = gl;
 
     if (gl->getProcAddress == NULL) {
@@ -565,76 +702,97 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
 #if !defined(USE_OPENGL_ES2)
     const unsigned char *ogl_version = glGetString(GL_VERSION);
     bool supports_shaders = strverscmp((const char *)ogl_version, "2.0") >= 0;
-#else
-    bool supports_shaders = true;
-#endif
-
-    opengl_shaders_api_t *api = &vgl->api;
-
-#if defined(USE_OPENGL_ES2)
-#define GET_PROC_ADDR(name) name
-#else
-#define GET_PROC_ADDR(name) vlc_gl_GetProcAddress(gl, #name)
-#endif
-    api->CreateShader       = GET_PROC_ADDR(glCreateShader);
-    api->ShaderSource       = GET_PROC_ADDR(glShaderSource);
-    api->CompileShader      = GET_PROC_ADDR(glCompileShader);
-    api->AttachShader       = GET_PROC_ADDR(glAttachShader);
-
-    api->GetProgramiv       = GET_PROC_ADDR(glGetProgramiv);
-    api->GetShaderiv        = GET_PROC_ADDR(glGetShaderiv);
-    api->GetProgramInfoLog  = GET_PROC_ADDR(glGetProgramInfoLog);
-    api->GetShaderInfoLog   = GET_PROC_ADDR(glGetShaderInfoLog);
-
-    api->DeleteShader       = GET_PROC_ADDR(glDeleteShader);
-
-    api->GetUniformLocation      = GET_PROC_ADDR(glGetUniformLocation);
-    api->GetAttribLocation       = GET_PROC_ADDR(glGetAttribLocation);
-    api->VertexAttribPointer     = GET_PROC_ADDR(glVertexAttribPointer);
-    api->EnableVertexAttribArray = GET_PROC_ADDR(glEnableVertexAttribArray);
-    api->UniformMatrix4fv        = GET_PROC_ADDR(glUniformMatrix4fv);
-    api->Uniform4fv              = GET_PROC_ADDR(glUniform4fv);
-    api->Uniform4f               = GET_PROC_ADDR(glUniform4f);
-    api->Uniform2f               = GET_PROC_ADDR(glUniform2f);
-    api->Uniform1i               = GET_PROC_ADDR(glUniform1i);
-
-    api->CreateProgram = GET_PROC_ADDR(glCreateProgram);
-    api->LinkProgram   = GET_PROC_ADDR(glLinkProgram);
-    api->UseProgram    = GET_PROC_ADDR(glUseProgram);
-    api->DeleteProgram = GET_PROC_ADDR(glDeleteProgram);
-
-    api->GenBuffers    = GET_PROC_ADDR(glGenBuffers);
-    api->BindBuffer    = GET_PROC_ADDR(glBindBuffer);
-    api->BufferData    = GET_PROC_ADDR(glBufferData);
-    api->DeleteBuffers = GET_PROC_ADDR(glDeleteBuffers);
-#ifdef VLCGL_HAS_PBO
-    api->BufferStorage          = GET_PROC_ADDR(glBufferStorage);
-    api->MapBufferRange         = GET_PROC_ADDR(glMapBufferRange);
-    api->FlushMappedBufferRange = GET_PROC_ADDR(glFlushMappedBufferRange);
-    api->UnmapBuffer            = GET_PROC_ADDR(glUnmapBuffer);
-    api->FenceSync              = GET_PROC_ADDR(glFenceSync);
-    api->DeleteSync             = GET_PROC_ADDR(glDeleteSync);
-    api->ClientWaitSync         = GET_PROC_ADDR(glClientWaitSync);
-#endif
-#undef GET_PROC_ADDR
-
-    if (!vgl->api.CreateShader || !vgl->api.ShaderSource || !vgl->api.CreateProgram)
-        supports_shaders = false;
     if (!supports_shaders)
     {
-        msg_Err(gl, "shaders not supported");
+        msg_Err(gl, "shaders not supported, bailing out\n");
         free(vgl);
         return NULL;
     }
-
-#if defined(_WIN32)
-    api->ActiveTexture = vlc_gl_GetProcAddress(gl, "glActiveTexture");
-    api->ClientActiveTexture = vlc_gl_GetProcAddress(gl, "glClientActiveTexture");
-#   undef glActiveTexture
-#   undef glClientActiveTexture
-#   define glActiveTexture vgl->api.ActiveTexture
-#   define glClientActiveTexture vgl->api.ClientActiveTexture
 #endif
+
+#define GET_PROC_ADDR_CORE(name) vgl->vt.name = gl##name
+#define GET_PROC_ADDR_EXT(name, critical) do { \
+    vgl->vt.name = vlc_gl_GetProcAddress(gl, "gl"#name); \
+    if (vgl->vt.name == NULL && critical) { \
+        msg_Err(gl, "gl"#name" symbol not found, bailing out\n"); \
+        free(vgl); \
+        return NULL; \
+    } \
+} while(0)
+#if defined(USE_OPENGL_ES2)
+#define GET_PROC_ADDR(name) GET_PROC_ADDR_CORE(name)
+#define GET_PROC_ADDR_CORE_GL(name) vgl->vt.name = NULL /* GL only functions (not GLES) */
+#else
+#define GET_PROC_ADDR(name) GET_PROC_ADDR_EXT(name, true)
+#define GET_PROC_ADDR_CORE_GL(name) GET_PROC_ADDR_CORE(name)
+#endif
+#define GET_PROC_ADDR_OPTIONAL(name) GET_PROC_ADDR_EXT(name, false) /* GL 3 or more */
+
+    GET_PROC_ADDR_CORE(GetError);
+    GET_PROC_ADDR_CORE(GetString);
+    GET_PROC_ADDR_CORE(GetIntegerv);
+    GET_PROC_ADDR_CORE(BindTexture);
+    GET_PROC_ADDR_CORE(TexParameteri);
+    GET_PROC_ADDR_CORE(TexParameterf);
+    GET_PROC_ADDR_CORE(PixelStorei);
+    GET_PROC_ADDR_CORE(GenTextures);
+    GET_PROC_ADDR_CORE(DeleteTextures);
+    GET_PROC_ADDR_CORE(TexImage2D);
+    GET_PROC_ADDR_CORE(TexSubImage2D);
+
+    GET_PROC_ADDR_CORE_GL(GetTexLevelParameteriv);
+
+    GET_PROC_ADDR(CreateShader);
+    GET_PROC_ADDR(ShaderSource);
+    GET_PROC_ADDR(CompileShader);
+    GET_PROC_ADDR(AttachShader);
+    GET_PROC_ADDR(DeleteShader);
+
+    GET_PROC_ADDR(GetProgramiv);
+    GET_PROC_ADDR(GetShaderiv);
+    GET_PROC_ADDR(GetProgramInfoLog);
+    GET_PROC_ADDR(GetShaderInfoLog);
+
+    GET_PROC_ADDR(GetUniformLocation);
+    GET_PROC_ADDR(GetAttribLocation);
+    GET_PROC_ADDR(VertexAttribPointer);
+    GET_PROC_ADDR(EnableVertexAttribArray);
+    GET_PROC_ADDR(UniformMatrix4fv);
+    GET_PROC_ADDR(Uniform4fv);
+    GET_PROC_ADDR(Uniform4f);
+    GET_PROC_ADDR(Uniform2f);
+    GET_PROC_ADDR(Uniform1i);
+
+    GET_PROC_ADDR(CreateProgram);
+    GET_PROC_ADDR(LinkProgram);
+    GET_PROC_ADDR(UseProgram);
+    GET_PROC_ADDR(DeleteProgram);
+
+    GET_PROC_ADDR(ActiveTexture);
+
+    GET_PROC_ADDR(GenBuffers);
+    GET_PROC_ADDR(BindBuffer);
+    GET_PROC_ADDR(BufferData);
+    GET_PROC_ADDR(DeleteBuffers);
+
+    GET_PROC_ADDR_OPTIONAL(BufferSubData);
+    GET_PROC_ADDR_OPTIONAL(BufferStorage);
+    GET_PROC_ADDR_OPTIONAL(MapBufferRange);
+    GET_PROC_ADDR_OPTIONAL(FlushMappedBufferRange);
+    GET_PROC_ADDR_OPTIONAL(UnmapBuffer);
+    GET_PROC_ADDR_OPTIONAL(FenceSync);
+    GET_PROC_ADDR_OPTIONAL(DeleteSync);
+    GET_PROC_ADDR_OPTIONAL(ClientWaitSync);
+#undef GET_PROC_ADDR
+
+    /* Resize the format if it is greater than the maximum texture size
+     * supported by the hardware */
+    GLint       max_tex_size;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_tex_size);
+
+    if ((GLint)fmt->i_width > max_tex_size ||
+        (GLint)fmt->i_height > max_tex_size)
+        ResizeFormatToGLMaxTexSize(fmt, max_tex_size);
 
 #if defined(USE_OPENGL_ES2)
     /* OpenGL ES 2 includes support for non-power of 2 textures by specification
@@ -645,85 +803,38 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
                          HasExtension(extensions, "GL_APPLE_texture_2D_limited_npot");
 #endif
 
-    /* Initialize with default chroma */
-    vgl->fmt = *fmt;
-    vgl->fmt.i_chroma = VLC_CODEC_RGB32;
-#   if defined(WORDS_BIGENDIAN)
-    vgl->fmt.i_rmask  = 0xff000000;
-    vgl->fmt.i_gmask  = 0x00ff0000;
-    vgl->fmt.i_bmask  = 0x0000ff00;
-#   else
-    vgl->fmt.i_rmask  = 0x000000ff;
-    vgl->fmt.i_gmask  = 0x0000ff00;
-    vgl->fmt.i_bmask  = 0x00ff0000;
-#   endif
-
     vgl->prgm = &vgl->prgms[0];
     vgl->sub_prgm = &vgl->prgms[1];
 
-    vgl->sub_prgm->tc = (opengl_tex_converter_t) {
-        .gl = vgl->gl,
-        .api = &vgl->api,
-        .glexts = extensions,
-        .orientation = fmt->orientation,
-    };
-
-    /* RGBA is needed for subpictures or for non YUV pictures */
-    GLuint fshader = opengl_tex_converter_generic_init(&vgl->fmt,
-                                                       &vgl->sub_prgm->tc);
-    int ret = opengl_link_program(vgl->sub_prgm, fshader);
-    if (ret != VLC_SUCCESS)
-    {
-        msg_Err(gl, "RGBA shader failed");
-        free(vgl);
-        return NULL;
-    }
-    assert(!vgl->sub_prgm->tc.handle_texs_gen);
-
-    for (size_t j = 0; j < ARRAY_SIZE(opengl_tex_converter_init_cbs); ++j)
-    {
-        vgl->prgm->tc = (opengl_tex_converter_t) {
-            .gl = vgl->gl,
-            .api = &vgl->api,
-            .glexts = extensions,
-            .orientation = fmt->orientation,
-        };
-        fshader = opengl_tex_converter_init_cbs[j](fmt, &vgl->prgm->tc);
-        ret = opengl_link_program(vgl->prgm, fshader);
-        if (ret == VLC_SUCCESS)
-        {
-            assert(vgl->prgm->tc.chroma != 0 && vgl->prgm->tc.tex_target != 0 &&
-                   vgl->prgm->tc.tex_count > 0 &&  vgl->prgm->tc.pf_update != NULL &&
-                   vgl->prgm->tc.pf_fetch_locations != NULL &&
-                   vgl->prgm->tc.pf_prepare_shader != NULL);
-            vgl->fmt = *fmt;
-            vgl->fmt.i_chroma = vgl->prgm->tc.chroma;
-            break;
-        }
-    }
+    GL_ASSERT_NOERROR();
+    int ret;
+    ret = opengl_init_program(vgl, vgl->prgm, extensions, fmt, false);
     if (ret != VLC_SUCCESS)
     {
         msg_Warn(gl, "could not init tex converter for %4.4s",
                  (const char *) &fmt->i_chroma);
-        if (vgl->sub_prgm->tc.pf_release != NULL)
-            vgl->sub_prgm->tc.pf_release(&vgl->sub_prgm->tc);
-        if (vgl->sub_prgm->id != 0)
-            vgl->api.DeleteProgram(vgl->sub_prgm->id);
         free(vgl);
         return NULL;
     }
 
-    getOrientationTransformMatrix(vgl->prgm->tc.orientation,
-                                  vgl->prgm->var.OrientationMatrix);
-    getViewpointMatrixes(vgl, vgl->fmt.projection_mode, vgl->prgm);
-
-    /* Normal orientation and no projection for subtitles */
-    getOrientationTransformMatrix(ORIENT_NORMAL,
-                                  vgl->sub_prgm->var.OrientationMatrix);
-    getViewpointMatrixes(vgl, PROJECTION_MODE_RECTANGULAR, vgl->sub_prgm);
+    GL_ASSERT_NOERROR();
+    ret = opengl_init_program(vgl, vgl->sub_prgm, extensions, fmt, true);
+    if (ret != VLC_SUCCESS)
+    {
+        msg_Warn(gl, "could not init subpictures tex converter for %4.4s",
+                 (const char *) &fmt->i_chroma);
+        opengl_deinit_program(vgl, vgl->prgm);
+        free(vgl);
+        return NULL;
+    }
+    GL_ASSERT_NOERROR();
+    /* Update the fmt to main program one */
+    vgl->fmt = vgl->prgm->tc->fmt;
+    /* The orientation is handled by the orientation matrix */
+    vgl->fmt.orientation = fmt->orientation;
 
     /* Texture size */
-    const opengl_tex_converter_t *tc = &vgl->prgm->tc;
+    const opengl_tex_converter_t *tc = vgl->prgm->tc;
     for (unsigned j = 0; j < tc->tex_count; j++) {
         const GLsizei w = vgl->fmt.i_visible_width  * tc->texs[j].w.num
                         / tc->texs[j].w.den;
@@ -739,9 +850,11 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
     }
 
     /* Allocates our textures */
-    if (!vgl->prgm->tc.handle_texs_gen)
+    assert(!vgl->sub_prgm->tc->handle_texs_gen);
+
+    if (!vgl->prgm->tc->handle_texs_gen)
     {
-        ret = GenTextures(&vgl->prgm->tc, vgl->tex_width, vgl->tex_height,
+        ret = GenTextures(vgl->prgm->tc, vgl->tex_width, vgl->tex_height,
                           vgl->texture);
         if (ret != VLC_SUCCESS)
         {
@@ -758,9 +871,9 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    vgl->api.GenBuffers(1, &vgl->vertex_buffer_object);
-    vgl->api.GenBuffers(1, &vgl->index_buffer_object);
-    vgl->api.GenBuffers(vgl->prgm->tc.tex_count, vgl->texture_buffer_object);
+    vgl->vt.GenBuffers(1, &vgl->vertex_buffer_object);
+    vgl->vt.GenBuffers(1, &vgl->index_buffer_object);
+    vgl->vt.GenBuffers(vgl->prgm->tc->tex_count, vgl->texture_buffer_object);
 
     /* Initial number of allocated buffer objects for subpictures, will grow dynamically. */
     int subpicture_buffer_object_count = 8;
@@ -770,7 +883,7 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
         return NULL;
     }
     vgl->subpicture_buffer_object_count = subpicture_buffer_object_count;
-    vgl->api.GenBuffers(vgl->subpicture_buffer_object_count, vgl->subpicture_buffer_object);
+    vgl->vt.GenBuffers(vgl->subpicture_buffer_object_count, vgl->subpicture_buffer_object);
 
     /* */
     vgl->region_count = 0;
@@ -788,20 +901,24 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
     if (subpicture_chromas) {
         *subpicture_chromas = gl_subpicture_chromas;
     }
+
+    GL_ASSERT_NOERROR();
     return vgl;
 }
 
 void vout_display_opengl_Delete(vout_display_opengl_t *vgl)
 {
+    GL_ASSERT_NOERROR();
+
     /* */
     glFinish();
     glFlush();
 
-    opengl_tex_converter_t *tc = &vgl->prgm->tc;
+    opengl_tex_converter_t *tc = vgl->prgm->tc;
     if (!tc->handle_texs_gen)
         DelTextures(tc, vgl->texture);
 
-    tc = &vgl->sub_prgm->tc;
+    tc = vgl->sub_prgm->tc;
     for (int i = 0; i < vgl->region_count; i++)
     {
         if (vgl->region[i].texture)
@@ -809,24 +926,23 @@ void vout_display_opengl_Delete(vout_display_opengl_t *vgl)
     }
     free(vgl->region);
 
-    for (int i = 0; i < 2 && vgl->prgms[i].id != 0; i++)
-    {
-        vgl->api.DeleteProgram(vgl->prgms[i].id);
-        opengl_tex_converter_t *tc = &vgl->prgms[i].tc;
-        if (tc->pf_release != NULL)
-            tc->pf_release(tc);
-    }
-    vgl->api.DeleteBuffers(1, &vgl->vertex_buffer_object);
-    vgl->api.DeleteBuffers(1, &vgl->index_buffer_object);
+    vgl->vt.DeleteBuffers(1, &vgl->vertex_buffer_object);
+    vgl->vt.DeleteBuffers(1, &vgl->index_buffer_object);
+    vgl->vt.DeleteBuffers(vgl->prgm->tc->tex_count, vgl->texture_buffer_object);
 
-    vgl->api.DeleteBuffers(vgl->prgm->tc.tex_count, vgl->texture_buffer_object);
     if (vgl->subpicture_buffer_object_count > 0)
-        vgl->api.DeleteBuffers(vgl->subpicture_buffer_object_count, vgl->subpicture_buffer_object);
+        vgl->vt.DeleteBuffers(vgl->subpicture_buffer_object_count,
+                              vgl->subpicture_buffer_object);
     free(vgl->subpicture_buffer_object);
 
     if (vgl->pool)
         picture_pool_Release(vgl->pool);
+    opengl_deinit_program(vgl, vgl->prgm);
+    opengl_deinit_program(vgl, vgl->sub_prgm);
+
     free(vgl);
+
+    GL_ASSERT_NOERROR();
 }
 
 static void UpdateZ(vout_display_opengl_t *vgl)
@@ -900,15 +1016,17 @@ void vout_display_opengl_SetWindowAspectRatio(vout_display_opengl_t *vgl,
 
 picture_pool_t *vout_display_opengl_GetPool(vout_display_opengl_t *vgl, unsigned requested_count)
 {
+    GL_ASSERT_NOERROR();
+
     if (vgl->pool)
         return vgl->pool;
 
-    opengl_tex_converter_t *tc = &vgl->prgm->tc;
+    opengl_tex_converter_t *tc = vgl->prgm->tc;
     requested_count = __MIN(VLCGL_PICTURE_MAX, requested_count);
     /* Allocate with tex converter pool callback if it exists */
     if (tc->pf_get_pool != NULL)
     {
-        vgl->pool = tc->pf_get_pool(tc, &vgl->fmt, requested_count);
+        vgl->pool = tc->pf_get_pool(tc, requested_count);
         if (!vgl->pool)
             goto error;
         return vgl->pool;
@@ -935,6 +1053,7 @@ picture_pool_t *vout_display_opengl_GetPool(vout_display_opengl_t *vgl, unsigned
         goto error;
     }
 
+    GL_ASSERT_NOERROR();
     return vgl->pool;
 
 error:
@@ -945,7 +1064,9 @@ error:
 int vout_display_opengl_Prepare(vout_display_opengl_t *vgl,
                                 picture_t *picture, subpicture_t *subpicture)
 {
-    opengl_tex_converter_t *tc = &vgl->prgm->tc;
+    GL_ASSERT_NOERROR();
+
+    opengl_tex_converter_t *tc = vgl->prgm->tc;
 
     /* Update the texture */
     int ret = tc->pf_update(tc, vgl->texture, vgl->tex_width, vgl->tex_height,
@@ -959,7 +1080,7 @@ int vout_display_opengl_Prepare(vout_display_opengl_t *vgl,
     vgl->region_count = 0;
     vgl->region       = NULL;
 
-    tc = &vgl->sub_prgm->tc;
+    tc = vgl->sub_prgm->tc;
     if (subpicture) {
 
         int count = 0;
@@ -1025,6 +1146,8 @@ int vout_display_opengl_Prepare(vout_display_opengl_t *vgl,
     free(last);
 
     VLC_UNUSED(subpicture);
+
+    GL_ASSERT_NOERROR();
     return ret;
 }
 
@@ -1308,19 +1431,19 @@ static int SetupCoords(vout_display_opengl_t *vgl,
     switch (vgl->fmt.projection_mode)
     {
     case PROJECTION_MODE_RECTANGULAR:
-        i_ret = BuildRectangle(vgl->prgm->tc.tex_count,
+        i_ret = BuildRectangle(vgl->prgm->tc->tex_count,
                                &vertexCoord, &textureCoord, &nbVertices,
                                &indices, &nbIndices,
                                left, top, right, bottom);
         break;
     case PROJECTION_MODE_EQUIRECTANGULAR:
-        i_ret = BuildSphere(vgl->prgm->tc.tex_count,
+        i_ret = BuildSphere(vgl->prgm->tc->tex_count,
                             &vertexCoord, &textureCoord, &nbVertices,
                             &indices, &nbIndices,
                             left, top, right, bottom);
         break;
     case PROJECTION_MODE_CUBEMAP_LAYOUT_STANDARD:
-        i_ret = BuildCube(vgl->prgm->tc.tex_count,
+        i_ret = BuildCube(vgl->prgm->tc->tex_count,
                           (float)vgl->fmt.i_cubemap_padding / vgl->fmt.i_width,
                           (float)vgl->fmt.i_cubemap_padding / vgl->fmt.i_height,
                           &vertexCoord, &textureCoord, &nbVertices,
@@ -1335,20 +1458,20 @@ static int SetupCoords(vout_display_opengl_t *vgl,
     if (i_ret != VLC_SUCCESS)
         return i_ret;
 
-    for (unsigned j = 0; j < vgl->prgm->tc.tex_count; j++)
+    for (unsigned j = 0; j < vgl->prgm->tc->tex_count; j++)
     {
-        vgl->api.BindBuffer(GL_ARRAY_BUFFER, vgl->texture_buffer_object[j]);
-        vgl->api.BufferData(GL_ARRAY_BUFFER, nbVertices * 2 * sizeof(GLfloat),
-                        textureCoord + j * nbVertices * 2, GL_STATIC_DRAW);
+        vgl->vt.BindBuffer(GL_ARRAY_BUFFER, vgl->texture_buffer_object[j]);
+        vgl->vt.BufferData(GL_ARRAY_BUFFER, nbVertices * 2 * sizeof(GLfloat),
+                           textureCoord + j * nbVertices * 2, GL_STATIC_DRAW);
     }
 
-    vgl->api.BindBuffer(GL_ARRAY_BUFFER, vgl->vertex_buffer_object);
-    vgl->api.BufferData(GL_ARRAY_BUFFER, nbVertices * 3 * sizeof(GLfloat),
-                        vertexCoord, GL_STATIC_DRAW);
+    vgl->vt.BindBuffer(GL_ARRAY_BUFFER, vgl->vertex_buffer_object);
+    vgl->vt.BufferData(GL_ARRAY_BUFFER, nbVertices * 3 * sizeof(GLfloat),
+                       vertexCoord, GL_STATIC_DRAW);
 
-    vgl->api.BindBuffer(GL_ELEMENT_ARRAY_BUFFER, vgl->index_buffer_object);
-    vgl->api.BufferData(GL_ELEMENT_ARRAY_BUFFER, nbIndices * sizeof(GLushort),
-                        indices, GL_STATIC_DRAW);
+    vgl->vt.BindBuffer(GL_ELEMENT_ARRAY_BUFFER, vgl->index_buffer_object);
+    vgl->vt.BufferData(GL_ELEMENT_ARRAY_BUFFER, nbIndices * sizeof(GLushort),
+                       indices, GL_STATIC_DRAW);
 
     free(textureCoord);
     free(vertexCoord);
@@ -1361,40 +1484,39 @@ static int SetupCoords(vout_display_opengl_t *vgl,
 
 static void DrawWithShaders(vout_display_opengl_t *vgl, struct prgm *prgm)
 {
-    opengl_tex_converter_t *tc = &prgm->tc;
+    opengl_tex_converter_t *tc = prgm->tc;
     tc->pf_prepare_shader(tc, vgl->tex_width, vgl->tex_height, 1.0f);
 
-    for (unsigned j = 0; j < vgl->prgm->tc.tex_count; j++) {
+    for (unsigned j = 0; j < vgl->prgm->tc->tex_count; j++) {
         assert(vgl->texture[j] != 0);
-        glActiveTexture(GL_TEXTURE0+j);
-        glClientActiveTexture(GL_TEXTURE0+j);
-        glBindTexture(tc->tex_target, vgl->texture[j]);
+        vgl->vt.ActiveTexture(GL_TEXTURE0+j);
+        vgl->vt.BindTexture(tc->tex_target, vgl->texture[j]);
 
-        vgl->api.BindBuffer(GL_ARRAY_BUFFER, vgl->texture_buffer_object[j]);
+        vgl->vt.BindBuffer(GL_ARRAY_BUFFER, vgl->texture_buffer_object[j]);
 
         assert(prgm->aloc.MultiTexCoord[j] != -1);
-        vgl->api.EnableVertexAttribArray(prgm->aloc.MultiTexCoord[j]);
-        vgl->api.VertexAttribPointer(prgm->aloc.MultiTexCoord[j], 2, GL_FLOAT,
+        vgl->vt.EnableVertexAttribArray(prgm->aloc.MultiTexCoord[j]);
+        vgl->vt.VertexAttribPointer(prgm->aloc.MultiTexCoord[j], 2, GL_FLOAT,
                                      0, 0, 0);
     }
 
-    vgl->api.BindBuffer(GL_ARRAY_BUFFER, vgl->vertex_buffer_object);
-    vgl->api.BindBuffer(GL_ELEMENT_ARRAY_BUFFER, vgl->index_buffer_object);
-    vgl->api.EnableVertexAttribArray(prgm->aloc.VertexPosition);
-    vgl->api.VertexAttribPointer(prgm->aloc.VertexPosition, 3, GL_FLOAT, 0, 0, 0);
+    vgl->vt.BindBuffer(GL_ARRAY_BUFFER, vgl->vertex_buffer_object);
+    vgl->vt.BindBuffer(GL_ELEMENT_ARRAY_BUFFER, vgl->index_buffer_object);
+    vgl->vt.EnableVertexAttribArray(prgm->aloc.VertexPosition);
+    vgl->vt.VertexAttribPointer(prgm->aloc.VertexPosition, 3, GL_FLOAT, 0, 0, 0);
 
-    vgl->api.UniformMatrix4fv(prgm->uloc.OrientationMatrix, 1, GL_FALSE,
-                              prgm->var.OrientationMatrix);
-    vgl->api.UniformMatrix4fv(prgm->uloc.ProjectionMatrix, 1, GL_FALSE,
-                              prgm->var.ProjectionMatrix);
-    vgl->api.UniformMatrix4fv(prgm->uloc.ZRotMatrix, 1, GL_FALSE,
-                              prgm->var.ZRotMatrix);
-    vgl->api.UniformMatrix4fv(prgm->uloc.YRotMatrix, 1, GL_FALSE,
-                              prgm->var.YRotMatrix);
-    vgl->api.UniformMatrix4fv(prgm->uloc.XRotMatrix, 1, GL_FALSE,
-                              prgm->var.XRotMatrix);
-    vgl->api.UniformMatrix4fv(prgm->uloc.ZoomMatrix, 1, GL_FALSE,
-                              prgm->var.ZoomMatrix);
+    vgl->vt.UniformMatrix4fv(prgm->uloc.OrientationMatrix, 1, GL_FALSE,
+                             prgm->var.OrientationMatrix);
+    vgl->vt.UniformMatrix4fv(prgm->uloc.ProjectionMatrix, 1, GL_FALSE,
+                             prgm->var.ProjectionMatrix);
+    vgl->vt.UniformMatrix4fv(prgm->uloc.ZRotMatrix, 1, GL_FALSE,
+                             prgm->var.ZRotMatrix);
+    vgl->vt.UniformMatrix4fv(prgm->uloc.YRotMatrix, 1, GL_FALSE,
+                             prgm->var.YRotMatrix);
+    vgl->vt.UniformMatrix4fv(prgm->uloc.XRotMatrix, 1, GL_FALSE,
+                             prgm->var.XRotMatrix);
+    vgl->vt.UniformMatrix4fv(prgm->uloc.ZoomMatrix, 1, GL_FALSE,
+                             prgm->var.ZoomMatrix);
 
     glDrawElements(GL_TRIANGLES, vgl->nb_indices, GL_UNSIGNED_SHORT, 0);
 }
@@ -1402,12 +1524,14 @@ static void DrawWithShaders(vout_display_opengl_t *vgl, struct prgm *prgm)
 int vout_display_opengl_Display(vout_display_opengl_t *vgl,
                                 const video_format_t *source)
 {
+    GL_ASSERT_NOERROR();
+
     /* Why drawing here and not in Render()? Because this way, the
        OpenGL providers can call vout_display_opengl_Display to force redraw.
        Currently, the OS X provider uses it to get a smooth window resizing */
     glClear(GL_COLOR_BUFFER_BIT);
 
-    vgl->api.UseProgram(vgl->prgm->id);
+    vgl->vt.UseProgram(vgl->prgm->id);
 
     if (source->i_x_offset != vgl->last_source.i_x_offset
      || source->i_y_offset != vgl->last_source.i_y_offset
@@ -1418,7 +1542,7 @@ int vout_display_opengl_Display(vout_display_opengl_t *vgl,
         float top[PICTURE_PLANE_MAX];
         float right[PICTURE_PLANE_MAX];
         float bottom[PICTURE_PLANE_MAX];
-        const opengl_tex_converter_t *tc = &vgl->prgm->tc;
+        const opengl_tex_converter_t *tc = vgl->prgm->tc;
         for (unsigned j = 0; j < tc->tex_count; j++)
         {
             float scale_w = (float)tc->texs[j].w.num / tc->texs[j].w.den
@@ -1458,8 +1582,8 @@ int vout_display_opengl_Display(vout_display_opengl_t *vgl,
     // Change the program for overlays
     struct prgm *prgm = vgl->sub_prgm;
     GLuint program = prgm->id;
-    opengl_tex_converter_t *tc = &prgm->tc;
-    vgl->api.UseProgram(program);
+    opengl_tex_converter_t *tc = prgm->tc;
+    vgl->vt.UseProgram(program);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1467,8 +1591,8 @@ int vout_display_opengl_Display(vout_display_opengl_t *vgl,
     /* We need two buffer objects for each region: for vertex and texture coordinates. */
     if (2 * vgl->region_count > vgl->subpicture_buffer_object_count) {
         if (vgl->subpicture_buffer_object_count > 0)
-            vgl->api.DeleteBuffers(vgl->subpicture_buffer_object_count,
-                                   vgl->subpicture_buffer_object);
+            vgl->vt.DeleteBuffers(vgl->subpicture_buffer_object_count,
+                                  vgl->subpicture_buffer_object);
         vgl->subpicture_buffer_object_count = 0;
 
         int new_count = 2 * vgl->region_count;
@@ -1477,12 +1601,11 @@ int vout_display_opengl_Display(vout_display_opengl_t *vgl,
             return VLC_ENOMEM;
 
         vgl->subpicture_buffer_object_count = new_count;
-        vgl->api.GenBuffers(vgl->subpicture_buffer_object_count,
-                            vgl->subpicture_buffer_object);
+        vgl->vt.GenBuffers(vgl->subpicture_buffer_object_count,
+                           vgl->subpicture_buffer_object);
     }
 
-    glActiveTexture(GL_TEXTURE0 + 0);
-    glClientActiveTexture(GL_TEXTURE0 + 0);
+    vgl->vt.ActiveTexture(GL_TEXTURE0 + 0);
     for (int i = 0; i < vgl->region_count; i++) {
         gl_region_t *glr = &vgl->region[i];
         const GLfloat vertexCoord[] = {
@@ -1499,34 +1622,34 @@ int vout_display_opengl_Display(vout_display_opengl_t *vgl,
         };
 
         assert(glr->texture != 0);
-        glBindTexture(tc->tex_target, glr->texture);
+        vgl->vt.BindTexture(tc->tex_target, glr->texture);
 
         tc->pf_prepare_shader(tc, &glr->width, &glr->height, glr->alpha);
 
-        vgl->api.BindBuffer(GL_ARRAY_BUFFER, vgl->subpicture_buffer_object[2 * i]);
-        vgl->api.BufferData(GL_ARRAY_BUFFER, sizeof(textureCoord), textureCoord, GL_STATIC_DRAW);
-        vgl->api.EnableVertexAttribArray(prgm->aloc.MultiTexCoord[0]);
-        vgl->api.VertexAttribPointer(prgm->aloc.MultiTexCoord[0], 2, GL_FLOAT,
-                                     0, 0, 0);
+        vgl->vt.BindBuffer(GL_ARRAY_BUFFER, vgl->subpicture_buffer_object[2 * i]);
+        vgl->vt.BufferData(GL_ARRAY_BUFFER, sizeof(textureCoord), textureCoord, GL_STATIC_DRAW);
+        vgl->vt.EnableVertexAttribArray(prgm->aloc.MultiTexCoord[0]);
+        vgl->vt.VertexAttribPointer(prgm->aloc.MultiTexCoord[0], 2, GL_FLOAT,
+                                    0, 0, 0);
 
-        vgl->api.BindBuffer(GL_ARRAY_BUFFER, vgl->subpicture_buffer_object[2 * i + 1]);
-        vgl->api.BufferData(GL_ARRAY_BUFFER, sizeof(vertexCoord), vertexCoord, GL_STATIC_DRAW);
-        vgl->api.EnableVertexAttribArray(prgm->aloc.VertexPosition);
-        vgl->api.VertexAttribPointer(prgm->aloc.VertexPosition, 2, GL_FLOAT,
-                                     0, 0, 0);
+        vgl->vt.BindBuffer(GL_ARRAY_BUFFER, vgl->subpicture_buffer_object[2 * i + 1]);
+        vgl->vt.BufferData(GL_ARRAY_BUFFER, sizeof(vertexCoord), vertexCoord, GL_STATIC_DRAW);
+        vgl->vt.EnableVertexAttribArray(prgm->aloc.VertexPosition);
+        vgl->vt.VertexAttribPointer(prgm->aloc.VertexPosition, 2, GL_FLOAT,
+                                    0, 0, 0);
 
-        vgl->api.UniformMatrix4fv(prgm->uloc.OrientationMatrix, 1, GL_FALSE,
-                                  prgm->var.OrientationMatrix);
-        vgl->api.UniformMatrix4fv(prgm->uloc.ProjectionMatrix, 1, GL_FALSE,
-                                  prgm->var.ProjectionMatrix);
-        vgl->api.UniformMatrix4fv(prgm->uloc.ZRotMatrix, 1, GL_FALSE,
-                                  prgm->var.ZRotMatrix);
-        vgl->api.UniformMatrix4fv(prgm->uloc.YRotMatrix, 1, GL_FALSE,
-                                  prgm->var.YRotMatrix);
-        vgl->api.UniformMatrix4fv(prgm->uloc.XRotMatrix, 1, GL_FALSE,
-                                  prgm->var.XRotMatrix);
-        vgl->api.UniformMatrix4fv(prgm->uloc.ZoomMatrix, 1, GL_FALSE,
-                                  prgm->var.ZoomMatrix);
+        vgl->vt.UniformMatrix4fv(prgm->uloc.OrientationMatrix, 1, GL_FALSE,
+                                 prgm->var.OrientationMatrix);
+        vgl->vt.UniformMatrix4fv(prgm->uloc.ProjectionMatrix, 1, GL_FALSE,
+                                 prgm->var.ProjectionMatrix);
+        vgl->vt.UniformMatrix4fv(prgm->uloc.ZRotMatrix, 1, GL_FALSE,
+                                 prgm->var.ZRotMatrix);
+        vgl->vt.UniformMatrix4fv(prgm->uloc.YRotMatrix, 1, GL_FALSE,
+                                 prgm->var.YRotMatrix);
+        vgl->vt.UniformMatrix4fv(prgm->uloc.XRotMatrix, 1, GL_FALSE,
+                                 prgm->var.XRotMatrix);
+        vgl->vt.UniformMatrix4fv(prgm->uloc.ZoomMatrix, 1, GL_FALSE,
+                                 prgm->var.ZoomMatrix);
 
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
@@ -1534,6 +1657,8 @@ int vout_display_opengl_Display(vout_display_opengl_t *vgl,
 
     /* Display */
     vlc_gl_Swap(vgl->gl);
+
+    GL_ASSERT_NOERROR();
 
     return VLC_SUCCESS;
 }

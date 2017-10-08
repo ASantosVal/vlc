@@ -62,6 +62,16 @@ MediaInfoDialog::MediaInfoDialog( intf_thread_t *_p_intf,
 
     MP = new MetaPanel( infoTabW, p_intf );
     infoTabW->insertTab( META_PANEL, MP, qtr( "&General" ) );
+    EMP = new ExtraMetaPanel( infoTabW );
+    infoTabW->insertTab( EXTRAMETA_PANEL, EMP, qtr( "&Metadata" ) );
+    IP = new InfoPanel( infoTabW );
+    infoTabW->insertTab( INFO_PANEL, IP, qtr( "Co&dec" ) );
+    if( isMainInputInfo )
+    {
+        ISP = new InputStatsPanel( infoTabW );
+        infoTabW->insertTab( INPUTSTATS_PANEL, ISP, qtr( "S&tatistics" ) );
+    }
+
     QGridLayout *layout = new QGridLayout( this );
 
     /* No need to use a QDialogButtonBox here */
@@ -100,8 +110,14 @@ MediaInfoDialog::MediaInfoDialog( intf_thread_t *_p_intf,
          * Connects on the various signals of input_Manager
          * For the currently playing element
          **/
+        DCONNECT( THEMIM->getIM(), infoChanged( input_item_t* ),
+                  IP, update( input_item_t* ) );
         DCONNECT( THEMIM->getIM(), currentMetaChanged( input_item_t* ),
                   MP, update( input_item_t* ) );
+        DCONNECT( THEMIM->getIM(), currentMetaChanged( input_item_t* ),
+                  EMP, update( input_item_t* ) );
+        DCONNECT( THEMIM->getIM(), statisticsUpdated( input_item_t* ),
+                  ISP, update( input_item_t* ) );
 
         if( THEMIM->getInput() )
             p_item = input_GetItem( THEMIM->getInput() );
@@ -135,14 +151,20 @@ void MediaInfoDialog::saveMeta()
 
 void MediaInfoDialog::updateAllTabs( input_item_t *p_item )
 {
+    IP->update( p_item );
     MP->update( p_item );
+    EMP->update( p_item );
 
+    if( isMainInputInfo ) ISP->update( p_item );
 }
 
 void MediaInfoDialog::clearAllTabs()
 {
+    IP->clear();
     MP->clear();
+    EMP->clear();
 
+    if( isMainInputInfo ) ISP->clear();
 }
 
 void MediaInfoDialog::close()

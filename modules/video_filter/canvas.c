@@ -330,7 +330,7 @@ static int Activate( vlc_object_t *p_this )
 
     filter_chain_Reset( p_sys->p_chain, &p_filter->fmt_in, &fmt );
     /* Append scaling module */
-    if ( !filter_chain_AppendConverter( p_sys->p_chain, NULL, NULL ) )
+    if ( filter_chain_AppendConverter( p_sys->p_chain, NULL, NULL ) )
     {
         msg_Err( p_filter, "Could not append scaling filter" );
         free( p_sys );
@@ -349,8 +349,8 @@ static int Activate( vlc_object_t *p_this )
         }
     }
 
-    fmt = *filter_chain_GetFmtOut( p_sys->p_chain );
-    es_format_Copy( &p_filter->fmt_out, &fmt );
+    es_format_Copy( &p_filter->fmt_out,
+                    filter_chain_GetFmtOut( p_sys->p_chain ) );
 
     vlc_ureduce( &p_filter->fmt_out.video.i_sar_num,
         &p_filter->fmt_out.video.i_sar_den,

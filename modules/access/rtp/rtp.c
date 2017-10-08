@@ -389,7 +389,7 @@ static int Control (demux_t *demux, int query, va_list args)
         case DEMUX_CAN_SEEK:
         case DEMUX_CAN_CONTROL_PACE:
         {
-            bool *v = (bool*)va_arg( args, bool * );
+            bool *v = va_arg( args, bool * );
             *v = false;
             return VLC_SUCCESS;
         }
@@ -443,7 +443,7 @@ void codec_decode (demux_t *demux, void *data, block_t *block)
     if (data)
     {
         block->i_dts = VLC_TS_INVALID; /* RTP does not specify this */
-        es_out_Control (demux->out, ES_OUT_SET_PCR, block->i_pts );
+        es_out_SetPCR(demux->out, block->i_pts);
         es_out_Send (demux->out, (es_out_id_t *)data, block);
     }
     else
@@ -469,6 +469,16 @@ static void stream_destroy (demux_t *demux, void *data)
     {
         vlc_demux_chained_Delete(data);
         p_sys->chained_demux = NULL;
+    }
+}
+
+static void stream_header (demux_t *demux, void *data, block_t *block)
+{
+    VLC_UNUSED(demux);
+    VLC_UNUSED(data);
+    if(block->p_buffer[1] & 0x80) /* TS M-bit == discontinuity (RFC 2250, 2.1) */
+    {
+        block->i_flags |= BLOCK_FLAG_DISCONTINUITY;
     }
 }
 
@@ -500,7 +510,6 @@ static void *pcmu_init (demux_t *demux)
 
     es_format_Init (&fmt, AUDIO_ES, VLC_CODEC_MULAW);
     fmt.audio.i_rate = 8000;
-    fmt.audio.i_original_channels =
     fmt.audio.i_physical_channels = AOUT_CHAN_CENTER;
     return codec_init (demux, &fmt);
 }
@@ -514,7 +523,6 @@ static void *gsm_init (demux_t *demux)
 
     es_format_Init (&fmt, AUDIO_ES, VLC_CODEC_GSM);
     fmt.audio.i_rate = 8000;
-    fmt.audio.i_original_channels =
     fmt.audio.i_physical_channels = AOUT_CHAN_CENTER;
     return codec_init (demux, &fmt);
 }
@@ -528,7 +536,6 @@ static void *pcma_init (demux_t *demux)
 
     es_format_Init (&fmt, AUDIO_ES, VLC_CODEC_ALAW);
     fmt.audio.i_rate = 8000;
-    fmt.audio.i_original_channels =
     fmt.audio.i_physical_channels = AOUT_CHAN_CENTER;
     return codec_init (demux, &fmt);
 }
@@ -542,7 +549,6 @@ static void *l16s_init (demux_t *demux)
 
     es_format_Init (&fmt, AUDIO_ES, VLC_CODEC_S16B);
     fmt.audio.i_rate = 44100;
-    fmt.audio.i_original_channels =
     fmt.audio.i_physical_channels = AOUT_CHANS_STEREO;
     return codec_init (demux, &fmt);
 }
@@ -553,7 +559,6 @@ static void *l16m_init (demux_t *demux)
 
     es_format_Init (&fmt, AUDIO_ES, VLC_CODEC_S16B);
     fmt.audio.i_rate = 44100;
-    fmt.audio.i_original_channels =
     fmt.audio.i_physical_channels = AOUT_CHAN_CENTER;
     return codec_init (demux, &fmt);
 }
@@ -567,7 +572,6 @@ static void *qcelp_init (demux_t *demux)
 
     es_format_Init (&fmt, AUDIO_ES, VLC_CODEC_QCELP);
     fmt.audio.i_rate = 8000;
-    fmt.audio.i_original_channels =
     fmt.audio.i_physical_channels = AOUT_CHAN_CENTER;
     return codec_init (demux, &fmt);
 }
@@ -580,7 +584,6 @@ static void *mpa_init (demux_t *demux)
     es_format_t fmt;
 
     es_format_Init (&fmt, AUDIO_ES, VLC_CODEC_MPGA);
-    fmt.audio.i_original_channels =
     fmt.audio.i_physical_channels = AOUT_CHANS_STEREO;
     fmt.b_packetized = false;
     return codec_init (demux, &fmt);
@@ -657,6 +660,7 @@ void rtp_autodetect (demux_t *demux, rtp_session_t *session,
     rtp_pt_t pt = {
         .init = NULL,
         .destroy = codec_destroy,
+        .header = NULL,
         .decode = codec_decode,
         .frequency = 0,
         .number = ptype,
@@ -719,6 +723,7 @@ void rtp_autodetect (demux_t *demux, rtp_session_t *session,
         msg_Dbg (demux, "detected MPEG2 TS");
         pt.init = ts_init;
         pt.destroy = stream_destroy;
+        pt.header = stream_header;
         pt.decode = stream_decode;
         pt.frequency = 90000;
         break;

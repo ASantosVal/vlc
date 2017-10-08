@@ -142,8 +142,8 @@ static void resolve_callback(
         AvahiStringList *asl = NULL;
         input_item_t *p_input = NULL;
 
-        msg_Err( p_sd, "service '%s' of type '%s' in domain '%s' port %i",
-                 name, type, domain, port );
+        msg_Info( p_sd, "service '%s' of type '%s' in domain '%s' port %i",
+                  name, type, domain, port );
 
         avahi_address_snprint(a, (sizeof(a)/sizeof(a[0]))-1, address);
         if( protocol == AVAHI_PROTO_INET6 )
@@ -205,8 +205,8 @@ static void resolve_callback(
         {
             vlc_dictionary_insert( &p_sys->services_name_to_input_item,
                 name, p_input );
-            services_discovery_AddItem( p_sd, p_input, NULL /* no category */ );
-            vlc_gc_decref( p_input );
+            services_discovery_AddItem( p_sd, p_input );
+            input_item_Release( p_input );
        }
     }
 

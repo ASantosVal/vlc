@@ -135,20 +135,33 @@ LIBVLC_API const char *libvlc_printerr (const char *fmt, ...);
  * - on Microsoft Windows, SetErrorMode().
  * - sigprocmask() shall never be invoked; pthread_sigmask() can be used.
  *
- * On POSIX systems, the SIGCHLD signal must <b>not</b> be ignored, i.e. the
+ * On POSIX systems, the SIGCHLD signal <b>must not</b> be ignored, i.e. the
  * signal handler must set to SIG_DFL or a function pointer, not SIG_IGN.
  * Also while LibVLC is active, the wait() function shall not be called, and
  * any call to waitpid() shall use a strictly positive value for the first
  * parameter (i.e. the PID). Failure to follow those rules may lead to a
  * deadlock or a busy loop.
- *
  * Also on POSIX systems, it is recommended that the SIGPIPE signal be blocked,
- * even if it is not, in principles, necessary.
+ * even if it is not, in principles, necessary, e.g.:
+ * @code
+   sigset_t set;
+
+   signal(SIGCHLD, SIG_DFL);
+   sigemptyset(&set);
+   sigaddset(&set, SIGPIPE);
+   pthread_sigmask(SIG_BLOCK, &set, NULL);
+ * @endcode
  *
  * On Microsoft Windows Vista/2008, the process error mode
- * SEM_FAILCRITICALERRORS flag <b>must</b> be set with the SetErrorMode()
- * function before using LibVLC. On later versions, it is optional and
- * unnecessary.
+ * SEM_FAILCRITICALERRORS flag <b>must</b> be set before using LibVLC.
+ * On later versions, that is optional and unnecessary.
+ * Also on Microsoft Windows (Vista and any later version), setting the default
+ * DLL directories to SYSTEM32 exclusively is strongly recommended for
+ * security reasons:
+ * @code
+   SetErrorMode(SEM_FAILCRITICALERRORS);
+   SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
+ * @endcode
  *
  * \version
  * Arguments are meant to be passed from the command line to LibVLC, just like
@@ -308,7 +321,7 @@ typedef int libvlc_event_type_t;
  * Callback function notification
  * \param p_event the event triggering the callback
  */
-typedef void ( *libvlc_callback_t )( const struct libvlc_event_t *, void * );
+typedef void ( *libvlc_callback_t )( const struct libvlc_event_t *p_event, void *p_data );
 
 /**
  * Register for an event notification.
@@ -447,7 +460,7 @@ typedef void (*libvlc_log_cb)(void *data, int level, const libvlc_log_t *ctx,
  * \param p_instance libvlc instance
  * \version LibVLC 2.1.0 or later
  */
-LIBVLC_API void libvlc_log_unset( libvlc_instance_t * );
+LIBVLC_API void libvlc_log_unset( libvlc_instance_t *p_instance );
 
 /**
  * Sets the logging callback for a LibVLC instance.
@@ -466,7 +479,7 @@ LIBVLC_API void libvlc_log_unset( libvlc_instance_t * );
  * \param p_instance libvlc instance
  * \version LibVLC 2.1.0 or later
  */
-LIBVLC_API void libvlc_log_set( libvlc_instance_t *,
+LIBVLC_API void libvlc_log_set( libvlc_instance_t *p_instance,
                                 libvlc_log_cb cb, void *data );
 
 
@@ -477,7 +490,7 @@ LIBVLC_API void libvlc_log_set( libvlc_instance_t *,
  *         (the FILE pointer must remain valid until libvlc_log_unset())
  * \version LibVLC 2.1.0 or later
  */
-LIBVLC_API void libvlc_log_set_file( libvlc_instance_t *, FILE *stream );
+LIBVLC_API void libvlc_log_set_file( libvlc_instance_t *p_instance, FILE *stream );
 
 /** @} */
 

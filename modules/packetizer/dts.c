@@ -102,9 +102,8 @@ static block_t *GetOutBuffer( decoder_t *p_dec )
         p_dec->fmt_out.audio.i_bytes_per_frame = p_sys->dts.i_frame_size;
     p_dec->fmt_out.audio.i_frame_length = p_sys->dts.i_frame_length;
 
-    p_dec->fmt_out.audio.i_original_channels = p_sys->dts.i_original_channels;
-    p_dec->fmt_out.audio.i_physical_channels = 
-        p_sys->dts.i_original_channels & AOUT_CHAN_PHYSMASK;
+    p_dec->fmt_out.audio.i_chan_mode = p_sys->dts.i_chan_mode;
+    p_dec->fmt_out.audio.i_physical_channels = p_sys->dts.i_physical_channels;
     p_dec->fmt_out.audio.i_channels =
         popcount( p_dec->fmt_out.audio.i_physical_channels );
 
@@ -216,8 +215,8 @@ static block_t *PacketizeBlock( decoder_t *p_dec, block_t **pp_block )
                     return NULL;
                 break;
             }
-            p_sys->i_input_size = p_sys->i_next_offset
-                                = p_sys->dts.i_frame_size;
+
+            p_sys->i_input_size = p_sys->i_next_offset = p_sys->dts.i_frame_size;
             p_sys->i_state = STATE_NEXT_SYNC;
 
         case STATE_NEXT_SYNC:
@@ -247,6 +246,17 @@ static block_t *PacketizeBlock( decoder_t *p_dec, block_t **pp_block )
 
                 if( !vlc_dts_header_IsSync( p_header, VLC_DTS_HEADER_SIZE ) )
                 {
+                    /* Even frame size is likely incorrect FSIZE #18166 */
+                    if( (p_sys->dts.i_frame_size % 2) && p_sys->i_next_offset > 0 &&
+                        block_PeekOffsetBytes( &p_sys->bytestream,
+                                               p_sys->i_next_offset - 1, p_header,
+                                               VLC_DTS_HEADER_SIZE ) == 0 &&
+                         vlc_dts_header_IsSync( p_header, VLC_DTS_HEADER_SIZE ) )
+                    {
+                        p_sys->i_input_size = p_sys->i_next_offset = p_sys->dts.i_frame_size - 1;
+                        /* reenter */
+                        break;
+                    }
                     msg_Dbg( p_dec, "emulated sync word "
                              "(no sync on following frame)" );
                     p_sys->i_state = STATE_NOSYNC;
@@ -327,13 +337,8 @@ static int Open( vlc_object_t *p_this )
     decoder_t *p_dec = (decoder_t*)p_this;
     decoder_sys_t *p_sys;
 
-    switch( p_dec->fmt_in.i_codec )
-    {
-        case VLC_CODEC_DTS:
-            break;
-        default:
-            return VLC_EGENERIC;
-    }
+    if( p_dec->fmt_in.i_codec != VLC_CODEC_DTS )
+        return VLC_EGENERIC;
 
     /* Allocate the memory needed to store the decoder's structure */
     if( ( p_dec->p_sys = p_sys = malloc(sizeof(decoder_sys_t)) ) == NULL )
@@ -349,7 +354,6 @@ static int Open( vlc_object_t *p_this )
     block_BytestreamInit( &p_sys->bytestream );
 
     /* Set output properties (passthrough only) */
-    p_dec->fmt_out.i_cat = AUDIO_ES;
     p_dec->fmt_out.i_codec = p_dec->fmt_in.i_codec;
     p_dec->fmt_out.audio = p_dec->fmt_in.audio;
 

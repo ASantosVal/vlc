@@ -185,9 +185,10 @@ static es_format_t GetModeSettings(demux_t *demux, IDeckLinkDisplayMode *m)
     }
 
     es_format_t video_fmt;
-    vlc_fourcc_t chroma; chroma = sys->tenbits ? VLC_CODEC_I422_10L : VLC_CODEC_UYVY;
+    vlc_fourcc_t chroma = sys->tenbits ? VLC_CODEC_I422_10L : VLC_CODEC_UYVY;
     es_format_Init(&video_fmt, VIDEO_ES, chroma);
 
+    video_fmt.video.i_chroma = chroma;
     video_fmt.video.i_width = m->GetWidth();
     video_fmt.video.i_height = m->GetHeight();
     video_fmt.video.i_sar_num = 1;
@@ -313,7 +314,7 @@ HRESULT DeckLinkCaptureDelegate::VideoInputFrameArrived(IDeckLinkVideoInputFrame
                     if (!sys->cc_es) {
                         es_format_t fmt;
 
-                        es_format_Init( &fmt, SPU_ES, VLC_FOURCC('c', 'c', '1' , ' ') );
+                        es_format_Init( &fmt, SPU_ES, VLC_CODEC_CEA608 );
                         fmt.psz_description = strdup(N_("Closed captions 1"));
                         if (fmt.psz_description) {
                             sys->cc_es = es_out_Add(demux_->out, &fmt);
@@ -341,7 +342,7 @@ HRESULT DeckLinkCaptureDelegate::VideoInputFrameArrived(IDeckLinkVideoInputFrame
             sys->last_pts = video_frame->i_pts;
         vlc_mutex_unlock(&sys->pts_lock);
 
-        es_out_Control(demux_->out, ES_OUT_SET_PCR, video_frame->i_pts);
+        es_out_SetPCR(demux_->out, video_frame->i_pts);
         es_out_Send(demux_->out, sys->video_es, video_frame);
     }
 
@@ -365,7 +366,7 @@ HRESULT DeckLinkCaptureDelegate::VideoInputFrameArrived(IDeckLinkVideoInputFrame
             sys->last_pts = audio_frame->i_pts;
         vlc_mutex_unlock(&sys->pts_lock);
 
-        es_out_Control(demux_->out, ES_OUT_SET_PCR, audio_frame->i_pts);
+        es_out_SetPCR(demux_->out, audio_frame->i_pts);
         es_out_Send(demux_->out, sys->audio_es, audio_frame);
     }
 
@@ -700,17 +701,17 @@ static int Control(demux_t *demux, int query, va_list args)
         case DEMUX_CAN_PAUSE:
         case DEMUX_CAN_SEEK:
         case DEMUX_CAN_CONTROL_PACE:
-            pb = (bool*)va_arg(args, bool *);
+            pb = va_arg(args, bool *);
             *pb = false;
             return VLC_SUCCESS;
 
         case DEMUX_GET_PTS_DELAY:
-            pi64 = (int64_t*)va_arg(args, int64_t *);
+            pi64 = va_arg(args, int64_t *);
             *pi64 = INT64_C(1000) * var_InheritInteger(demux, "live-caching");
             return VLC_SUCCESS;
 
         case DEMUX_GET_TIME:
-            pi64 = (int64_t*)va_arg(args, int64_t *);
+            pi64 = va_arg(args, int64_t *);
             vlc_mutex_lock(&sys->pts_lock);
             *pi64 = sys->last_pts;
             vlc_mutex_unlock(&sys->pts_lock);

@@ -89,7 +89,7 @@ vlc_module_begin ()
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_VCODEC )
     set_description( N_("PNG video decoder") )
-    set_capability( "decoder", 1000 )
+    set_capability( "video decoder", 1000 )
     set_callbacks( OpenDecoder, CloseDecoder )
     add_shortcut( "png" )
 
@@ -123,7 +123,6 @@ static int OpenDecoder( vlc_object_t *p_this )
     p_dec->p_sys->p_obj = p_this;
 
     /* Set output properties */
-    p_dec->fmt_out.i_cat = VIDEO_ES;
     p_dec->fmt_out.i_codec = VLC_CODEC_RGBA;
 
     /* Set callbacks */
@@ -261,6 +260,8 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
     if( i_color_type == PNG_COLOR_TYPE_GRAY ||
         i_color_type == PNG_COLOR_TYPE_GRAY_ALPHA )
           png_set_gray_to_rgb( p_png );
+    if( i_color_type & PNG_COLOR_MASK_ALPHA )
+        png_set_alpha_mode( p_png, PNG_ALPHA_OPTIMIZED, PNG_DEFAULT_sRGB );
 
     /* Strip to 8 bits per channel */
     if( i_bit_depth == 16 ) png_set_strip_16( p_png );

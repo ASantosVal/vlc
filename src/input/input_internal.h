@@ -29,7 +29,7 @@
 #include <vlc_access.h>
 #include <vlc_demux.h>
 #include <vlc_input.h>
-#include <vlc_vout.h>
+#include <vlc_viewpoint.h>
 #include <libvlc.h>
 #include "input_interface.h"
 #include "misc/interrupt.h"
@@ -45,7 +45,7 @@ typedef struct
 {
     VLC_COMMON_MEMBERS
 
-    demux_t  *p_demux; /**< Demux plugin instance */
+    demux_t  *p_demux; /**< Demux object (most downstream) */
 
     /* Title infos for that input */
     bool         b_title_demux; /* Titles/Seekpoints provided by demux */
@@ -111,6 +111,8 @@ typedef struct input_thread_private_t
     es_out_t        *p_es_out;
     es_out_t        *p_es_out_display;
     vlc_viewpoint_t viewpoint;
+    bool            viewpoint_changed;
+    vlc_renderer_item_t *p_renderer;
 
     /* Title infos FIXME multi-input (not easy) ? */
     int          i_title;
@@ -178,7 +180,7 @@ typedef struct input_thread_private_t
 
 static inline input_thread_private_t *input_priv(input_thread_t *input)
 {
-    return (void *)(((char *)input) - offsetof(input_thread_private_t, input));
+    return container_of(input, input_thread_private_t, input);
 }
 
 /***************************************************************************
@@ -218,6 +220,7 @@ enum input_control_e
     INPUT_CONTROL_RESTART_ES,
 
     INPUT_CONTROL_SET_VIEWPOINT,    // new absolute viewpoint
+    INPUT_CONTROL_SET_INITIAL_VIEWPOINT, // set initial viewpoint (generally from video)
     INPUT_CONTROL_UPDATE_VIEWPOINT, // update viewpoint relative to current
 
     INPUT_CONTROL_SET_AUDIO_DELAY,
@@ -225,11 +228,11 @@ enum input_control_e
 
     INPUT_CONTROL_ADD_SLAVE,
 
-    INPUT_CONTROL_ADD_SUBTITLE,
-
     INPUT_CONTROL_SET_RECORD_STATE,
 
     INPUT_CONTROL_SET_FRAME_NEXT,
+
+    INPUT_CONTROL_SET_RENDERER,
 };
 
 /* Internal helpers */
@@ -274,5 +277,8 @@ void input_SplitMRL( const char **, const char **, const char **,
 /* meta.c */
 void vlc_audio_replay_gain_MergeFromMeta( audio_replay_gain_t *p_dst,
                                           const vlc_meta_t *p_meta );
+
+/* item.c */
+void input_item_node_PostAndDelete( input_item_node_t *p_node );
 
 #endif

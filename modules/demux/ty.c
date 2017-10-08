@@ -166,7 +166,7 @@ typedef enum
 typedef struct
 {
     bool b_started;
-    int        i_data;
+    size_t     i_data;
     uint8_t    p_data[XDS_MAX_DATA_SIZE];
     int        i_sum;
 } xds_packet_t;
@@ -456,38 +456,29 @@ static int Demux( demux_t *p_demux )
                 p_rec->rec_type, p_rec->ex1, p_rec->ex2);
     }*/
 
-    if( p_rec->rec_type == 0xe0 )
+    switch( p_rec->rec_type )
     {
-        /* Video */
-        DemuxRecVideo( p_demux, p_rec, p_block_in );
-    }
-    else if ( p_rec->rec_type == 0xc0 )
-    {
-        /* Audio */
-        DemuxRecAudio( p_demux, p_rec, p_block_in );
-    }
-    else if( p_rec->rec_type == 0x01 || p_rec->rec_type == 0x02 )
-    {
-        /* Closed Captions/XDS */
-        DemuxRecCc( p_demux, p_rec, p_block_in );
-    }
-    else if ( p_rec->rec_type == 0x03 )
-    {
-        /* Tivo data services (e.g. "thumbs-up to record!")  useless for us */
-        if( p_block_in )
-            block_Release(p_block_in);
-    }
-    else if ( p_rec->rec_type == 0x05 )
-    {
-        /* Unknown, but seen regularly */
-        if( p_block_in )
-            block_Release(p_block_in);
-    }
-    else
-    {
-        msg_Dbg(p_demux, "Invalid record type 0x%02x", p_rec->rec_type );
-        if( p_block_in )
-            block_Release(p_block_in);
+        case 0xe0: /* video */
+            DemuxRecVideo( p_demux, p_rec, p_block_in );
+            break;
+
+        case 0xc0: /* audio */
+            DemuxRecAudio( p_demux, p_rec, p_block_in );
+            break;
+
+        case 0x01:
+        case 0x02:
+            /* closed captions/XDS */
+            DemuxRecCc( p_demux, p_rec, p_block_in );
+            break;
+
+        default:
+            msg_Dbg(p_demux, "Invalid record type 0x%02x", p_rec->rec_type );
+
+        case 0x03: /* tivo data services */
+        case 0x05: /* unknown, but seen regularly */
+            if( p_block_in )
+                block_Release( p_block_in );
     }
 
     /* */
@@ -513,7 +504,7 @@ static int Control(demux_t *p_demux, int i_query, va_list args)
         /* arg is 0.0 - 1.0 percent of overall file position */
         if( ( i64 = p_sys->i_stream_size ) > 0 )
         {
-            pf = (double*) va_arg( args, double* );
+            pf = va_arg( args, double* );
             *pf = ((double)1.0) * vlc_stream_Tell( p_demux->s ) / (double) i64;
             return VLC_SUCCESS;
         }
@@ -528,7 +519,7 @@ static int Control(demux_t *p_demux, int i_query, va_list args)
         return VLC_EGENERIC;
     case DEMUX_GET_TIME:
         /* return TiVo timestamp */
-        p_i64 = (int64_t *) va_arg(args, int64_t *);
+        p_i64 = va_arg(args, int64_t *);
         //*p_i64 = p_sys->lastAudioPTS - p_sys->firstAudioPTS;
         //*p_i64 = (p_sys->l_last_ty_pts / 1000) + (p_sys->lastAudioPTS -
         //    p_sys->l_last_ty_pts_sync);
@@ -536,11 +527,11 @@ static int Control(demux_t *p_demux, int i_query, va_list args)
         return VLC_SUCCESS;
     case DEMUX_GET_LENGTH:    /* length of program in microseconds, 0 if unk */
         /* size / bitrate */
-        p_i64 = (int64_t *) va_arg(args, int64_t *);
+        p_i64 = va_arg(args, int64_t *);
         *p_i64 = 0;
         return VLC_SUCCESS;
     case DEMUX_SET_TIME:      /* arg is time in microsecs */
-        i64 = (int64_t) va_arg( args, int64_t );
+        i64 = va_arg( args, int64_t );
         return ty_stream_seek_time(p_demux, i64 * 1000);
     case DEMUX_GET_FPS:
     default:
@@ -770,12 +761,6 @@ static int DemuxRecVideo( demux_t *p_demux, ty_rec_hdr_t *rec_hdr, block_t *p_bl
     /* Register the CC decoders when needed */
     for( i = 0; i < 4; i++ )
     {
-        static const vlc_fourcc_t fcc[4] = {
-            VLC_CODEC_EIA608_1,
-            VLC_CODEC_EIA608_2,
-            VLC_CODEC_EIA608_3,
-            VLC_CODEC_EIA608_4,
-        };
         static const char *ppsz_description[4] = {
             N_("Closed captions 1"),
             N_("Closed captions 2"),
@@ -788,7 +773,8 @@ static int DemuxRecVideo( demux_t *p_demux, ty_rec_hdr_t *rec_hdr, block_t *p_bl
         if( !p_sys->cc.pb_present[i] || p_sys->p_cc[i] )
             continue;
 
-        es_format_Init( &fmt, SPU_ES, fcc[i] );
+        es_format_Init( &fmt, SPU_ES, VLC_CODEC_CEA608 );
+        fmt.subs.cc.i_channel = i;
         fmt.psz_description = strdup( vlc_gettext(ppsz_description[i]) );
         fmt.i_group = TY_ES_GROUP;
         p_sys->p_cc[i] = es_out_Add( p_demux->out, &fmt );
@@ -1130,10 +1116,10 @@ static void XdsExit( xds_t *h )
     free( h->meta.future.psz_name );
     free( h->meta.future.psz_rating );
 }
-static void XdsStringUtf8( char dst[2*32+1], const uint8_t *p_src, int i_src )
+static void XdsStringUtf8( char dst[2*32+1], const uint8_t *p_src, size_t i_src )
 {
-    int i_dst = 0;
-    for( int i = 0; i < i_src; i++ )
+    size_t i_dst = 0;
+    for( size_t i = 0; i < i_src; i++ )
     {
         switch( p_src[i] )
         {
@@ -1555,7 +1541,7 @@ static int ty_stream_seek_time(demux_t *p_demux, uint64_t l_seek_time)
     }
 
     /* determine which chunk has our seek_time */
-    for (unsigned i=0; i<p_sys->i_bits_per_seq_entry; i++) {
+    for (i=0; i<p_sys->i_bits_per_seq_entry; i++) {
         uint64_t l_chunk_nr = i_seq_entry * p_sys->i_bits_per_seq_entry + i;
         uint64_t l_chunk_offset = (l_chunk_nr + 1) * CHUNK_SIZE;
         msg_Dbg(p_demux, "testing part %d chunk %"PRIu64" mask 0x%02X bit %d",
@@ -1624,7 +1610,6 @@ static void parse_master(demux_t *p_demux)
 {
     demux_sys_t *p_sys = p_demux->p_sys;
     uint8_t mst_buf[32];
-    uint32_t i, i_map_size;
     int64_t i_save_pos = vlc_stream_Tell(p_demux->s);
     int64_t i_pts_secs;
 
@@ -1639,10 +1624,18 @@ static void parse_master(demux_t *p_demux)
 
     /* parse header info */
     vlc_stream_Read(p_demux->s, mst_buf, 32);
-    i_map_size = U32_AT(&mst_buf[20]);  /* size of bitmask, in bytes */
+
+    uint32_t i_map_size = U32_AT(&mst_buf[20]);  /* size of bitmask, in bytes */
+    uint32_t i = U32_AT(&mst_buf[28]);   /* size of SEQ table, in bytes */
+
     p_sys->i_bits_per_seq_entry = i_map_size * 8;
-    i = U32_AT(&mst_buf[28]);   /* size of SEQ table, in bytes */
     p_sys->i_seq_table_size = i / (8 + i_map_size);
+
+    if(p_sys->i_seq_table_size == 0)
+    {
+        p_sys->seq_table = NULL;
+        return;
+    }
 
     /* parse all the entries */
     p_sys->seq_table = calloc(p_sys->i_seq_table_size, sizeof(ty_seq_table_t));
@@ -1651,15 +1644,15 @@ static void parse_master(demux_t *p_demux)
         p_sys->i_seq_table_size = 0;
         return;
     }
-    for (unsigned i=0; i<p_sys->i_seq_table_size; i++) {
+    for (unsigned j=0; j<p_sys->i_seq_table_size; j++) {
         vlc_stream_Read(p_demux->s, mst_buf, 8);
-        p_sys->seq_table[i].l_timestamp = U64_AT(&mst_buf[0]);
+        p_sys->seq_table[j].l_timestamp = U64_AT(&mst_buf[0]);
         if (i_map_size > 8) {
             msg_Err(p_demux, "Unsupported SEQ bitmap size in master chunk");
             vlc_stream_Read(p_demux->s, NULL, i_map_size);
         } else {
             vlc_stream_Read(p_demux->s, mst_buf + 8, i_map_size);
-            memcpy(p_sys->seq_table[i].chunk_bitmask, &mst_buf[8], i_map_size);
+            memcpy(p_sys->seq_table[j].chunk_bitmask, &mst_buf[8], i_map_size);
         }
     }
 

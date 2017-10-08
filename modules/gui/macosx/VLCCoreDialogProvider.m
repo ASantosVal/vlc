@@ -26,6 +26,8 @@
 #import "VLCCoreDialogProvider.h"
 #import "misc.h"
 
+#import "VLCErrorWindowController.h"
+
 /* for the icon in our custom error panel */
 #import <ApplicationServices/ApplicationServices.h>
 
@@ -124,7 +126,9 @@ static void cancelCallback(void *p_data,
                            vlc_dialog_id *p_id)
 {
     @autoreleasepool {
-        [NSApp stopModalWithCode: 0];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [NSApp stopModalWithCode: 0];
+        });
     }
 }
 
@@ -152,6 +156,8 @@ static void updateProgressCallback(void *p_data,
     if (self) {
         msg_Dbg(getIntf(), "Register dialog provider");
         [NSBundle loadNibNamed:@"CoreDialogs" owner: self];
+
+        _errorPanel = [[VLCErrorWindowController alloc] init];
 
         intf_thread_t *p_intf = getIntf();
         /* subscribe to various interactive dialogues */
@@ -194,13 +200,8 @@ static void updateProgressCallback(void *p_data,
 
 - (void)displayError:(NSArray *)dialogData
 {
-    NSAlert *alert = [NSAlert alertWithMessageText:[dialogData objectAtIndex:0]
-                                     defaultButton:_NS("OK")
-                                   alternateButton:nil
-                                       otherButton:nil
-                         informativeTextWithFormat:@"%@", [dialogData objectAtIndex:1]];
-    [alert setAlertStyle:NSCriticalAlertStyle];
-    [alert runModal];
+    [_errorPanel showWindow:nil];
+    [_errorPanel addError:[dialogData objectAtIndex:0] withMsg:[dialogData objectAtIndex:1]];
 }
 
 - (void)displayLoginDialog:(NSArray *)dialogData
@@ -287,8 +288,10 @@ static void updateProgressCallback(void *p_data,
 
     if ([[dialogData objectAtIndex:5] length] > 0) {
         progressCancelButton.title = [dialogData objectAtIndex:5];
+        progressCancelButton.enabled = YES;
     } else {
         progressCancelButton.title = _NS("Cancel");
+        progressCancelButton.enabled = NO;
     }
 
     [progressIndicator startAnimation:self];
@@ -299,8 +302,7 @@ static void updateProgressCallback(void *p_data,
 
     [progressIndicator stopAnimation:self];
 
-    if (returnValue == -1)
-        vlc_dialog_id_dismiss([[dialogData objectAtIndex:0] pointerValue]);
+    vlc_dialog_id_dismiss([[dialogData objectAtIndex:0] pointerValue]);
 }
 
 - (void)updateDisplayedProgressDialog:(NSArray *)dialogData

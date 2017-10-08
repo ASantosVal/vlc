@@ -71,11 +71,8 @@
 
     BOOL b_podcastView_displayed;
 
-    VLCColorView * o_color_backdrop;
-
     NSRect frameBeforePlayback;
 }
-- (void)resizePlaylistAfterCollapse;
 - (void)makeSplitViewVisible;
 - (void)makeSplitViewHidden;
 - (void)showPodcastControls;
@@ -176,9 +173,6 @@ static const float f_min_window_height = 307.;
     [self reloadSidebar];
     [_sidebarView selectRowIndexes:[NSIndexSet indexSetWithIndex:1] byExtendingSelection:NO];
 
-    // Setup view frame sizes
-    [_dropzoneView setFrame:_playlistScrollView.frame];
-    [_splitViewLeft setFrame:_sidebarView.frame];
 
     /*
      * Set up translatable strings for the UI elements
@@ -229,13 +223,6 @@ static const float f_min_window_height = 307.;
     else
         [self setContentMinSize:NSMakeSize(604., f_min_window_height)];
 
-    /* the default small size of the search field is slightly different on Lion, let's work-around that */
-    NSRect frame;
-    frame = [_searchField frame];
-    frame.origin.y = frame.origin.y + 2.0;
-    frame.size.height = frame.size.height - 1.0;
-    [_searchField setFrame:frame];
-
     _fspanel = [[VLCFSPanelController alloc] init];
     [_fspanel showWindow:self];
 
@@ -260,28 +247,8 @@ static const float f_min_window_height = 307.;
         [self setHasShadow:NO];
         [self setHasShadow:YES];
 
-        NSRect winrect = [self frame];
-        CGFloat f_titleBarHeight = [self.titlebarView frame].size.height;
-
-        [self.titlebarView setFrame: NSMakeRect(0, winrect.size.height - f_titleBarHeight,
-                                              winrect.size.width, f_titleBarHeight)];
-        [[self contentView] addSubview: self.titlebarView positioned: NSWindowAbove relativeTo: _splitView];
-
-        if (winrect.size.height > 100) {
-            [self setFrame: winrect display:YES animate:YES];
-            self.previousSavedFrame = winrect;
-        }
-
-        winrect = _splitView.frame;
-        winrect.size.height = winrect.size.height - f_titleBarHeight;
-        [_splitView setFrame: winrect];
-        [self.videoView setFrame: winrect];
-
-        o_color_backdrop = [[VLCColorView alloc] initWithFrame:_splitView.frame];
-        [[self contentView] addSubview:o_color_backdrop positioned:NSWindowBelow relativeTo:_splitView];
-        [o_color_backdrop setAutoresizingMask:NSViewHeightSizable | NSViewWidthSizable];
+        self.previousSavedFrame = [self frame];
     } else {
-        [self.videoView setFrame:_splitView.frame];
         [_playlistScrollView setBorderType:NSNoBorder];
         [_sidebarScrollView setBorderType:NSNoBorder];
     }
@@ -297,7 +264,7 @@ static const float f_min_window_height = 307.;
     }
 
     /* sanity check for the window size */
-    frame = [self frame];
+    NSRect frame = [self frame];
     NSSize screenSize = [[self screen] frame].size;
     if (screenSize.width <= frame.size.width || screenSize.height <= frame.size.height) {
         self.nativeVideoSize = screenSize;
@@ -311,7 +278,7 @@ static const float f_min_window_height = 307.;
     /* restore split view */
     f_lastLeftSplitViewWidth = 200;
     /* trick NSSplitView implementation, which pretends to know better than us */
-    if (!config_GetInt(getIntf(), "macosx-show-sidebar"))
+    if (!var_InheritBool(getIntf(), "macosx-show-sidebar"))
         [self performSelector:@selector(toggleLeftSubSplitView) withObject:nil afterDelay:0.05];
 }
 
@@ -425,33 +392,7 @@ static const float f_min_window_height = 307.;
     }
 }
 
-- (void)resizePlaylistAfterCollapse
-{
-    // no animation here since we might be in the middle of another resize animation
-    NSRect rightSplitRect = [_splitViewRight frame];
-
-    NSRect plrect;
-    plrect.size.height = rightSplitRect.size.height - 20.0; // actual pl top bar height, which differs from its frame
-    plrect.size.width = rightSplitRect.size.width;
-    plrect.origin.x = plrect.origin.y = 0.;
-
-    NSRect dropzoneboxRect = _dropzoneBox.frame;
-    dropzoneboxRect.origin.x = (plrect.size.width - dropzoneboxRect.size.width) / 2;
-    dropzoneboxRect.origin.y = (plrect.size.height - dropzoneboxRect.size.height) / 2;
-
-    [_dropzoneView setFrame:plrect];
-    [_dropzoneBox setFrame:dropzoneboxRect];
-
-    if (b_podcastView_displayed) {
-        plrect.size.height -= [_podcastView frame].size.height;
-        plrect.origin.y = [_podcastView frame].size.height;
-    }
-    [_playlistScrollView setFrame:plrect];
-
-    [_dropzoneView setNeedsDisplay:YES];
-    [_playlistScrollView setNeedsDisplay:YES];
-}
-
+// Show split view and hide the video view
 - (void)makeSplitViewVisible
 {
     if (self.darkInterface)
@@ -472,13 +413,14 @@ static const float f_min_window_height = 307.;
     [self.videoView setHidden:YES];
     [_splitView setHidden:NO];
     if (self.nativeFullscreenMode && [self fullscreen]) {
-        [[self.controlsBar bottomBarView] setHidden:NO];
+        [self showControlsBar];
         [self.fspanel setNonActive];
     }
 
     [self makeFirstResponder:_playlistScrollView];
 }
 
+// Hides the split view and makes the vout view in foreground
 - (void)makeSplitViewHidden
 {
     if (self.darkInterface)
@@ -489,7 +431,7 @@ static const float f_min_window_height = 307.;
     [_splitView setHidden:YES];
     [self.videoView setHidden:NO];
     if (self.nativeFullscreenMode && [self fullscreen]) {
-        [[self.controlsBar bottomBarView] setHidden:YES];
+        [self hideControlsBar];
         [self.fspanel setActive];
     }
 
@@ -556,6 +498,7 @@ static const float f_min_window_height = 307.;
             [_splitView setHidden: NO];
             [_playlistScrollView setHidden: NO];
             [self.videoView setHidden: YES];
+            [self showControlsBar];
         }
     }
 
@@ -610,23 +553,19 @@ static const float f_min_window_height = 307.;
 - (void)showDropZone
 {
     b_dropzone_active = YES;
-    [_splitViewRight addSubview:_dropzoneView positioned:NSWindowAbove relativeTo:_playlistScrollView];
-    [_dropzoneView setFrame:_playlistScrollView.frame];
+    [_dropzoneView setHidden:NO];
     [_playlistScrollView setHidden:YES];
 }
 
 - (void)hideDropZone
 {
     b_dropzone_active = NO;
-    [_dropzoneView removeFromSuperview];
+    [_dropzoneView setHidden:YES];
     [_playlistScrollView setHidden:NO];
 }
 
 - (void)hideSplitView:(BOOL)resize
 {
-    // cancel pending pl resizes, in case of fast toggle between both modes
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(resizePlaylistAfterCollapse) object:nil];
-
     if (resize) {
         NSRect winrect = [self frame];
         f_lastSplitViewHeight = [_splitView frame].size.height;
@@ -662,10 +601,6 @@ static const float f_min_window_height = 307.;
         winrect.origin.y = winrect.origin.y - f_lastSplitViewHeight;
         [self setFrame:winrect display:YES animate:YES];
     }
-
-    // cancel pending pl resizes, in case of fast toggle between both modes
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(resizePlaylistAfterCollapse) object:nil];
-    [self performSelector:@selector(resizePlaylistAfterCollapse) withObject: nil afterDelay:0.75];
 
     b_splitview_removed = NO;
 }
@@ -814,7 +749,7 @@ static const float f_min_window_height = 307.;
 - (void)setVideoplayEnabled
 {
     BOOL b_videoPlayback = [[VLCMain sharedInstance] activeVideoPlayback];
-        
+
     if (!b_videoPlayback) {
         if (!self.nonembedded && (!self.nativeFullscreenMode || (self.nativeFullscreenMode && !self.fullscreen)) && frameBeforePlayback.size.width > 0 && frameBeforePlayback.size.height > 0) {
 
@@ -845,42 +780,16 @@ static const float f_min_window_height = 307.;
     }
 
     if (self.nativeFullscreenMode) {
-        if ([self hasActiveVideo] && [self fullscreen]) {
-            [[self.controlsBar bottomBarView] setHidden: b_videoPlayback];
+        if ([self hasActiveVideo] && [self fullscreen] && b_videoPlayback) {
+            [self hideControlsBar];
             [self.fspanel setActive];
         } else {
-            [[self.controlsBar bottomBarView] setHidden: NO];
+            [self showControlsBar];
             [self.fspanel setNonActive];
         }
     }
 }
 
-#pragma mark -
-#pragma mark Lion native fullscreen handling
-- (void)windowWillEnterFullScreen:(NSNotification *)notification
-{
-    [super windowWillEnterFullScreen:notification];
-
-    // update split view frame after removing title bar
-    if (self.darkInterface) {
-        NSRect frame = [[self contentView] frame];
-        frame.origin.y += [self.controlsBar height];
-        frame.size.height -= [self.controlsBar height];
-        [_splitView setFrame:frame];
-    }
-}
-
-- (void)windowWillExitFullScreen:(NSNotification *)notification
-{
-    [super windowWillExitFullScreen: notification];
-
-    // update split view frame after readding title bar
-    if (self.darkInterface) {
-        NSRect frame = [_splitView frame];
-        frame.size.height -= [self.titlebarView frame].size.height;
-        [_splitView setFrame:frame];
-    }
-}
 #pragma mark -
 #pragma mark Fullscreen support
 
@@ -1161,7 +1070,7 @@ static const float f_min_window_height = 307.;
         }
     } else {
         PL_LOCK;
-        playlist_item_t *pl_item = playlist_ChildSearchName(p_playlist->p_root, [[item untranslatedTitle] UTF8String]);
+        playlist_item_t *pl_item = playlist_ChildSearchName(&p_playlist->root, [[item untranslatedTitle] UTF8String]);
         if (pl_item != NULL)
             [[[[VLCMain sharedInstance] playlist] model] changeRootItem:pl_item];
 
@@ -1322,34 +1231,18 @@ static const float f_min_window_height = 307.;
 
 - (void)showPodcastControls
 {
-    NSRect podcastViewDimensions = [_podcastView frame];
-    NSRect rightSplitRect = [_splitViewRight frame];
-    NSRect playlistTableRect = [_playlistScrollView frame];
+    _tableViewToPodcastConstraint.priority = 999;
+    _podcastView.hidden = NO;
 
-    podcastViewDimensions.size.width = rightSplitRect.size.width;
-    podcastViewDimensions.origin.x = podcastViewDimensions.origin.y = .0;
-    [_podcastView setFrame:podcastViewDimensions];
-
-    playlistTableRect.origin.y = playlistTableRect.origin.y + podcastViewDimensions.size.height;
-    playlistTableRect.size.height = playlistTableRect.size.height - podcastViewDimensions.size.height;
-    [_playlistScrollView setFrame:playlistTableRect];
-    [_playlistScrollView setNeedsDisplay:YES];
-
-    [_splitViewRight addSubview:_podcastView positioned:NSWindowAbove relativeTo:_splitViewRight];
     b_podcastView_displayed = YES;
 }
 
 - (void)hidePodcastControls
 {
     if (b_podcastView_displayed) {
-        NSRect podcastViewDimensions = [_podcastView frame];
-        NSRect playlistTableRect = [_playlistScrollView frame];
+        _tableViewToPodcastConstraint.priority = 1;
+        _podcastView.hidden = YES;
 
-        playlistTableRect.origin.y = playlistTableRect.origin.y - podcastViewDimensions.size.height;
-        playlistTableRect.size.height = playlistTableRect.size.height + podcastViewDimensions.size.height;
-
-        [_podcastView removeFromSuperviewWithoutNeedingDisplay];
-        [_playlistScrollView setFrame:playlistTableRect];
         b_podcastView_displayed = NO;
     }
 }
@@ -1357,9 +1250,6 @@ static const float f_min_window_height = 307.;
 @end
 
 @interface VLCDetachedVideoWindow ()
-{
-    VLCColorView * o_color_backdrop;
-}
 @end
 
 @implementation VLCDetachedVideoWindow
@@ -1380,29 +1270,7 @@ static const float f_min_window_height = 307.;
         [self setHasShadow:NO];
         [self setHasShadow:YES];
 
-        NSRect winrect = [self frame];
-        CGFloat f_titleBarHeight = [self.titlebarView frame].size.height;
-
         [self setTitle: _NS("VLC media player")];
-        [self.titlebarView setFrame: NSMakeRect(0, winrect.size.height - f_titleBarHeight, winrect.size.width, f_titleBarHeight)];
-        [[self contentView] addSubview: self.titlebarView positioned: NSWindowAbove relativeTo: nil];
-
-    } else {
-        [self setBackgroundColor: [NSColor blackColor]];
-    }
-
-    NSRect videoViewRect = [[self contentView] bounds];
-    if (darkInterface)
-        videoViewRect.size.height -= [self.titlebarView frame].size.height;
-    CGFloat f_bottomBarHeight = [[self controlsBar] height];
-    videoViewRect.size.height -= f_bottomBarHeight;
-    videoViewRect.origin.y = f_bottomBarHeight;
-    [self.videoView setFrame: videoViewRect];
-
-    if (darkInterface) {
-        o_color_backdrop = [[VLCColorView alloc] initWithFrame: [self.videoView frame]];
-        [[self contentView] addSubview: o_color_backdrop positioned: NSWindowBelow relativeTo: self.videoView];
-        [o_color_backdrop setAutoresizingMask:NSViewHeightSizable | NSViewWidthSizable];
 
         [self setContentMinSize: NSMakeSize(363., f_min_video_height + [[self controlsBar] height] + [self.titlebarView frame].size.height)];
     } else {

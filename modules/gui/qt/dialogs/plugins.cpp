@@ -300,24 +300,26 @@ void ExtensionTab::moreInformation()
     dlg.exec();
 }
 
-static QPixmap hueRotate( QImage image, const QColor &source, const QColor &target )
+static QIcon iconFromCategory( int type )
 {
-    int distance = target.hue() - source.hue();
-    /* must be indexed as we alter palette, not a whole pic */
-    Q_ASSERT( image.colorCount() );
-    if ( target.isValid() )
+    switch( type )
     {
-        /* color 1 = transparency */
-        for ( int i=1; i < image.colorCount(); i++ )
-        {
-            QColor color = image.color( i );
-            int newhue = color.hue() + distance;
-            if ( newhue < 0 ) newhue += 255;
-            color.setHsv( newhue, color.saturation(), color.value(), color.alpha() );
-            image.setColor( i, color.rgba() );
-        }
+        case ADDON_EXTENSION:
+            return QIcon( ":/addons/addon_yellow" );
+        case ADDON_PLAYLIST_PARSER:
+            return QIcon( ":/addons/addon_green" );
+        case ADDON_SERVICE_DISCOVERY:
+            return QIcon( ":/addons/addon_red" );
+        case ADDON_SKIN2:
+            return QIcon( ":/addons/addon_cyan" );
+        case ADDON_INTERFACE:
+            return QIcon( ":/addons/addon_blue" );
+        case ADDON_META:
+            return QIcon( ":/addons/addon_magenta" );
+        default:
+            return QIcon( ":/addons/default" );
     }
-    return QPixmap::fromImage( image );
+    vlc_assert_unreachable();
 }
 
 /* Add-ons tab */
@@ -352,12 +354,9 @@ AddonsTab::AddonsTab( intf_thread_t *p_intf_ ) : QVLCFrame( p_intf_ )
 
     QToolButton * button;
     signalMapper = new QSignalMapper();
-    QImage icon( ":/addons/default" );
-    QColor vlcorange( 0xEC, 0x83, 0x00 );
 #define ADD_CATEGORY( label, ltooltip, numb ) \
     button = new QToolButton( this );\
-    button->setIcon( QIcon( hueRotate( icon, vlcorange, \
-                     AddonsListModel::getColorByAddonType( numb ) ) ) );\
+    button->setIcon( iconFromCategory( numb ) ); \
     button->setText( label );\
     button->setToolTip( ltooltip );\
     button->setToolButtonStyle( Qt::ToolButtonTextBesideIcon );\
@@ -870,6 +869,11 @@ AddonsListModel::AddonsListModel( AddonsManager *AM_, QObject *parent )
 
 }
 
+AddonsListModel::~AddonsListModel()
+{
+    qDeleteAll( addons );
+}
+
 void AddonsListModel::addonAdded(  addon_entry_t *p_entry )
 {
     beginInsertRows( QModelIndex(), addons.count(), addons.count() );
@@ -903,9 +907,7 @@ Qt::ItemFlags AddonsListModel::flags( const QModelIndex &index ) const
     int i_state = data( index, StateRole ).toInt();
 
     if ( i_state == ADDON_UNINSTALLING || i_state == ADDON_INSTALLING )
-    {
-        i_flags &= !Qt::ItemIsEnabled;
-    }
+        i_flags &= ~Qt::ItemIsEnabled;
 
     i_flags |= Qt::ItemIsEditable;
 
@@ -1039,7 +1041,11 @@ void ExtensionItemDelegate::paint( QPainter *painter,
                                    const QStyleOptionViewItem &option,
                                    const QModelIndex &index ) const
 {
+#if HAS_QT5
+    QStyleOptionViewItem opt = option;
+#else
     QStyleOptionViewItemV4 opt = option;
+#endif
     initStyleOption( &opt, index );
 
     // Draw background
@@ -1108,10 +1114,9 @@ void ExtensionItemDelegate::initStyleOption( QStyleOptionViewItem *option,
 
 AddonItemDelegate::AddonItemDelegate( QObject *parent )
     : ExtensionItemDelegate( parent )
-{
-    animator = NULL;
-    progressbar = NULL;
-}
+    , animator( NULL )
+    , progressbar( NULL )
+{ }
 
 AddonItemDelegate::~AddonItemDelegate()
 {
@@ -1122,7 +1127,11 @@ void AddonItemDelegate::paint( QPainter *painter,
                                const QStyleOptionViewItem &option,
                                const QModelIndex &index ) const
 {
+#if HAS_QT5
+    QStyleOptionViewItem newopt = option;
+#else
     QStyleOptionViewItemV4 newopt = option;
+#endif
     int i_state = index.data( AddonsListModel::StateRole ).toInt();
     int i_type = index.data( AddonsListModel::TypeRole ).toInt();
 
@@ -1243,9 +1252,15 @@ void AddonItemDelegate::paint( QPainter *painter,
                 progressbar->setGeometry(
                     newopt.rect.adjusted( adjustment.width(), adjustment.height(),
                                           -adjustment.width(), -adjustment.height() ) );
+#if HAS_QT5
+                painter->drawPixmap( newopt.rect.left() + adjustment.width(),
+                                     newopt.rect.top() + adjustment.height(),
+                                     progressbar->grab() );
+#else
                 painter->drawPixmap( newopt.rect.left() + adjustment.width(),
                                      newopt.rect.top() + adjustment.height(),
                                      QPixmap::grabWidget( progressbar ) );
+#endif
             }
             painter->restore();
         }
@@ -1340,7 +1355,7 @@ void AddonItemDelegate::editButtonClicked()
     QWidget *editor = qobject_cast<QWidget *>(sender()->parent());
     if ( !editor ) return;
     int value = editor->property("Addon::state").toInt();
-    if ( ( value == ADDON_INSTALLED ) )
+    if ( value == ADDON_INSTALLED )
         /* uninstall */
         editor->setProperty("Addon::state", ADDON_UNINSTALLING );
     else

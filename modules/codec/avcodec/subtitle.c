@@ -39,7 +39,8 @@
 #include "avcodec.h"
 
 struct decoder_sys_t {
-    AVCODEC_COMMON_MEMBERS
+    AVCodecContext *p_context;
+    const AVCodec  *p_codec;
     bool b_need_ephemer; /* Does the format need the ephemer flag (no end time set) */
 };
 
@@ -51,9 +52,14 @@ static void Flush(decoder_t *);
 /**
  * Initialize subtitle decoder
  */
-int InitSubtitleDec(decoder_t *dec, AVCodecContext *context,
-                    const AVCodec *codec)
+int InitSubtitleDec(vlc_object_t *obj)
 {
+    decoder_t *dec = (decoder_t *)obj;
+    const AVCodec *codec;
+    AVCodecContext *context = ffmpeg_AllocContext(dec, &codec);
+    if (context == NULL)
+        return VLC_EGENERIC;
+
     decoder_sys_t *sys;
 
     /* */
@@ -64,17 +70,20 @@ int InitSubtitleDec(decoder_t *dec, AVCodecContext *context,
         break;
     default:
         msg_Warn(dec, "refusing to decode non validated subtitle codec");
+        avcodec_free_context(&context);
         return VLC_EGENERIC;
     }
 
     /* */
     dec->p_sys = sys = malloc(sizeof(*sys));
-    if (!sys)
+    if (unlikely(sys == NULL))
+    {
+        avcodec_free_context(&context);
         return VLC_ENOMEM;
+    }
 
     sys->p_context = context;
     sys->p_codec = codec;
-    sys->b_delayed_open = false;
     sys->b_need_ephemer = codec->id == AV_CODEC_ID_HDMV_PGS_SUBTITLE;
 
     /* */
@@ -90,7 +99,7 @@ int InitSubtitleDec(decoder_t *dec, AVCodecContext *context,
     char *psz_opts = var_InheritString(dec, "avcodec-options");
     AVDictionary *options = NULL;
     if (psz_opts) {
-        options = vlc_av_get_options(psz_opts);
+        vlc_av_get_options(psz_opts, &options);
         free(psz_opts);
     }
 
@@ -107,16 +116,26 @@ int InitSubtitleDec(decoder_t *dec, AVCodecContext *context,
     if (ret < 0) {
         msg_Err(dec, "cannot open codec (%s)", codec->name);
         free(sys);
+        avcodec_free_context(&context);
         return VLC_EGENERIC;
     }
 
     /* */
     msg_Dbg(dec, "libavcodec codec (%s) started", codec->name);
-    dec->fmt_out.i_cat = SPU_ES;
     dec->pf_decode = DecodeSubtitle;
     dec->pf_flush  = Flush;
 
     return VLC_SUCCESS;
+}
+
+void EndSubtitleDec(vlc_object_t *obj)
+{
+    decoder_t *dec = (decoder_t *)obj;
+    decoder_sys_t *sys = dec->p_sys;
+    AVCodecContext *ctx = sys->p_context;
+
+    avcodec_free_context(&ctx);
+    free(sys);
 }
 
 /**
@@ -242,11 +261,11 @@ static subpicture_region_t *ConvertRegionRGBA(AVSubtitleRect *ffregion)
     for (int y = 0; y < ffregion->h; y++) {
         for (int x = 0; x < ffregion->w; x++) {
             /* I don't think don't have paletized RGB_A_ */
-            const uint8_t index = ffregion->pict.data[0][y * ffregion->w+x];
+            const uint8_t index = ffregion->data[0][y * ffregion->w+x];
             assert(index < ffregion->nb_colors);
 
             uint32_t color;
-            memcpy(&color, &ffregion->pict.data[1][4*index], 4);
+            memcpy(&color, &ffregion->data[1][4*index], 4);
 
             uint8_t *p_rgba = &p->p_pixels[y * p->i_pitch + x * p->i_pixel_pitch];
             p_rgba[0] = (color >> 16) & 0xff;

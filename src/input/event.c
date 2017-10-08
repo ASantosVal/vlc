@@ -189,42 +189,14 @@ void input_SendEventCache( input_thread_t *p_input, double f_level )
     Trigger( p_input, INPUT_EVENT_CACHE );
 }
 
-/* FIXME: review them because vlc_event_send might be
- * moved inside input_item* functions.
- */
 void input_SendEventMeta( input_thread_t *p_input )
 {
     Trigger( p_input, INPUT_EVENT_ITEM_META );
-
-    /* FIXME remove this ugliness ? */
-    vlc_event_t event;
-
-    event.type = vlc_InputItemMetaChanged;
-    event.u.input_item_meta_changed.meta_type = vlc_meta_ArtworkURL;
-    vlc_event_send( &input_priv(p_input)->p_item->event_manager, &event );
 }
 
 void input_SendEventMetaInfo( input_thread_t *p_input )
 {
     Trigger( p_input, INPUT_EVENT_ITEM_INFO );
-
-    /* FIXME remove this ugliness */
-    vlc_event_t event;
-
-    event.type = vlc_InputItemInfoChanged;
-    vlc_event_send( &input_priv(p_input)->p_item->event_manager, &event );
-}
-
-void input_SendEventMetaName( input_thread_t *p_input, const char *psz_name )
-{
-    Trigger( p_input, INPUT_EVENT_ITEM_NAME );
-
-    /* FIXME remove this ugliness */
-    vlc_event_t event;
-
-    event.type = vlc_InputItemNameChanged;
-    event.u.input_item_name_changed.new_name = psz_name;
-    vlc_event_send( &input_priv(p_input)->p_item->event_manager, &event );
 }
 
 void input_SendEventMetaEpg( input_thread_t *p_input )
@@ -256,7 +228,7 @@ void input_SendEventProgramScrambled( input_thread_t *p_input, int i_group, bool
     Trigger( p_input, INPUT_EVENT_PROGRAM );
 }
 
-static const char *GetEsVarName( int i_cat )
+static const char *GetEsVarName( enum es_format_category_e i_cat )
 {
     switch( i_cat )
     {
@@ -270,20 +242,20 @@ static const char *GetEsVarName( int i_cat )
         return NULL;
     }
 }
-void input_SendEventEsAdd( input_thread_t *p_input, int i_cat, int i_id, const char *psz_text )
+void input_SendEventEsAdd( input_thread_t *p_input, enum es_format_category_e i_cat, int i_id, const char *psz_text )
 {
     const char *psz_varname = GetEsVarName( i_cat );
     if( psz_varname )
         VarListAdd( p_input, psz_varname, INPUT_EVENT_ES, i_id, psz_text );
 }
-void input_SendEventEsDel( input_thread_t *p_input, int i_cat, int i_id )
+void input_SendEventEsDel( input_thread_t *p_input, enum es_format_category_e i_cat, int i_id )
 {
     const char *psz_varname = GetEsVarName( i_cat );
     if( psz_varname )
         VarListDel( p_input, psz_varname, INPUT_EVENT_ES, i_id );
 }
 /* i_id == -1 will unselect */
-void input_SendEventEsSelect( input_thread_t *p_input, int i_cat, int i_id )
+void input_SendEventEsSelect( input_thread_t *p_input, enum es_format_category_e i_cat, int i_id )
 {
     const char *psz_varname = GetEsVarName( i_cat );
     if( psz_varname )

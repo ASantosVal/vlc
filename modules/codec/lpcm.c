@@ -58,7 +58,7 @@ vlc_module_begin ()
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_ACODEC )
     set_description( N_("Linear PCM audio decoder") )
-    set_capability( "decoder", 100 )
+    set_capability( "audio decoder", 100 )
     set_callbacks( OpenDecoder, CloseCommon )
 
     add_submodule ()
@@ -214,9 +214,8 @@ static int WidiHeader( unsigned *pi_rate,
 /*****************************************************************************
  * OpenCommon:
  *****************************************************************************/
-static int OpenCommon( vlc_object_t *p_this, bool b_packetizer )
+static int OpenCommon( decoder_t *p_dec, bool b_packetizer )
 {
-    decoder_t *p_dec = (decoder_t*)p_this;
     decoder_sys_t *p_sys;
     int i_type;
     int i_header_size;
@@ -259,8 +258,6 @@ static int OpenCommon( vlc_object_t *p_this, bool b_packetizer )
     p_sys->i_chans_to_reorder = 0;
 
     /* Set output properties */
-    p_dec->fmt_out.i_cat = AUDIO_ES;
-
     if( b_packetizer )
     {
         switch( i_type )
@@ -306,11 +303,11 @@ static int OpenCommon( vlc_object_t *p_this, bool b_packetizer )
 }
 static int OpenDecoder( vlc_object_t *p_this )
 {
-    return OpenCommon( p_this, false );
+    return OpenCommon( (decoder_t*) p_this, false );
 }
 static int OpenPacketizer( vlc_object_t *p_this )
 {
-    return OpenCommon( p_this, true );
+    return OpenCommon( (decoder_t*) p_this, true );
 }
 
 /*****************************************************************************
@@ -415,7 +412,6 @@ static block_t *Packetize( decoder_t *p_dec, block_t **pp_block )
     }
     p_dec->fmt_out.audio.i_rate = i_rate;
     p_dec->fmt_out.audio.i_channels = i_channels;
-    p_dec->fmt_out.audio.i_original_channels = i_original_channels;
     p_dec->fmt_out.audio.i_physical_channels = i_original_channels;
 
     if ( p_sys->i_type == LPCM_AOB )
@@ -447,22 +443,25 @@ static block_t *Packetize( decoder_t *p_dec, block_t **pp_block )
         /* */
         if( i_bits == 16 )
         {
+            p_dec->fmt_out.audio.i_format =
             p_dec->fmt_out.i_codec = VLC_CODEC_S16N;
             p_dec->fmt_out.audio.i_bitspersample = 16;
         }
         else
         {
+            p_dec->fmt_out.audio.i_format =
             p_dec->fmt_out.i_codec = VLC_CODEC_S32N;
             p_dec->fmt_out.audio.i_bitspersample = 32;
         }
 
         /* */
         block_t *p_aout_buffer;
-        if( decoder_UpdateAudioFormat( p_dec ) )
+        if( decoder_UpdateAudioFormat( p_dec ) != VLC_SUCCESS ||
+           !(p_aout_buffer = decoder_NewAudioBuffer( p_dec, i_frame_length )) )
+        {
+            block_Release( p_block );
             return NULL;
-        p_aout_buffer = decoder_NewAudioBuffer( p_dec, i_frame_length );
-        if( !p_aout_buffer )
-            return NULL;
+        }
 
         p_aout_buffer->i_pts = date_Get( &p_sys->end_date );
         p_aout_buffer->i_length =
@@ -471,20 +470,6 @@ static block_t *Packetize( decoder_t *p_dec, block_t **pp_block )
 
         p_block->p_buffer += p_sys->i_header_size + i_padding;
         p_block->i_buffer -= p_sys->i_header_size + i_padding;
-
-        const unsigned block_nb_frames = p_block->i_buffer / ( i_bits * 4 / 8 );
-        const unsigned aout_nb_frames = p_aout_buffer->i_nb_samples
-            / ( p_dec->fmt_out.audio.i_bitspersample / 8 );
-
-        if( block_nb_frames > aout_nb_frames )
-        {
-            msg_Warn( p_dec, "invalid block size" );
-
-            block_Release( p_block );
-            block_Release( p_aout_buffer );
-
-            return NULL;
-        }
 
         switch( p_sys->i_type )
         {
@@ -846,9 +831,9 @@ static int AobHeader( unsigned *pi_rate,
      *         + 3 bytes (1 for continuity counter + 2 for header_size ) */
     *pi_padding = 3 + i_header_size - LPCM_AOB_HEADER_LEN;
 
-    const int i_index_size_g1 = (p_header[6] >> 4) & 0x0f;
+    const int i_index_size_g1 = (p_header[6] >> 4);
     const int i_index_size_g2 = (p_header[6]     ) & 0x0f;
-    const int i_index_rate_g1 = (p_header[7] >> 4) & 0x0f;
+    const int i_index_rate_g1 = (p_header[7] >> 4);
     const int i_index_rate_g2 = (p_header[7]     ) & 0x0f;
     const int i_assignment     = p_header[9];
 

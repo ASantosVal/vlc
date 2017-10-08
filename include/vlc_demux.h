@@ -208,7 +208,7 @@ enum demux_query_e
     /** Check which INPUT_UPDATE_XXX flag is set and reset the ones set.
      *
      * The unsigned* argument is set with the flags needed to be checked,
-     * on return it contains the values that were reset during the call 
+     * on return it contains the values that were reset during the call
      *
      * This can can fail, in which case flags from demux_t.info.i_update
      * are read/reset
@@ -323,6 +323,13 @@ enum demux_query_e
     DEMUX_NAV_POPUP,
     /** Activate disc Root Menu. Can fail */
     DEMUX_NAV_MENU,            /* res=can fail */
+    /** Enable/Disable a demux filter
+     * \warning This has limited support, and is likely to break if more than
+     * a single demux_filter is present in the chain. This is not guaranteed to
+     * work in future VLC versions, nor with all demux filters
+     */
+    DEMUX_FILTER_ENABLE,
+    DEMUX_FILTER_DISABLE
 };
 
 /*************************************************************************
@@ -399,16 +406,7 @@ static inline bool demux_IsPathExtension( demux_t *p_demux, const char *psz_exte
 VLC_USED
 static inline bool demux_IsContentType(demux_t *demux, const char *type)
 {
-    char *mime = stream_ContentType(demux->s);
-    if (mime == NULL)
-        return false;
-
-    size_t len = strlen(type);
-    bool ok = strncasecmp(mime, type, len) == 0
-           && memchr("\t ;", (unsigned char)mime[len], 4) != NULL;
-
-    free(mime);
-    return ok;
+    return stream_IsMimeType(demux->s, type);
 }
 
 VLC_USED

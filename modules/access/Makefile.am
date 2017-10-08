@@ -36,11 +36,6 @@ access_LTLIBRARIES += libimem_plugin.la
 libaccess_imem_plugin_la_SOURCES = access/imem.c
 access_LTLIBRARIES += libaccess_imem_plugin.la
 
-librar_plugin_la_SOURCES = access/rar/rar.c access/rar/rar.h \
-	access/rar/access.c access/rar/stream.c access/rar/module.c
-librar_plugin_la_CPPFLAGS = $(AM_CPPFLAGS)
-access_LTLIBRARIES += librar_plugin.la
-
 libsdp_plugin_la_SOURCES = access/sdp.c
 access_LTLIBRARIES += libsdp_plugin.la
 
@@ -49,30 +44,6 @@ access_LTLIBRARIES += libtimecode_plugin.la
 
 libvdr_plugin_la_SOURCES = access/vdr.c
 access_LTLIBRARIES += libvdr_plugin.la
-
-libzip_plugin_la_SOURCES = access/zip/zip.h access/zip/zipstream.c access/zip/zipaccess.c
-libzip_plugin_la_CFLAGS = $(AM_CFLAGS) $(MINIZIP_CFLAGS)
-libzip_plugin_la_LIBADD = $(MINIZIP_LIBS)
-libunzip_la_SOURCES = access/zip/unzip/unzip.c access/zip/unzip/unzip.h access/zip/unzip/crypt.h \
-	access/zip/unzip/ioapi.c access/zip/unzip/ioapi.h
-libunzip_la_LIBADD = -lz
-libunzip_la_LDFLAGS = -static
-if HAVE_ZLIB
-access_LTLIBRARIES += libzip_plugin.la
-if !HAVE_MINIZIP
-noinst_LTLIBRARIES += libunzip.la
-libzip_plugin_la_CFLAGS += -I$(srcdir)/access/zip/unzip
-libzip_plugin_la_LIBADD += libunzip.la
-endif
-endif
-
-libaccess_archive_plugin_la_SOURCES = access/archive/access.c access/archive/stream.c \
-					access/archive/archive.h access/archive/archive.c
-libaccess_archive_plugin_la_CFLAGS = $(AM_CFLAGS) $(ARCHIVE_CFLAGS)
-libaccess_archive_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(accessdir)'
-libaccess_archive_plugin_la_LIBADD = $(ARCHIVE_LIBS)
-access_LTLIBRARIES += $(LTLIBaccess_archive)
-EXTRA_LTLIBRARIES += libaccess_archive_plugin.la
 
 ### Audio capture ###
 
@@ -446,3 +417,12 @@ libaccess_mtp_plugin_la_LIBADD = $(MTP_LIBS)
 libaccess_mtp_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(accessdir)'
 access_LTLIBRARIES += $(LTLIBaccess_mtp)
 EXTRA_LTLIBRARIES += libaccess_mtp_plugin.la
+
+### SRT ###
+
+libaccess_srt_plugin_la_SOURCES = access/srt.c
+libaccess_srt_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) $(SRT_CPPFLAGS)
+libaccess_srt_plugin_la_LIBADD = $(SRT_LIBS)
+libaccess_srt_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(accessdir)'
+access_LTLIBRARIES += $(LTLIBaccess_srt)
+EXTRA_LTLIBRARIES += libaccess_srt_plugin.la

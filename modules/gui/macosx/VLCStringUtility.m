@@ -43,7 +43,7 @@ NSString *const kVLCMediaVideoTSFolder = @"VIDEO_TS";
 NSString *const kVLCMediaBDMVFolder = @"BDMV";
 NSString *const kVLCMediaUnknown = @"Unknown";
 
-#import <vlc_keys.h>
+#import <vlc_actions.h>
 #import <vlc_strings.h>
 
 @implementation VLCStringUtility
@@ -533,7 +533,7 @@ NSString *toNSStr(const char *str) {
 NSImage *imageFromRes(NSString *o_id)
 {
     NSString *result = @"";
-    if (OSX_YOSEMITE || OSX_EL_CAPITAN || OSX_SIERRA) {
+    if (OSX_YOSEMITE_AND_HIGHER) {
         result = [result stringByAppendingString:@"ys-"];
     }
 

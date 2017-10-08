@@ -309,12 +309,12 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         case DEMUX_CAN_PAUSE:
         case DEMUX_CAN_CONTROL_PACE:
             /* TODO */
-            pb = (bool*)va_arg( args, bool * );
+            pb = va_arg( args, bool * );
             *pb = false;
             return VLC_SUCCESS;
 
         case DEMUX_GET_PTS_DELAY:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = INT64_C(1000)
                   * var_InheritInteger( p_demux, "live-caching" );
             return VLC_SUCCESS;
@@ -506,7 +506,7 @@ static int InitVideo( demux_t *p_demux )
                             + sizeof(struct block_extension_t);
 
     /* Video ES */
-    es_format_Init( &fmt, VIDEO_ES, VLC_FOURCC('I','4','2','0') );
+    es_format_Init( &fmt, VIDEO_ES, VLC_CODEC_I420 );
     fmt.i_id                    = p_sys->i_id_video;
     fmt.video.i_frame_rate      = p_sys->i_frame_rate;
     fmt.video.i_frame_rate_base = p_sys->i_frame_rate_base;
@@ -535,10 +535,9 @@ static int InitAudio( demux_t *p_demux )
                  1 + p_audio->i_channel / 2, 1 + (p_audio->i_channel % 2),
                  p_sys->i_sample_rate, p_audio->i_delay );
 
-        es_format_Init( &fmt, AUDIO_ES, VLC_FOURCC('a','r','a','w') );
+        es_format_Init( &fmt, AUDIO_ES, VLC_CODEC_S16L );
         fmt.i_id = p_audio->i_id;
         fmt.audio.i_channels          = 2;
-        fmt.audio.i_original_channels =
         fmt.audio.i_physical_channels = AOUT_CHANS_STEREO;
         fmt.audio.i_rate              = p_sys->i_sample_rate;
         fmt.audio.i_bitspersample     = 16;
@@ -615,7 +614,7 @@ static int HandleVideo( demux_t *p_demux, const uint8_t *p_buffer )
     p_current_picture->i_dts = p_current_picture->i_pts = p_sys->i_next_vdate;
     es_out_Send( p_demux->out, p_sys->p_es_video, p_current_picture );
 
-    es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_sys->i_next_vdate );
+    es_out_SetPCR( p_demux->out, p_sys->i_next_vdate );
     p_sys->i_next_vdate += p_sys->i_incr;
     return VLC_SUCCESS;
 }

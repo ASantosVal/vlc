@@ -54,8 +54,10 @@
 
 - (void)awakeFromNib
 {
-    _darkInterface = config_GetInt(getIntf(), "macosx-interfacestyle");
-    _nativeFullscreenMode = NO;
+    [super awakeFromNib];
+    
+    _darkInterface = var_InheritBool(getIntf(), "macosx-interfacestyle");
+    _nativeFullscreenMode = var_InheritBool(getIntf(), "macosx-nativefullscreenmode");
 
     [self.dropView setDrawBorder: NO];
 
@@ -74,13 +76,15 @@
     [self.timeSlider setToolTip: _NS("Position")];
     [[self.timeSlider cell] accessibilitySetOverrideValue:_NS("Click and move the mouse while keeping the button pressed to use this slider to change current playback position.") forAttribute:NSAccessibilityDescriptionAttribute];
     [[self.timeSlider cell] accessibilitySetOverrideValue:[self.timeSlider toolTip] forAttribute:NSAccessibilityTitleAttribute];
+    if (_darkInterface)
+        [self.timeSlider setSliderStyleDark];
 
     [self.fullscreenButton setToolTip: _NS("Toggle Fullscreen mode")];
     [[self.fullscreenButton cell] accessibilitySetOverrideValue:_NS("Click to enable fullscreen video playback.") forAttribute:NSAccessibilityDescriptionAttribute];
     [[self.fullscreenButton cell] accessibilitySetOverrideValue:[self.fullscreenButton toolTip] forAttribute:NSAccessibilityTitleAttribute];
 
     if (!_darkInterface) {
-        [self.bottomBarView setImagesLeft: imageFromRes(@"bottom-background") middle: imageFromRes(@"bottom-background") right: imageFromRes(@"bottom-background")];
+        [self.bottomBarView setDark:NO];
 
         [self.backwardButton setImage: imageFromRes(@"backward-3btns")];
         [self.backwardButton setAlternateImage: imageFromRes(@"backward-3btns-pressed")];
@@ -91,13 +95,10 @@
         [self.forwardButton setImage: imageFromRes(@"forward-3btns")];
         [self.forwardButton setAlternateImage: imageFromRes(@"forward-3btns-pressed")];
 
-        [self.timeSliderBackgroundView setImagesLeft: imageFromRes(@"progression-track-wrapper-left") middle: imageFromRes(@"progression-track-wrapper-middle") right: imageFromRes(@"progression-track-wrapper-right")];
-        [self.timeSliderGradientView setImagesLeft:imageFromRes(@"progression-fill-left") middle:imageFromRes(@"progression-fill-middle") right:imageFromRes(@"progression-fill-right")];
-
         [self.fullscreenButton setImage: imageFromRes(@"fullscreen-one-button")];
         [self.fullscreenButton setAlternateImage: imageFromRes(@"fullscreen-one-button-pressed")];
     } else {
-        [self.bottomBarView setImagesLeft: imageFromRes(@"bottomdark-left") middle: imageFromRes(@"bottom-background_dark") right: imageFromRes(@"bottomdark-right")];
+        [self.bottomBarView setDark:YES];
 
         [self.backwardButton setImage: imageFromRes(@"backward-3btns-dark")];
         [self.backwardButton setAlternateImage: imageFromRes(@"backward-3btns-dark-pressed")];
@@ -107,9 +108,6 @@
         _pressedPauseImage = imageFromRes(@"pause-pressed_dark");
         [self.forwardButton setImage: imageFromRes(@"forward-3btns-dark")];
         [self.forwardButton setAlternateImage: imageFromRes(@"forward-3btns-dark-pressed")];
-
-        [self.timeSliderBackgroundView setImagesLeft: imageFromRes(@"progression-track-wrapper-left_dark") middle: imageFromRes(@"progression-track-wrapper-middle_dark") right: imageFromRes(@"progression-track-wrapper-right_dark")];
-        [self.timeSliderGradientView setImagesLeft:imageFromRes(@"progressbar-fill-left_dark") middle:imageFromRes(@"progressbar-fill-middle_dark") right:imageFromRes(@"progressbar-fill-right_dark")];
 
         [self.fullscreenButton setImage: imageFromRes(@"fullscreen-one-button-pressed_dark")];
         [self.fullscreenButton setAlternateImage: imageFromRes(@"fullscreen-one-button-pressed_dark")];
@@ -129,40 +127,9 @@
     [self.timeField setNeedsDisplay:YES];
     [self.timeField setRemainingIdentifier:@"DisplayTimeAsTimeRemaining"];
 
-    // prepare time slider fance gradient view
-    if (!_darkInterface) {
-        NSRect frame;
-        frame = [self.timeSliderGradientView frame];
-        frame.size.height = frame.size.height - 1;
-        frame.origin.y = frame.origin.y + 1;
-        [self.timeSliderGradientView setFrame: frame];
-    }
-
-    NSRect frame;
-    frame = [_timeSliderGradientView frame];
-    frame.size.width = 0;
-    [_timeSliderGradientView setFrame: frame];
-
-    // hide resize view if necessary
-    [self.resizeView setImage: NULL];
-
-    if ([[self.bottomBarView window] styleMask] & NSResizableWindowMask)
-        [self.resizeView removeFromSuperviewWithoutNeedingDisplay];
-
-
     // remove fullscreen button for lion fullscreen
     if (_nativeFullscreenMode) {
-        CGFloat f_width = [self.fullscreenButton frame].size.width;
-
-        NSRect frame = [self.timeField frame];
-        frame.origin.x += f_width;
-        [self.timeField setFrame: frame];
-
-        frame = [self.progressView frame];
-        frame.size.width = f_width + frame.size.width;
-        [self.progressView setFrame: frame];
-
-        [self.fullscreenButton removeFromSuperviewWithoutNeedingDisplay];
+        self.fullscreenButtonWidthConstraint.constant = 0;
     }
 
     if (config_GetInt(getIntf(), "macosx-show-playback-buttons"))
@@ -334,63 +301,41 @@
 {
     input_thread_t * p_input;
     p_input = pl_CurrentInput(getIntf());
-    if (p_input) {
-        NSString * o_time;
-        vlc_value_t pos;
-        float f_updated;
 
-        var_Get(p_input, "position", &pos);
-        f_updated = 10000. * pos.f_float;
-        [self.timeSlider setFloatValue: f_updated];
+    [self.timeSlider setHidden:NO];
 
-        o_time = [[VLCStringUtility sharedInstance] getCurrentTimeAsString: p_input negative:[self.timeField timeRemaining]];
-
-        mtime_t dur = input_item_GetDuration(input_GetItem(p_input));
-        if (dur == -1) {
-            [self.timeSlider setHidden: YES];
-            [self.timeSliderGradientView setHidden: YES];
-        } else {
-            if ([self.timeSlider isHidden] == YES) {
-                bool b_buffering = false;
-                input_state_e inputState = input_GetState(p_input);
-                if (inputState == INIT_S || inputState == OPENING_S)
-                    b_buffering = YES;
-
-                [self.timeSlider setHidden: b_buffering];
-                [self.timeSliderGradientView setHidden: b_buffering];
-            }
-        }
-        [self.timeField setStringValue: o_time];
-        [self.timeField setNeedsDisplay:YES];
-
-        vlc_object_release(p_input);
-    } else {
+    if (!p_input) {
+        // Nothing playing
+        [self.timeSlider setKnobHidden:YES];
         [self.timeSlider setFloatValue: 0.0];
         [self.timeField setStringValue: @"00:00"];
-        [self.timeSlider setHidden: YES];
-        [self.timeSliderGradientView setHidden: YES];
+        [self.timeSlider setIndefinite:NO];
+        [self.timeSlider setEnabled:NO];
+        return;
     }
-}
 
-- (void)drawFancyGradientEffectForTimeSlider
-{
-    CGFloat f_value = [self.timeSlider knobPosition];
-    if (f_value > 7.5) {
-        NSRect oldFrame = [self.timeSliderGradientView frame];
-        if (f_value != oldFrame.size.width) {
-            if ([self.timeSliderGradientView isHidden])
-                [self.timeSliderGradientView setHidden: NO];
-            [self.timeSliderGradientView setFrame: NSMakeRect(oldFrame.origin.x, oldFrame.origin.y, f_value, oldFrame.size.height)];
-        }
+    [self.timeSlider setKnobHidden:NO];
+
+    vlc_value_t pos;
+    var_Get(p_input, "position", &pos);
+    [self.timeSlider setFloatValue:(10000. * pos.f_float)];
+
+    mtime_t dur = input_item_GetDuration(input_GetItem(p_input));
+    if (dur == -1) {
+        // No duration, disable slider
+        [self.timeSlider setEnabled:NO];
     } else {
-        NSRect frame;
-        frame = [self.timeSliderGradientView frame];
-        if (frame.size.width > 0) {
-            frame.size.width = 0;
-            [self.timeSliderGradientView setFrame: frame];
-        }
-        [self.timeSliderGradientView setHidden: YES];
+        input_state_e inputState = input_GetState(p_input);
+        bool buffering = (inputState == INIT_S || inputState == OPENING_S);
+        [self.timeSlider setIndefinite:buffering];
     }
+
+    NSString *time = [[VLCStringUtility sharedInstance] getCurrentTimeAsString:p_input
+                                                                      negative:[self.timeField timeRemaining]];
+    [self.timeField setStringValue:time];
+    [self.timeField setNeedsDisplay:YES];
+
+    vlc_object_release(p_input);
 }
 
 - (void)updateControls
@@ -420,15 +365,6 @@
         //FIXME! b_chapters = p_input->stream.i_area_nb > 1;
 
         vlc_object_release(p_input);
-    }
-
-    if (b_buffering) {
-        [self.progressBar startAnimation:self];
-        [self.progressBar setIndeterminate:YES];
-        [self.progressBar setHidden:NO];
-    } else {
-        [self.progressBar stopAnimation:self];
-        [self.progressBar setHidden:YES];
     }
 
     [self.timeSlider setEnabled: b_seekable];

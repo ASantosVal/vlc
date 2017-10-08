@@ -46,6 +46,9 @@
 #ifdef HAVE_POLL
 # include <poll.h>
 #endif
+#ifdef HAVE_SYS_UIO_H
+# include <sys/uio.h>
+#endif
 
 /*****************************************************************************
  * Module descriptor
@@ -83,21 +86,21 @@ struct access_sys_t
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-static block_t *BlockUDP( access_t *, bool * );
-static int Control( access_t *, int, va_list );
+static block_t *BlockUDP( stream_t *, bool * );
+static int Control( stream_t *, int, va_list );
 
 /*****************************************************************************
  * Open: open the socket
  *****************************************************************************/
 static int Open( vlc_object_t *p_this )
 {
-    access_t     *p_access = (access_t*)p_this;
+    stream_t     *p_access = (stream_t*)p_this;
     access_sys_t *sys;
 
     if( p_access->b_preparsing )
         return VLC_EGENERIC;
 
-    sys = malloc( sizeof( *sys ) );
+    sys = vlc_malloc( p_this, sizeof( *sys ) );
     if( unlikely( sys == NULL ) )
         return VLC_ENOMEM;
 
@@ -112,7 +115,7 @@ static int Open( vlc_object_t *p_this )
     int  i_bind_port = 1234, i_server_port = 0;
 
     if( unlikely(psz_name == NULL) )
-        goto error;
+        return VLC_ENOMEM;
 
     /* Parse psz_name syntax :
      * [serveraddr[:serverport]][@[bindaddr]:[bindport]] */
@@ -162,8 +165,6 @@ static int Open( vlc_object_t *p_this )
     if( sys->fd == -1 )
     {
         msg_Err( p_access, "cannot open socket" );
-error:
-        free( sys );
         return VLC_EGENERIC;
     }
 
@@ -181,17 +182,16 @@ error:
  *****************************************************************************/
 static void Close( vlc_object_t *p_this )
 {
-    access_t     *p_access = (access_t*)p_this;
+    stream_t     *p_access = (stream_t*)p_this;
     access_sys_t *sys = p_access->p_sys;
 
     net_Close( sys->fd );
-    free( sys );
 }
 
 /*****************************************************************************
  * Control:
  *****************************************************************************/
-static int Control( access_t *p_access, int i_query, va_list args )
+static int Control( stream_t *p_access, int i_query, va_list args )
 {
     bool    *pb_bool;
     int64_t *pi_64;
@@ -202,12 +202,12 @@ static int Control( access_t *p_access, int i_query, va_list args )
         case STREAM_CAN_FASTSEEK:
         case STREAM_CAN_PAUSE:
         case STREAM_CAN_CONTROL_PACE:
-            pb_bool = (bool*)va_arg( args, bool* );
+            pb_bool = va_arg( args, bool * );
             *pb_bool = false;
             break;
 
         case STREAM_GET_PTS_DELAY:
-            pi_64 = (int64_t*)va_arg( args, int64_t * );
+            pi_64 = va_arg( args, int64_t * );
             *pi_64 = INT64_C(1000)
                    * var_InheritInteger(p_access, "network-caching");
             break;
@@ -221,7 +221,7 @@ static int Control( access_t *p_access, int i_query, va_list args )
 /*****************************************************************************
  * BlockUDP:
  *****************************************************************************/
-static block_t *BlockUDP(access_t *access, bool *restrict eof)
+static block_t *BlockUDP(stream_t *access, bool *restrict eof)
 {
     access_sys_t *sys = access->p_sys;
 

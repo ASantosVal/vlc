@@ -30,12 +30,37 @@
 #include <vlc_plugin.h>
 #include <vlc_interrupt.h>
 #include <vlc_services_discovery.h>
+#include <vlc_charset.h>
 
 #include <assert.h>
 #include <limits.h>
 #include <algorithm>
 #include <set>
 #include <string>
+
+#if UPNP_VERSION < 10800
+/*
+ * Compat functions and typedefs for libupnp prior to 1.8
+ */
+
+typedef Upnp_Discovery UpnpDiscovery;
+typedef Upnp_Action_Complete UpnpActionComplete;
+
+static const char* UpnpDiscovery_get_Location_cstr( const UpnpDiscovery* p_discovery )
+{
+  return p_discovery->Location;
+}
+
+static const char* UpnpDiscovery_get_DeviceID_cstr( const UpnpDiscovery* p_discovery )
+{
+  return p_discovery->DeviceId;
+}
+
+static IXML_Document* UpnpActionComplete_get_ActionResult( const UpnpActionComplete* p_result )
+{
+  return p_result->ActionResult;
+}
+#endif
 
 /*
  * Constants
@@ -280,7 +305,7 @@ MediaServerDesc::MediaServerDesc( const std::string& udn, const std::string& fNa
 MediaServerDesc::~MediaServerDesc()
 {
     if (inputItem)
-        vlc_gc_decref( inputItem );
+        input_item_Release( inputItem );
 }
 
 /*
@@ -343,7 +368,7 @@ bool MediaServerList::addServer( MediaServerDesc* desc )
         input_item_SetArtworkURL( p_input_item, desc->iconUrl.c_str() );
     desc->inputItem = p_input_item;
     input_item_SetDescription( p_input_item, desc->UDN.c_str() );
-    services_discovery_AddItem( m_sd, p_input_item, NULL );
+    services_discovery_AddItem( m_sd, p_input_item );
     m_list.push_back( desc );
 
     return true;
@@ -501,7 +526,10 @@ void MediaServerList::parseNewServer( IXML_Document *doc, const std::string &loc
                     }
 
                     if ( unlikely( !p_server ) )
+                    {
+                        free( psz_satip_channellist );
                         break;
+                    }
 
                     p_server->satIpHost = url.psz_host;
                     p_server->isSatIp = true;
@@ -675,19 +703,19 @@ void MediaServerList::removeServer( const std::string& udn )
 /*
  * Handles servers listing UPnP events
  */
-int MediaServerList::Callback( Upnp_EventType event_type, void* p_event )
+int MediaServerList::Callback( Upnp_EventType event_type, UpnpEventPtr p_event )
 {
     switch( event_type )
     {
     case UPNP_DISCOVERY_ADVERTISEMENT_ALIVE:
     case UPNP_DISCOVERY_SEARCH_RESULT:
     {
-        struct Upnp_Discovery* p_discovery = ( struct Upnp_Discovery* )p_event;
+        const UpnpDiscovery* p_discovery = ( const UpnpDiscovery* )p_event;
 
         IXML_Document *p_description_doc = NULL;
 
         int i_res;
-        i_res = UpnpDownloadXmlDoc( p_discovery->Location, &p_description_doc );
+        i_res = UpnpDownloadXmlDoc( UpnpDiscovery_get_Location_cstr( p_discovery ), &p_description_doc );
 
         MediaServerList *self = UpnpInstanceWrapper::lockMediaServerList();
         if ( !self )
@@ -700,11 +728,11 @@ int MediaServerList::Callback( Upnp_EventType event_type, void* p_event )
         {
             msg_Warn( self->m_sd, "Could not download device description! "
                             "Fetching data from %s failed: %s",
-                            p_discovery->Location, UpnpGetErrorMessage( i_res ) );
+                            UpnpDiscovery_get_Location_cstr( p_discovery ), UpnpGetErrorMessage( i_res ) );
             UpnpInstanceWrapper::unlockMediaServerList();
             return i_res;
         }
-        self->parseNewServer( p_description_doc, p_discovery->Location );
+        self->parseNewServer( p_description_doc, UpnpDiscovery_get_Location_cstr( p_discovery ) );
         UpnpInstanceWrapper::unlockMediaServerList();
         ixmlDocument_free( p_description_doc );
     }
@@ -712,11 +740,11 @@ int MediaServerList::Callback( Upnp_EventType event_type, void* p_event )
 
     case UPNP_DISCOVERY_ADVERTISEMENT_BYEBYE:
     {
-        struct Upnp_Discovery* p_discovery = ( struct Upnp_Discovery* )p_event;
+        const UpnpDiscovery* p_discovery = ( const UpnpDiscovery* )p_event;
 
         MediaServerList *self = UpnpInstanceWrapper::lockMediaServerList();
         if ( self )
-            self->removeServer( p_discovery->DeviceId );
+            self->removeServer( UpnpDiscovery_get_DeviceID_cstr( p_discovery ) );
         UpnpInstanceWrapper::unlockMediaServerList();
     }
     break;
@@ -949,7 +977,7 @@ void Upnp_i11e_cb::waitAndRelease( void )
     }
 }
 
-int Upnp_i11e_cb::run( Upnp_EventType eventType, void *p_event, void *p_cookie )
+int Upnp_i11e_cb::run( Upnp_EventType eventType, UpnpEventPtr p_event, void *p_cookie )
 {
     Upnp_i11e_cb *self = static_cast<Upnp_i11e_cb*>( p_cookie );
 
@@ -970,7 +998,7 @@ int Upnp_i11e_cb::run( Upnp_EventType eventType, void *p_event, void *p_cookie )
     return 0;
 }
 
-MediaServer::MediaServer( access_t *p_access, input_item_node_t *node )
+MediaServer::MediaServer( stream_t *p_access, input_item_node_t *node )
     : m_psz_objectId( NULL )
     , m_access( p_access )
     , m_node( node )
@@ -1078,15 +1106,15 @@ bool MediaServer::addItem( IXML_Element* itemElement )
 }
 
 int MediaServer::sendActionCb( Upnp_EventType eventType,
-                               void *p_event, void *p_cookie )
+                               UpnpEventPtr p_event, void *p_cookie )
 {
     if( eventType != UPNP_CONTROL_ACTION_COMPLETE )
         return 0;
     IXML_Document** pp_sendActionResult = (IXML_Document** )p_cookie;
-    Upnp_Action_Complete *p_result = (Upnp_Action_Complete *)p_event;
+    const UpnpActionComplete *p_result = (const UpnpActionComplete *)p_event;
 
     /* The only way to dup the result is to print it and parse it again */
-    DOMString tmpStr = ixmlPrintNode( ( IXML_Node * ) p_result->ActionResult );
+    DOMString tmpStr = ixmlPrintNode( ( IXML_Node * ) UpnpActionComplete_get_ActionResult( p_result ) );
     if (tmpStr == NULL)
         return 0;
 
@@ -1203,7 +1231,7 @@ bool MediaServer::fetchContents()
                                       "BrowseDirectChildren",
                                       "*",
                                       // Some servers don't understand "0" as "no-limit"
-                                      "1000", /* RequestedCount */
+                                      "5000", /* RequestedCount */
                                       "" /* SortCriteria */
                                       );
     if ( !p_response )
@@ -1249,7 +1277,7 @@ bool MediaServer::fetchContents()
     return true;
 }
 
-static int ReadDirectory( access_t *p_access, input_item_node_t* p_node )
+static int ReadDirectory( stream_t *p_access, input_item_node_t* p_node )
 {
     MediaServer server( p_access, p_node );
 
@@ -1258,23 +1286,9 @@ static int ReadDirectory( access_t *p_access, input_item_node_t* p_node )
     return VLC_SUCCESS;
 }
 
-static int ControlDirectory( access_t *p_access, int i_query, va_list args )
-{
-    switch( i_query )
-    {
-    case STREAM_IS_DIRECTORY:
-        *va_arg( args, bool * ) = true; /* might loop */
-        break;
-    default:
-        return access_vaDirectoryControlHelper( p_access, i_query, args );
-    }
-
-    return VLC_SUCCESS;
-}
-
 static int Open( vlc_object_t *p_this )
 {
-    access_t* p_access = (access_t*)p_this;
+    stream_t* p_access = (stream_t*)p_this;
     access_sys_t* p_sys = new(std::nothrow) access_sys_t;
     if ( unlikely( !p_sys ) )
         return VLC_ENOMEM;
@@ -1288,14 +1302,14 @@ static int Open( vlc_object_t *p_this )
     }
 
     p_access->pf_readdir = ReadDirectory;
-    p_access->pf_control = ControlDirectory;
+    p_access->pf_control = access_vaDirectoryControlHelper;
 
     return VLC_SUCCESS;
 }
 
 static void Close( vlc_object_t* p_this )
 {
-    access_t* p_access = (access_t*)p_this;
+    stream_t* p_access = (stream_t*)p_this;
     access_sys_t *sys = (access_sys_t *)p_access->p_sys;
 
     sys->p_upnp->release( false );
@@ -1315,6 +1329,214 @@ UpnpInstanceWrapper::~UpnpInstanceWrapper()
     UpnpUnRegisterClient( m_handle );
     UpnpFinish();
 }
+
+#ifdef _WIN32
+
+static IP_ADAPTER_MULTICAST_ADDRESS* getMulticastAddress(IP_ADAPTER_ADDRESSES* p_adapter)
+{
+    const unsigned long i_broadcast_ip = inet_addr("239.255.255.250");
+
+    IP_ADAPTER_MULTICAST_ADDRESS *p_multicast = p_adapter->FirstMulticastAddress;
+    while (p_multicast != NULL)
+    {
+        if (((struct sockaddr_in *)p_multicast->Address.lpSockaddr)->sin_addr.S_un.S_addr == i_broadcast_ip)
+            return p_multicast;
+        p_multicast = p_multicast->Next;
+    }
+    return NULL;
+}
+
+static bool isAdapterSuitable(IP_ADAPTER_ADDRESSES* p_adapter, bool ipv6)
+{
+    if ( p_adapter->OperStatus != IfOperStatusUp )
+        return false;
+    if (p_adapter->Length == sizeof(IP_ADAPTER_ADDRESSES_XP))
+    {
+        IP_ADAPTER_ADDRESSES_XP* p_adapter_xp = reinterpret_cast<IP_ADAPTER_ADDRESSES_XP*>( p_adapter );
+        // On Windows Server 2003 and Windows XP, this member is zero if IPv4 is not available on the interface.
+        if (ipv6)
+            return p_adapter_xp->Ipv6IfIndex != 0;
+        return p_adapter_xp->IfIndex != 0;
+    }
+    IP_ADAPTER_ADDRESSES_LH* p_adapter_lh = reinterpret_cast<IP_ADAPTER_ADDRESSES_LH*>( p_adapter );
+    if (p_adapter_lh->FirstGatewayAddress == NULL)
+        return false;
+    if (ipv6)
+        return p_adapter_lh->Ipv6Enabled;
+    return p_adapter_lh->Ipv4Enabled;
+}
+
+static IP_ADAPTER_ADDRESSES* ListAdapters()
+{
+    ULONG addrSize;
+    const ULONG queryFlags = GAA_FLAG_INCLUDE_GATEWAYS|GAA_FLAG_SKIP_ANYCAST|GAA_FLAG_SKIP_DNS_SERVER;
+    IP_ADAPTER_ADDRESSES* addresses = NULL;
+    HRESULT hr;
+
+    /**
+     * https://msdn.microsoft.com/en-us/library/aa365915.aspx
+     *
+     * The recommended method of calling the GetAdaptersAddresses function is to pre-allocate a
+     * 15KB working buffer pointed to by the AdapterAddresses parameter. On typical computers,
+     * this dramatically reduces the chances that the GetAdaptersAddresses function returns
+     * ERROR_BUFFER_OVERFLOW, which would require calling GetAdaptersAddresses function multiple
+     * times. The example code illustrates this method of use.
+     */
+    addrSize = 15 * 1024;
+    do
+    {
+        free(addresses);
+        addresses = (IP_ADAPTER_ADDRESSES*)malloc( addrSize );
+        if (addresses == NULL)
+            return NULL;
+        hr = GetAdaptersAddresses(AF_UNSPEC, queryFlags, NULL, addresses, &addrSize);
+    } while (hr == ERROR_BUFFER_OVERFLOW);
+    if (hr != NO_ERROR) {
+        free(addresses);
+        return NULL;
+    }
+    return addresses;
+}
+
+#ifdef UPNP_ENABLE_IPV6
+
+static char* getPreferedAdapter()
+{
+    IP_ADAPTER_ADDRESSES *p_adapter, *addresses;
+
+    addresses = ListAdapters();
+    if (addresses == NULL)
+        return NULL;
+
+    /* find one with multicast capabilities */
+    p_adapter = addresses;
+    while (p_adapter != NULL)
+    {
+        if (isAdapterSuitable( p_adapter, true ))
+        {
+            /* make sure it supports 239.255.255.250 */
+            IP_ADAPTER_MULTICAST_ADDRESS *p_multicast = getMulticastAddress( p_adapter );
+            if (p_multicast != NULL)
+            {
+                char* res = FromWide( p_adapter->FriendlyName );
+                free( addresses );
+                return res;
+            }
+        }
+        p_adapter = p_adapter->Next;
+    }
+    free(addresses);
+    return NULL;
+}
+
+#else
+
+static char *getIpv4ForMulticast()
+{
+    IP_ADAPTER_UNICAST_ADDRESS *p_best_ip = NULL;
+    wchar_t psz_uri[32];
+    DWORD strSize;
+    IP_ADAPTER_ADDRESSES *p_adapter, *addresses;
+
+    addresses = ListAdapters();
+    if (addresses == NULL)
+        return NULL;
+
+    /* find one with multicast capabilities */
+    p_adapter = addresses;
+    while (p_adapter != NULL)
+    {
+        if (isAdapterSuitable( p_adapter, false ))
+        {
+            /* make sure it supports 239.255.255.250 */
+            IP_ADAPTER_MULTICAST_ADDRESS *p_multicast = getMulticastAddress( p_adapter );
+            if (p_multicast != NULL)
+            {
+                /* get an IPv4 address */
+                IP_ADAPTER_UNICAST_ADDRESS *p_unicast = p_adapter->FirstUnicastAddress;
+                while (p_unicast != NULL)
+                {
+                    strSize = sizeof( psz_uri ) / sizeof( wchar_t );
+                    if( WSAAddressToString( p_unicast->Address.lpSockaddr,
+                                            p_unicast->Address.iSockaddrLength,
+                                            NULL, psz_uri, &strSize ) == 0 )
+                    {
+                        if ( p_best_ip == NULL ||
+                             p_best_ip->ValidLifetime > p_unicast->ValidLifetime )
+                        {
+                            p_best_ip = p_unicast;
+                        }
+                    }
+                    p_unicast = p_unicast->Next;
+                }
+            }
+        }
+        p_adapter = p_adapter->Next;
+    }
+
+    if ( p_best_ip != NULL )
+        goto done;
+
+    /* find any with IPv4 */
+    p_adapter = addresses;
+    while (p_adapter != NULL)
+    {
+        if (isAdapterSuitable(p_adapter, false))
+        {
+            /* get an IPv4 address */
+            IP_ADAPTER_UNICAST_ADDRESS *p_unicast = p_adapter->FirstUnicastAddress;
+            while (p_unicast != NULL)
+            {
+                strSize = sizeof( psz_uri ) / sizeof( wchar_t );
+                if( WSAAddressToString( p_unicast->Address.lpSockaddr,
+                                        p_unicast->Address.iSockaddrLength,
+                                        NULL, psz_uri, &strSize ) == 0 )
+                {
+                    if ( p_best_ip == NULL ||
+                         p_best_ip->ValidLifetime > p_unicast->ValidLifetime )
+                    {
+                        p_best_ip = p_unicast;
+                    }
+                }
+                p_unicast = p_unicast->Next;
+            }
+        }
+        p_adapter = p_adapter->Next;
+    }
+
+done:
+    if (p_best_ip != NULL)
+    {
+        strSize = sizeof( psz_uri ) / sizeof( wchar_t );
+        WSAAddressToString( p_best_ip->Address.lpSockaddr,
+                            p_best_ip->Address.iSockaddrLength,
+                            NULL, psz_uri, &strSize );
+        free(addresses);
+        return FromWide( psz_uri );
+    }
+    free(addresses);
+    return NULL;
+}
+#endif /* UPNP_ENABLE_IPV6 */
+#else /* _WIN32 */
+
+#ifdef UPNP_ENABLE_IPV6
+
+static char *getPreferedAdapter()
+{
+    return NULL;
+}
+
+#else
+
+static char *getIpv4ForMulticast()
+{
+    return NULL;
+}
+
+#endif
+
+#endif /* _WIN32 */
 
 UpnpInstanceWrapper *UpnpInstanceWrapper::get(vlc_object_t *p_obj, services_discovery_t *p_sd)
 {
@@ -1341,13 +1563,17 @@ UpnpInstanceWrapper *UpnpInstanceWrapper::get(vlc_object_t *p_obj, services_disc
 
     #ifdef UPNP_ENABLE_IPV6
         char* psz_miface = var_InheritString( p_obj, "miface" );
+        if (psz_miface == NULL)
+            psz_miface = getPreferedAdapter();
         msg_Info( p_obj, "Initializing libupnp on '%s' interface", psz_miface ? psz_miface : "default" );
         int i_res = UpnpInit2( psz_miface, 0 );
         free( psz_miface );
     #else
         /* If UpnpInit2 isnt available, initialize on first IPv4-capable interface */
-        int i_res = UpnpInit( 0, 0 );
-    #endif
+        char *psz_hostip = getIpv4ForMulticast();
+        int i_res = UpnpInit( psz_hostip, 0 );
+        free(psz_hostip);
+    #endif /* UPNP_ENABLE_IPV6 */
         if( i_res != UPNP_E_SUCCESS )
         {
             msg_Err( p_obj, "Initialization failed: %s", UpnpGetErrorMessage( i_res ) );
@@ -1414,7 +1640,7 @@ UpnpClient_Handle UpnpInstanceWrapper::handle() const
     return m_handle;
 }
 
-int UpnpInstanceWrapper::Callback(Upnp_EventType event_type, void *p_event, void *p_user_data)
+int UpnpInstanceWrapper::Callback(Upnp_EventType event_type, UpnpEventPtr p_event, void *p_user_data)
 {
     VLC_UNUSED(p_user_data);
     vlc_mutex_lock( &s_lock );

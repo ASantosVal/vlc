@@ -36,10 +36,10 @@
 #include <vlc_interface.h>
 #include <vlc_input.h>
 #include <vlc_aout.h>
-#include <vlc_vout.h>
+#include <vlc_viewpoint.h>
 #include <vlc_vout_osd.h>
 #include <vlc_playlist.h>
-#include <vlc_keys.h>
+#include <vlc_actions.h>
 #include "math.h"
 
 #include <assert.h>
@@ -87,10 +87,10 @@ static void ClearChannels  ( vout_thread_t *, int );
 #define DisplayMessage(vout, ...) \
     do { \
         if (vout) \
-            vout_OSDMessage(vout, SPU_DEFAULT_CHANNEL, __VA_ARGS__); \
+            vout_OSDMessage(vout, VOUT_SPU_CHANNEL_OSD, __VA_ARGS__); \
     } while(0)
 #define DisplayIcon(vout, icon) \
-    do { if(vout) vout_OSDIcon(vout, SPU_DEFAULT_CHANNEL, icon); } while(0)
+    do { if(vout) vout_OSDIcon(vout, VOUT_SPU_CHANNEL_OSD, icon); } while(0)
 
 /*****************************************************************************
  * Module descriptor
@@ -129,6 +129,20 @@ static int MovedEvent( vlc_object_t *p_this, char const *psz_var,
         p_sys->vrnav.x = newval.coords.x;
         p_sys->vrnav.y = newval.coords.y;
     }
+
+    return VLC_SUCCESS;
+}
+
+static int ViewpointMovedEvent( vlc_object_t *p_this, char const *psz_var,
+                                vlc_value_t oldval, vlc_value_t newval,
+                                void *p_data )
+{
+    intf_thread_t *p_intf = (intf_thread_t *)p_data;
+    intf_sys_t    *p_sys = p_intf->p_sys;
+
+    (void) p_this; (void) psz_var; (void) oldval;
+
+    input_UpdateViewpoint( p_sys->p_input, newval.p_address, false );
 
     return VLC_SUCCESS;
 }
@@ -189,6 +203,8 @@ static void ChangeVout( intf_thread_t *p_intf, vout_thread_t *p_vout )
                              p_intf );
             var_DelCallback( p_old_vout, "mouse-button-down", ButtonEvent,
                              p_intf );
+            var_DelCallback( p_old_vout, "viewpoint-moved", ViewpointMovedEvent,
+                             p_intf );
         }
         vlc_object_release( p_old_vout );
     }
@@ -199,6 +215,8 @@ static void ChangeVout( intf_thread_t *p_intf, vout_thread_t *p_vout )
         var_AddCallback( p_sys->p_vout, "mouse-moved", MovedEvent,
                          p_intf );
         var_AddCallback( p_sys->p_vout, "mouse-button-down", ButtonEvent,
+                         p_intf );
+        var_AddCallback( p_sys->p_vout, "viewpoint-moved", ViewpointMovedEvent,
                          p_intf );
     }
 }
@@ -237,6 +255,8 @@ static void ChangeInput( intf_thread_t *p_intf, input_thread_t *p_input )
             var_DelCallback( p_old_vout, "mouse-moved", MovedEvent,
                              p_intf );
             var_DelCallback( p_old_vout, "mouse-button-down", ButtonEvent,
+                             p_intf );
+            var_DelCallback( p_old_vout, "viewpoint-moved", ViewpointMovedEvent,
                              p_intf );
         }
     }
@@ -448,11 +468,8 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
             SetBookmark( p_intf, i_action - ACTIONID_SET_BOOKMARK1 + 1 );
             break;
         case ACTIONID_PLAY_CLEAR:
-        {
-            playlist_t *p_playlist = pl_Get( p_intf );
             playlist_Clear( p_playlist, pl_Unlocked );
             break;
-        }
         case ACTIONID_VOL_UP:
         {
             float vol;
@@ -737,7 +754,9 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
                 var_FreeList( &list, &list2 );
             }
             break;
+
         case ACTIONID_SUBTITLE_TRACK:
+        case ACTIONID_SUBTITLE_REVERSE_TRACK:
             if( p_input )
             {
                 vlc_value_t val, list, list2;
@@ -768,10 +787,12 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
                               "invalid current subtitle track, selecting 0" );
                     i = 0;
                 }
-                else if( i == i_count - 1 )
+                else if ((i == i_count - 1) && (i_action == ACTIONID_SUBTITLE_TRACK))
                     i = 0;
+                else if ((i == 0) && (i_action == ACTIONID_SUBTITLE_REVERSE_TRACK))
+                    i = i_count - 1;
                 else
-                    i++;
+                    i = (i_action == ACTIONID_SUBTITLE_TRACK) ? i+1 : i-1;
                 var_SetInteger( p_input, "spu-es", list.p_list->p_values[i].i_int );
                 var_SetInteger( p_input, "spu-choice", list.p_list->p_values[i].i_int );
                 DisplayMessage( p_vout, _("Subtitle track: %s"),
@@ -898,21 +919,25 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
             {
                 case ACTIONID_JUMP_BACKWARD_EXTRASHORT:
                     sign = -1;
+                    /* fall through */
                 case ACTIONID_JUMP_FORWARD_EXTRASHORT:
                     varname = "extrashort-jump-size";
                     break;
                 case ACTIONID_JUMP_BACKWARD_SHORT:
                     sign = -1;
+                    /* fall through */
                 case ACTIONID_JUMP_FORWARD_SHORT:
                     varname = "short-jump-size";
                     break;
                 case ACTIONID_JUMP_BACKWARD_MEDIUM:
                     sign = -1;
+                    /* fall through */
                 case ACTIONID_JUMP_FORWARD_MEDIUM:
                     varname = "medium-jump-size";
                     break;
                 case ACTIONID_JUMP_BACKWARD_LONG:
                     sign = -1;
+                    /* fall through */
                 case ACTIONID_JUMP_FORWARD_LONG:
                     varname = "long-jump-size";
                     break;
@@ -952,34 +977,18 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
                 input_Control( p_input, INPUT_NAV_ACTIVATE, NULL );
             break;
         case ACTIONID_NAV_UP:
-            if( p_vout )
-                input_UpdateViewpoint( p_input,
-                                       &(vlc_viewpoint_t) { .pitch = -1.f },
-                                       false );
             if( p_input )
                 input_Control( p_input, INPUT_NAV_UP, NULL );
             break;
         case ACTIONID_NAV_DOWN:
-            if( p_vout )
-                input_UpdateViewpoint( p_input,
-                                       &(vlc_viewpoint_t) { .pitch = 1.f },
-                                       false );
             if( p_input )
                 input_Control( p_input, INPUT_NAV_DOWN, NULL );
             break;
         case ACTIONID_NAV_LEFT:
-            if( p_vout )
-                input_UpdateViewpoint( p_input,
-                                       &(vlc_viewpoint_t) { .yaw = -1.f },
-                                       false );
             if( p_input )
                 input_Control( p_input, INPUT_NAV_LEFT, NULL );
             break;
         case ACTIONID_NAV_RIGHT:
-            if( p_vout )
-                input_UpdateViewpoint( p_input,
-                                       &(vlc_viewpoint_t) { .yaw = 1.f },
-                                       false );
             if( p_input )
                 input_Control( p_input, INPUT_NAV_RIGHT, NULL );
             break;
@@ -1329,7 +1338,6 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
         case ACTIONID_SUBTITLE_TEXT_SCALE_DOWN:
         case ACTIONID_SUBTITLE_TEXT_SCALE_UP:
         case ACTIONID_SUBTITLE_TEXT_SCALE_NORMAL:
-        {
             if( p_vout )
             {
                 int i_scale;
@@ -1339,14 +1347,14 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
                 }
                 else
                 {
-                    i_scale = var_GetInteger( p_vout, "sub-text-scale" );
+                    i_scale = var_GetInteger( p_playlist, "sub-text-scale" );
                     i_scale += ((i_action == ACTIONID_SUBTITLE_TEXT_SCALE_UP) ? 1 : -1) * 25;
                     i_scale = VLC_CLIP( i_scale, 10, 500 );
                 }
-                var_SetInteger( p_vout, "sub-text-scale", i_scale );
+                var_SetInteger( p_playlist, "sub-text-scale", i_scale );
                 DisplayMessage( p_vout, _( "Subtitle text scale %d%%" ), i_scale );
             }
-        }
+            break;
 
         /* Input + video output */
         case ACTIONID_POSITION:
@@ -1419,8 +1427,7 @@ static void PlayBookmark( intf_thread_t *p_intf, int i_num )
         if( !strcmp( psz_bookmark, psz_uri ) )
         {
             free( psz_uri );
-            playlist_Control( p_playlist, PLAYLIST_VIEWPLAY, pl_Locked,
-                              NULL, p_item );
+            playlist_ViewPlay( p_playlist, NULL, p_item );
             break;
         }
         else
@@ -1532,7 +1539,7 @@ static void ClearChannels( vout_thread_t *p_vout, int slider_chan )
 {
     if( p_vout )
     {
-        vout_FlushSubpictureChannel( p_vout, SPU_DEFAULT_CHANNEL );
+        vout_FlushSubpictureChannel( p_vout, VOUT_SPU_CHANNEL_OSD );
         vout_FlushSubpictureChannel( p_vout, slider_chan );
     }
 }

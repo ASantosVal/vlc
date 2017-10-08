@@ -94,6 +94,8 @@ int OpenMux( vlc_object_t *p_this )
                               >= sizeof (((AVFormatContext *)NULL)->filename) )
         return VLC_EGENERIC;
 
+    msg_Dbg( p_mux, "using %s %s", AVPROVIDER(LIBAVFORMAT), LIBAVFORMAT_IDENT );
+
     vlc_init_avformat(p_this);
 
     config_ChainParse( p_mux, "sout-avformat-", ppsz_mux_options, p_mux->p_cfg );
@@ -184,14 +186,14 @@ void CloseMux( vlc_object_t *p_this )
 static int AddStream( sout_mux_t *p_mux, sout_input_t *p_input )
 {
     sout_mux_sys_t *p_sys = p_mux->p_sys;
-    es_format_t *fmt = &p_input->fmt;
+    const es_format_t *fmt = p_input->p_fmt;
     AVCodecContext *codec;
     AVStream *stream;
     unsigned i_codec_id;
 
     msg_Dbg( p_mux, "adding input" );
 
-    if( !GetFfmpegCodec( fmt->i_codec, 0, &i_codec_id, 0 )
+    if( !GetFfmpegCodec( fmt->i_cat, fmt->i_codec, &i_codec_id, NULL )
      || i_codec_id == AV_CODEC_ID_NONE )
     {
         msg_Dbg( p_mux, "couldn't find codec for fourcc '%4.4s'",
@@ -238,6 +240,9 @@ static int AddStream( sout_mux_t *p_mux, sout_input_t *p_input )
 
     codec->opaque = p_mux;
 
+    unsigned int i_bitrate = fmt->i_bitrate;
+    unsigned int i_frame_rate = fmt->video.i_frame_rate;
+    unsigned int i_frame_rate_base = fmt->video.i_frame_rate_base;
     switch( fmt->i_cat )
     {
     case AUDIO_ES:
@@ -248,15 +253,15 @@ static int AddStream( sout_mux_t *p_mux, sout_input_t *p_input )
         codec->frame_size = fmt->audio.i_frame_length;
         if (fmt->i_bitrate == 0) {
             msg_Warn( p_mux, "Missing audio bitrate, assuming 64k" );
-            fmt->i_bitrate = 64000;
+            i_bitrate = 64000;
         }
         break;
 
     case VIDEO_ES:
         if( !fmt->video.i_frame_rate || !fmt->video.i_frame_rate_base ) {
             msg_Warn( p_mux, "Missing frame rate, assuming 25fps" );
-            fmt->video.i_frame_rate = 25;
-            fmt->video.i_frame_rate_base = 1;
+            i_frame_rate = 25;
+            i_frame_rate_base = 1;
         } else
             msg_Dbg( p_mux, "Muxing framerate will be %d/%d = %.2f fps",
                     fmt->video.i_frame_rate,
@@ -274,18 +279,20 @@ static int AddStream( sout_mux_t *p_mux, sout_input_t *p_input )
                 fmt->video.i_sar_num, fmt->video.i_sar_den);
         stream->sample_aspect_ratio.den = codec->sample_aspect_ratio.den;
         stream->sample_aspect_ratio.num = codec->sample_aspect_ratio.num;
-        stream->time_base.den = fmt->video.i_frame_rate;
-        stream->time_base.num = fmt->video.i_frame_rate_base;
+        stream->time_base.den = i_frame_rate;
+        stream->time_base.num = i_frame_rate_base;
         if (fmt->i_bitrate == 0) {
             msg_Warn( p_mux, "Missing video bitrate, assuming 512k" );
-            fmt->i_bitrate = 512000;
+            i_bitrate = 512000;
         } else
             msg_Dbg( p_mux, "Muxing video bitrate will be %d", fmt->i_bitrate );
         break;
 
+    default:
+        vlc_assert_unreachable();
     }
 
-    codec->bit_rate = fmt->i_bitrate;
+    codec->bit_rate = i_bitrate;
     codec->codec_tag = av_codec_get_tag( p_sys->oc->oformat->codec_tag, i_codec_id );
     if( !codec->codec_tag && i_codec_id == AV_CODEC_ID_MP2 )
     {
@@ -404,7 +411,7 @@ static int Mux( sout_mux_t *p_mux )
         char *psz_opts = var_GetNonEmptyString( p_mux, "sout-avformat-options" );
         AVDictionary *options = NULL;
         if (psz_opts) {
-            options = vlc_av_get_options(psz_opts);
+            vlc_av_get_options(psz_opts, &options);
             free(psz_opts);
         }
         av_dict_set( &p_sys->oc->metadata, "encoding_tool", "VLC "VERSION, 0 );
@@ -451,18 +458,18 @@ static int Control( sout_mux_t *p_mux, int i_query, va_list args )
     switch( i_query )
     {
     case MUX_CAN_ADD_STREAM_WHILE_MUXING:
-        pb_bool = (bool*)va_arg( args, bool * );
+        pb_bool = va_arg( args, bool * );
         *pb_bool = false;
         return VLC_SUCCESS;
 
     case MUX_GET_ADD_STREAM_WAIT:
-        pb_bool = (bool*)va_arg( args, bool * );
+        pb_bool = va_arg( args, bool * );
         *pb_bool = true;
         return VLC_SUCCESS;
 
     case MUX_GET_MIME:
     {
-        char **ppsz = (char**)va_arg( args, char ** );
+        char **ppsz = va_arg( args, char ** );
         *ppsz = strdup( p_mux->p_sys->oc->oformat->mime_type );
         return VLC_SUCCESS;
     }

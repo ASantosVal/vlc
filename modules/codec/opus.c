@@ -60,7 +60,7 @@ vlc_module_begin ()
     set_subcategory( SUBCAT_INPUT_ACODEC )
 
     set_description( N_("Opus audio decoder") )
-    set_capability( "decoder", 100 )
+    set_capability( "audio decoder", 100 )
     set_shortname( N_("Opus") )
     set_callbacks( OpenDecoder, CloseDecoder )
 
@@ -182,7 +182,6 @@ static int OpenDecoder( vlc_object_t *p_this )
     date_Set( &p_sys->end_date, 0 );
 
     /* Set output properties */
-    p_dec->fmt_out.i_cat = AUDIO_ES;
     p_dec->fmt_out.i_codec = VLC_CODEC_FL32;
 
     p_dec->pf_decode    = DecodeAudio;
@@ -264,7 +263,8 @@ static int ProcessHeaders( decoder_t *p_dec )
 
     /* If we have no header (e.g. from RTP), make one. */
     bool b_dummy_header = false;
-    if( !i_extra )
+    if( !i_extra ||
+        (i_extra > 10 && memcmp( &p_extra[2], "OpusHead", 8 )) ) /* Borked muxers */
     {
         OpusHeader header;
         opus_prepare_header( p_dec->fmt_in.audio.i_channels,
@@ -337,8 +337,7 @@ static int ProcessInitialHeader( decoder_t *p_dec, ogg_packet *p_oggpacket )
 
     /* Setup the format */
     p_dec->fmt_out.audio.i_physical_channels =
-        p_dec->fmt_out.audio.i_original_channels =
-            pi_channels_maps[p_header->channels];
+        pi_channels_maps[p_header->channels];
     p_dec->fmt_out.audio.i_channels = p_header->channels;
     p_dec->fmt_out.audio.i_rate = 48000;
 

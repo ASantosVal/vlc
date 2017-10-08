@@ -55,16 +55,16 @@ typedef struct {
     mtime_t start;
     mtime_t stop;
     size_t  blocknumber;
-    int     count;
+    size_t  count;
 } stl_entry_t;
 
 struct demux_sys_t {
-    int         count;
+    size_t      count;
     stl_entry_t *index;
 
     es_out_id_t *es;
 
-    int         current;
+    size_t      current;
     int64_t     next_date;
     bool        b_slave;
     bool        b_first_time;
@@ -134,7 +134,7 @@ static int Control(demux_t *demux, int query, va_list args)
     }
     case DEMUX_SET_POSITION:
     {
-        double f = (double)va_arg( args, double );
+        double f = va_arg( args, double );
         if(sys->count && sys->index[sys->count-1].stop > 0)
         {
             int64_t i64 = f * sys->index[sys->count-1].stop;
@@ -144,7 +144,7 @@ static int Control(demux_t *demux, int query, va_list args)
     }
     case DEMUX_GET_POSITION:
     {
-        double *pf = (double*)va_arg(args, double *);
+        double *pf = va_arg(args, double *);
         if(sys->current >= sys->count)
         {
             *pf = 1.0;
@@ -183,7 +183,7 @@ static int Demux(demux_t *demux)
 
         if (!sys->b_slave && sys->b_first_time)
         {
-            es_out_Control(demux->out, ES_OUT_SET_PCR, VLC_TS_0 + i_barrier);
+            es_out_SetPCR(demux->out, VLC_TS_0 + i_barrier);
             sys->b_first_time = false;
         }
 
@@ -213,7 +213,7 @@ static int Demux(demux_t *demux)
 
     if (!sys->b_slave)
     {
-        es_out_Control(demux->out, ES_OUT_SET_PCR, VLC_TS_0 + i_barrier);
+        es_out_SetPCR(demux->out, VLC_TS_0 + i_barrier);
         sys->next_date += CLOCK_FREQ / 8;
     }
 
@@ -242,6 +242,8 @@ static int Open(vlc_object_t *object)
     const int cct = ParseInteger(&header[12], 2);
     const mtime_t program_start = ParseTextTimeCode(&header[256], fps);
     const size_t tti_count = ParseInteger(&header[238], 5);
+    if (!tti_count)
+        return VLC_EGENERIC;
     msg_Dbg(demux, "Detected EBU STL : CCT=%d TTI=%zu start=%8.8s %"PRId64, cct, tti_count, &header[256], program_start);
 
     demux_sys_t *sys = malloc(sizeof(*sys));
@@ -290,6 +292,7 @@ static int Open(vlc_object_t *object)
             s->count = 0;
     }
 
+    demux->p_sys = sys;
     if (sys->count == 0 ||
         vlc_stream_Seek(demux->s, 1024 + 128LL * sys->index[0].blocknumber) != VLC_SUCCESS)
     {

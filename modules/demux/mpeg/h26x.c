@@ -352,6 +352,8 @@ static int GenericOpen( demux_t *p_demux, const char *psz_module,
 
     /* Load the mpegvideo packetizer */
     es_format_Init( &fmt, VIDEO_ES, i_codec );
+    fmt.video.i_frame_rate = p_sys->dts.i_divider_num;
+    fmt.video.i_frame_rate_base = p_sys->dts.i_divider_den;
     p_sys->p_packetizer = demux_PacketizerNew( p_demux, &fmt, psz_module );
     if( !p_sys->p_packetizer )
     {
@@ -413,6 +415,10 @@ static int Demux( demux_t *p_demux)
     {
         b_eof = true;
     }
+    else
+    {
+        p_block_in->i_dts = date_Get( &p_sys->dts );
+    }
 
     while( (p_block_out = p_sys->p_packetizer->pf_packetize( p_sys->p_packetizer,
                                                              p_block_in ? &p_block_in : NULL )) )
@@ -466,12 +472,12 @@ static int Demux( demux_t *p_demux)
                     msg_Dbg( p_demux, "using %.2f fps", (double) p_sys->frame_rate_num / p_sys->frame_rate_den );
                 }
 
-                es_out_Control( p_demux->out, ES_OUT_SET_PCR, date_Get( &p_sys->dts ) );
+                es_out_SetPCR( p_demux->out, date_Get( &p_sys->dts ) );
                 unsigned i_nb_fields;
                 if( i_frame_length > 0 )
                 {
-                    i_nb_fields = 3 * i_frame_length * p_sys->frame_rate_num /
-                                  ( p_sys->frame_rate_den * CLOCK_FREQ);
+                    i_nb_fields = i_frame_length * 2 * p_sys->frame_rate_num /
+                                  ( p_sys->frame_rate_den * CLOCK_FREQ );
                 }
                 else i_nb_fields = 2;
                 if( i_nb_fields <= 6 ) /* in the legit range */

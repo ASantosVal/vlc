@@ -43,8 +43,6 @@
 #include <vlc_demux.h>
 #include <vlc_charset.h>
 
-#include "subtitle_helper.h"
-
 /*****************************************************************************
  * Module descriptor
  *****************************************************************************/
@@ -117,7 +115,8 @@ enum subtitle_type_e
     SUB_TYPE_SUBVIEW1, /* SUBVIEWER 1 - mplayer calls it subrip09,
                          and Gnome subtitles SubViewer 1.0 */
     SUB_TYPE_VTT,
-    SUB_TYPE_SBV
+    SUB_TYPE_SBV,
+    SUB_TYPE_SCC,      /* Scenarist Closed Caption */
 };
 
 typedef struct
@@ -162,6 +161,11 @@ typedef struct
         float f_factor;
     } mpsub;
 
+    struct
+    {
+        const char *psz_start;
+    } sami;
+
 } subs_properties_t;
 
 struct demux_sys_t
@@ -183,6 +187,8 @@ struct demux_sys_t
 
     /* */
     subs_properties_t props;
+
+    block_t * (*pf_convert)( const subtitle_t * );
 };
 
 static int  ParseMicroDvd   ( vlc_object_t *, subs_properties_t *, text_t *, subtitle_t *, size_t );
@@ -202,6 +208,7 @@ static int  ParseRealText   ( vlc_object_t *, subs_properties_t *, text_t *, sub
 static int  ParseDKS        ( vlc_object_t *, subs_properties_t *, text_t *, subtitle_t *, size_t );
 static int  ParseSubViewer1 ( vlc_object_t *, subs_properties_t *, text_t *, subtitle_t *, size_t );
 static int  ParseCommonVTTSBV( vlc_object_t *, subs_properties_t *, text_t *, subtitle_t *, size_t );
+static int  ParseSCC        ( vlc_object_t *, subs_properties_t *, text_t *, subtitle_t *, size_t );
 
 static const struct
 {
@@ -231,6 +238,7 @@ static const struct
     { "subviewer1", SUB_TYPE_SUBVIEW1,    "Subviewer 1", ParseSubViewer1 },
     { "text/vtt",   SUB_TYPE_VTT,         "WebVTT",      ParseCommonVTTSBV },
     { "sbv",        SUB_TYPE_SBV,         "SBV",         ParseCommonVTTSBV },
+    { "scc",        SUB_TYPE_SCC,         "SCC",         ParseSCC },
     { NULL,         SUB_TYPE_UNKNOWN,     "Unknown",     NULL }
 };
 /* When adding support for more formats, be sure to add their file extension
@@ -244,6 +252,52 @@ static void Fix( demux_t * );
 static char * get_language_from_filename( const char * );
 
 /*****************************************************************************
+ * Decoder format output function
+ *****************************************************************************/
+
+static block_t *ToTextBlock( const subtitle_t *p_subtitle )
+{
+    block_t *p_block;
+    size_t i_len = strlen( p_subtitle->psz_text ) + 1;
+
+    if( i_len <= 1 || !(p_block = block_Alloc( i_len )) )
+        return NULL;
+
+    memcpy( p_block->p_buffer, p_subtitle->psz_text, i_len );
+
+    return p_block;
+}
+
+static block_t *ToEIA608Block( const subtitle_t *p_subtitle )
+{
+    block_t *p_block;
+    const size_t i_len = strlen( p_subtitle->psz_text );
+    const size_t i_block = (1 + i_len / 5) * 3;
+
+    if( i_len < 4 || !(p_block = block_Alloc( i_block )) )
+        return NULL;
+
+    p_block->i_buffer = 0;
+
+    char *saveptr = NULL;
+    char *psz_tok = strtok_r( p_subtitle->psz_text, " ", &saveptr );
+    unsigned a, b;
+    while( psz_tok &&
+           sscanf( psz_tok, "%2x%2x", &a, &b ) == 2 &&
+           i_block - p_block->i_buffer >= 3 )
+    {
+        uint8_t *p_data = &p_block->p_buffer[p_block->i_buffer];
+        p_data[0] = 0xFC;
+        p_data[1] = a;
+        p_data[2] = b;
+        p_block->i_buffer += 3;
+        psz_tok = strtok_r( NULL, " ", &saveptr );
+    }
+
+    return p_block;
+}
+
+/*****************************************************************************
  * Module initializer
  *****************************************************************************/
 static int Open ( vlc_object_t *p_this )
@@ -254,7 +308,6 @@ static int Open ( vlc_object_t *p_this )
     float          f_fps;
     char           *psz_type;
     int  (*pf_read)( vlc_object_t *, subs_properties_t *, text_t *, subtitle_t*, size_t );
-    int            i;
 
     if( !p_demux->obj.force )
     {
@@ -272,6 +325,8 @@ static int Open ( vlc_object_t *p_this )
     p_sys->b_first_time = true;
     p_sys->i_next_demux_date = 0;
 
+    p_sys->pf_convert = ToTextBlock;
+
     p_sys->subtitles.i_current= 0;
     p_sys->subtitles.i_count  = 0;
     p_sys->subtitles.p_array  = NULL;
@@ -280,6 +335,7 @@ static int Open ( vlc_object_t *p_this )
     p_sys->props.i_microsecperframe = 40000;
     p_sys->props.jss.b_inited       = false;
     p_sys->props.mpsub.b_inited     = false;
+    p_sys->props.sami.psz_start     = NULL;
 
     /* Get the FPS */
     f_fps = var_CreateGetFloat( p_demux, "sub-original-fps" ); /* FIXME */
@@ -301,9 +357,7 @@ static int Open ( vlc_object_t *p_this )
     psz_type = var_CreateGetString( p_demux, "sub-type" );
     if( psz_type && *psz_type )
     {
-        int i;
-
-        for( i = 0; ; i++ )
+        for( int i = 0; ; i++ )
         {
             if( sub_read_subtitle_function[i].psz_type_name == NULL )
                 break;
@@ -321,17 +375,95 @@ static int Open ( vlc_object_t *p_this )
 #ifndef NDEBUG
     const uint64_t i_start_pos = vlc_stream_Tell( p_demux->s );
 #endif
-    uint64_t i_read_offset = 0;
 
-    /* Detect Unicode while skipping the UTF-8 Byte Order Mark */
-    bool unicode = false;
-    const uint8_t *p_data;
-    if( vlc_stream_Peek( p_demux->s, &p_data, 3 ) >= 3
-     && !memcmp( p_data, "\xEF\xBB\xBF", 3 ) )
+    size_t i_peek;
+    const uint8_t *p_peek;
+    if( vlc_stream_Peek( p_demux->s, &p_peek, 16 ) < 16 )
     {
-        unicode = true;
-        i_read_offset = 3; /* skip BOM */
-        msg_Dbg( p_demux, "detected Unicode Byte Order Mark" );
+        free( p_sys );
+        return VLC_EGENERIC;
+    }
+
+    enum
+    {
+        UTF8BOM,
+        UTF16LE,
+        UTF16BE,
+        NOBOM,
+    } e_bom = NOBOM;
+    const char *psz_bom = NULL;
+
+    i_peek = 4096;
+    /* Detect Unicode while skipping the UTF-8 Byte Order Mark */
+    if( !memcmp( p_peek, "\xEF\xBB\xBF", 3 ) )
+    {
+        e_bom = UTF8BOM;
+        psz_bom = "UTF-8";
+    }
+    else if( !memcmp( p_peek, "\xFF\xFE", 2 ) )
+    {
+        e_bom = UTF16LE;
+        psz_bom = "UTF-16LE";
+        i_peek *= 2;
+    }
+    else if( !memcmp( p_peek, "\xFE\xFF", 2 ) )
+    {
+        e_bom = UTF16BE;
+        psz_bom = "UTF-16BE";
+        i_peek *= 2;
+    }
+
+    if( e_bom != NOBOM )
+        msg_Dbg( p_demux, "detected %s Byte Order Mark", psz_bom );
+
+    i_peek = vlc_stream_Peek( p_demux->s, &p_peek, i_peek );
+    if( unlikely(i_peek < 16) )
+    {
+        free( p_sys );
+        return VLC_EGENERIC;
+    }
+
+    stream_t *p_probestream = NULL;
+    if( e_bom != UTF8BOM && e_bom != NOBOM )
+    {
+        if( i_peek > 16 )
+        {
+            vlc_iconv_t handle = vlc_iconv_open( "UTF-8", psz_bom );
+            if( handle )
+            {
+                char *p_outbuf = malloc( i_peek );
+                if( p_outbuf )
+                {
+                    const char *p_inbuf = (const char *) p_peek;
+                    char *psz_converted = p_outbuf;
+                    const size_t i_outbuf_size = i_peek;
+                    size_t i_inbuf_remain = i_peek;
+                    size_t i_outbuf_remain = i_peek;
+                    if ( VLC_ICONV_ERR != vlc_iconv( handle,
+                                                     &p_inbuf, &i_inbuf_remain,
+                                                     &p_outbuf, &i_outbuf_remain ) )
+                    {
+                        p_probestream = vlc_stream_MemoryNew( p_demux, (uint8_t *) psz_converted,
+                                                            i_outbuf_size - i_outbuf_remain,
+                                                            false ); /* free p_outbuf on release */
+                    }
+                    else free( p_outbuf );
+                }
+                vlc_iconv_close( handle );
+            }
+        }
+    }
+    else
+    {
+        const size_t i_skip = (e_bom == UTF8BOM) ? 3 : 0;
+        p_probestream = vlc_stream_MemoryNew( p_demux, (uint8_t *) &p_peek[i_skip],
+                                              i_peek - i_skip, true );
+    }
+
+    if( p_probestream == NULL )
+    {
+        free( p_sys );
+        return VLC_EGENERIC;
     }
 
     /* Probe if unknown type */
@@ -346,7 +478,7 @@ static int Open ( vlc_object_t *p_this )
             int i_dummy;
             char p_dummy;
 
-            if( (s = peek_Readline( p_demux->s, &i_read_offset )) == NULL )
+            if( (s = vlc_stream_ReadLine( p_probestream ) ) == NULL )
                 break;
 
             if( strcasestr( s, "<SAMI>" ) )
@@ -492,6 +624,12 @@ static int Open ( vlc_object_t *p_this )
                 p_sys->props.i_type = SUB_TYPE_VTT;
                 break;
             }
+            else if( !strncasecmp( s, "Scenarist_SCC V1.0", 18 ) )
+            {
+                p_sys->props.i_type = SUB_TYPE_SCC;
+                p_sys->pf_convert = ToEIA608Block;
+                break;
+            }
 
             free( s );
             s = NULL;
@@ -499,6 +637,8 @@ static int Open ( vlc_object_t *p_this )
 
         free( s );
     }
+
+    vlc_stream_Delete( p_probestream );
 
     /* Quit on unknown subtitles */
     if( p_sys->props.i_type == SUB_TYPE_UNKNOWN )
@@ -512,7 +652,7 @@ static int Open ( vlc_object_t *p_this )
         return VLC_EGENERIC;
     }
 
-    for( i = 0; ; i++ )
+    for( int i = 0; ; i++ )
     {
         if( sub_read_subtitle_function[i].i_type == p_sys->props.i_type )
         {
@@ -525,8 +665,8 @@ static int Open ( vlc_object_t *p_this )
 
     msg_Dbg( p_demux, "loading all subtitles..." );
 
-    if( unicode && /* skip BOM */
-        vlc_stream_Seek( p_demux->s, 3 ) != VLC_SUCCESS )
+    if( e_bom == UTF8BOM && /* skip BOM */
+        vlc_stream_Read( p_demux->s, NULL, 3 ) != 3 )
     {
         Close( p_this );
         return VLC_EGENERIC;
@@ -578,6 +718,11 @@ static int Open ( vlc_object_t *p_this )
         Fix( p_demux );
         es_format_Init( &fmt, SPU_ES, VLC_CODEC_SSA );
     }
+    else if( p_sys->props.i_type == SUB_TYPE_SCC )
+    {
+        es_format_Init( &fmt, SPU_ES, VLC_CODEC_CEA608 );
+        fmt.subs.cc.i_reorder_depth = -1;
+    }
     else
         es_format_Init( &fmt, SPU_ES, VLC_CODEC_SUBT );
 
@@ -591,8 +736,8 @@ static int Open ( vlc_object_t *p_this )
                  p_demux->psz_location );
     }
 
-    if( unicode )
-        fmt.subs.psz_encoding = strdup( "UTF-8" );
+    if( psz_bom )
+        fmt.subs.psz_encoding = strdup( psz_bom );
     char *psz_description = var_InheritString( p_demux, "sub-description" );
     if( psz_description && *psz_description )
         fmt.psz_description = psz_description;
@@ -647,19 +792,19 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_SUCCESS;
 
         case DEMUX_GET_LENGTH:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = p_sys->i_length;
             return VLC_SUCCESS;
 
         case DEMUX_GET_TIME:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = p_sys->i_next_demux_date - var_GetInteger( p_demux->obj.parent, "spu-delay" );
             if( *pi64 < 0 )
                *pi64 = p_sys->i_next_demux_date;
             return VLC_SUCCESS;
 
         case DEMUX_SET_TIME:
-            i64 = (int64_t)va_arg( args, int64_t );
+            i64 = va_arg( args, int64_t );
             for( size_t i = 0; i + 1< p_sys->subtitles.i_count; i++ )
             {
                 if( p_sys->subtitles.p_array[i + 1].i_start >= i64 )
@@ -673,7 +818,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             break;
 
         case DEMUX_GET_POSITION:
-            pf = (double*)va_arg( args, double * );
+            pf = va_arg( args, double * );
             if( p_sys->subtitles.i_current >= p_sys->subtitles.i_count )
             {
                 *pf = 1.0;
@@ -692,7 +837,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_SUCCESS;
 
         case DEMUX_SET_POSITION:
-            f = (double)va_arg( args, double );
+            f = va_arg( args, double );
             if( p_sys->subtitles.i_count && p_sys->i_length )
             {
                 i64 = VLC_TS_0 + f * p_sys->i_length;
@@ -702,7 +847,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         case DEMUX_SET_NEXT_DEMUX_TIME:
             p_sys->b_slave = true;
-            p_sys->i_next_demux_date = (int64_t)va_arg( args, int64_t ) - VLC_TS_0;
+            p_sys->i_next_demux_date = va_arg( args, int64_t ) - VLC_TS_0;
             return VLC_SUCCESS;
 
         case DEMUX_GET_PTS_DELAY:
@@ -737,40 +882,30 @@ static int Demux( demux_t *p_demux )
 
         if ( !p_sys->b_slave && p_sys->b_first_time )
         {
-            es_out_Control( p_demux->out, ES_OUT_SET_PCR, VLC_TS_0 + i_barrier );
+            es_out_SetPCR( p_demux->out, VLC_TS_0 + i_barrier );
             p_sys->b_first_time = false;
         }
 
-        block_t *p_block;
-        size_t i_len = strlen( p_subtitle->psz_text ) + 1;
-
-        if( i_len <= 1 || p_subtitle->i_start < 0 )
+        if( p_subtitle->i_start >= 0 )
         {
-            p_sys->subtitles.i_current++;
-            continue;
+            block_t *p_block = p_sys->pf_convert( p_subtitle );
+            if( p_block )
+            {
+                p_block->i_dts =
+                p_block->i_pts = VLC_TS_0 + p_subtitle->i_start;
+                if( p_subtitle->i_stop >= 0 && p_subtitle->i_stop >= p_subtitle->i_start )
+                    p_block->i_length = p_subtitle->i_stop - p_subtitle->i_start;
+
+                es_out_Send( p_demux->out, p_sys->es, p_block );
+            }
         }
-
-        if( ( p_block = block_Alloc( i_len ) ) == NULL )
-        {
-            p_sys->subtitles.i_current++;
-            continue;
-        }
-
-        p_block->i_dts =
-        p_block->i_pts = VLC_TS_0 + p_subtitle->i_start;
-        if( p_subtitle->i_stop >= 0 && p_subtitle->i_stop >= p_subtitle->i_start )
-            p_block->i_length = p_subtitle->i_stop - p_subtitle->i_start;
-
-        memcpy( p_block->p_buffer, p_subtitle->psz_text, i_len );
-
-        es_out_Send( p_demux->out, p_sys->es, p_block );
 
         p_sys->subtitles.i_current++;
     }
 
     if ( !p_sys->b_slave )
     {
-        es_out_Control( p_demux->out, ES_OUT_SET_PCR, VLC_TS_0 + i_barrier );
+        es_out_SetPCR( p_demux->out, VLC_TS_0 + i_barrier );
         p_sys->i_next_demux_date += CLOCK_FREQ / 8;
     }
 
@@ -784,7 +919,7 @@ static int Demux( demux_t *p_demux )
 static int subtitle_cmp( const void *first, const void *second )
 {
     int64_t result = ((subtitle_t *)(first))->i_start - ((subtitle_t *)(second))->i_start;
-    /* Return -1, 0 ,1, and not directly substraction
+    /* Return -1, 0 ,1, and not directly subtraction
      * as result can be > INT_MAX */
     return result == 0 ? 0 : result > 0 ? 1 : -1;
 }
@@ -841,11 +976,12 @@ static int TextLoad( text_t *txt, stream_t *s )
 }
 static void TextUnload( text_t *txt )
 {
-    for( size_t i = 0; i < txt->i_line_count; i++ )
+    if( txt->i_line_count )
     {
-        free( txt->line[i] );
+        for( size_t i = 0; i < txt->i_line_count; i++ )
+            free( txt->line[i] );
+        free( txt->line );
     }
-    free( txt->line );
     txt->i_line       = 0;
     txt->i_line_count = 0;
 }
@@ -1244,26 +1380,24 @@ static int ParseVplayer( vlc_object_t *p_obj, subs_properties_t *p_props,
 
 /* ParseSami
  */
-static char *ParseSamiSearch( text_t *txt,
-                              char *psz_start, const char *psz_str )
+static const char *ParseSamiSearch( text_t *txt,
+                                    const char *psz_start, const char *psz_str )
 {
     if( psz_start && strcasestr( psz_start, psz_str ) )
     {
-        char *s = strcasestr( psz_start, psz_str );
+        const char *s = strcasestr( psz_start, psz_str );
         return &s[strlen( psz_str )];
     }
 
     for( ;; )
     {
-        char *p = TextGetLine( txt );
+        const char *p = TextGetLine( txt );
         if( !p )
             return NULL;
 
-        if( strcasestr( p, psz_str ) )
-        {
-            char *s = strcasestr( p, psz_str );
+        const char *s = strcasestr( p, psz_str );
+        if( s != NULL )
             return &s[strlen( psz_str )];
-        }
     }
 }
 static int ParseSami( vlc_object_t *p_obj, subs_properties_t *p_props,
@@ -1272,18 +1406,22 @@ static int ParseSami( vlc_object_t *p_obj, subs_properties_t *p_props,
     VLC_UNUSED(p_obj);
     VLC_UNUSED(p_props);
     VLC_UNUSED( i_idx );
-    char *s;
+    const char *s;
     int64_t i_start;
 
     unsigned int i_text;
     char text[8192]; /* Arbitrary but should be long enough */
 
     /* search "Start=" */
-    if( !( s = ParseSamiSearch( txt, NULL, "Start=" ) ) )
+    s = ParseSamiSearch( txt, p_props->sami.psz_start, "Start=" );
+    p_props->sami.psz_start = NULL;
+    if( !s )
         return VLC_EGENERIC;
 
     /* get start value */
-    i_start = strtol( s, &s, 0 );
+    char *psz_end;
+    i_start = strtol( s, &psz_end, 0 );
+    s = psz_end;
 
     /* search <P */
     if( !( s = ParseSamiSearch( txt, s, "<P" ) ) )
@@ -1313,7 +1451,7 @@ static int ParseSami( vlc_object_t *p_obj, subs_properties_t *p_props,
             }
             else if( strcasestr( s, "Start=" ) )
             {
-                TextPreviousLine( txt );
+                p_props->sami.psz_start = s;
                 break;
             }
             s = ParseSamiSearch( txt, s, ">" );
@@ -1688,7 +1826,6 @@ static int ParseJSS( vlc_object_t *p_obj, subs_properties_t *p_props,
     VLC_UNUSED( i_idx );
     char         *psz_text, *psz_orig;
     char         *psz_text2, *psz_orig2;
-    int h1, h2, m1, m2, s1, s2, f1, f2;
 
     if( !p_props->jss.b_inited )
     {
@@ -1706,12 +1843,14 @@ static int ParseJSS( vlc_object_t *p_obj, subs_properties_t *p_props,
         if( !s )
             return VLC_EGENERIC;
 
-        psz_orig = malloc( strlen( s ) + 1 );
+        size_t line_length = strlen( s );
+        psz_orig = malloc( line_length + 1 );
         if( !psz_orig )
             return VLC_ENOMEM;
         psz_text = psz_orig;
 
         /* Complete time lines */
+        int h1, h2, m1, m2, s1, s2, f1, f2;
         if( sscanf( s, "%d:%d:%d.%d %d:%d:%d.%d %[^\n\r]",
                     &h1, &m1, &s1, &f1, &h2, &m2, &s2, &f2, psz_text ) == 9 )
         {
@@ -1746,6 +1885,8 @@ static int ParseJSS( vlc_object_t *p_obj, subs_properties_t *p_props,
             {
             case 'S':
                  shift = isalpha( (unsigned char)psz_text[2] ) ? 6 : 2 ;
+                 if ( shift > line_length )
+                     continue;
 
                  if( sscanf( &psz_text[shift], "%d", &h ) )
                  {
@@ -1783,6 +1924,8 @@ static int ParseJSS( vlc_object_t *p_obj, subs_properties_t *p_props,
 
             case 'T':
                 shift = isalpha( (unsigned char)psz_text[2] ) ? 8 : 2 ;
+                if ( shift > line_length )
+                    continue;
 
                 sscanf( &psz_text[shift], "%d", &p_props->jss.i_time_resolution );
                 break;
@@ -1828,8 +1971,8 @@ static int ParseJSS( vlc_object_t *p_obj, subs_properties_t *p_props,
     /* Parse the directives */
     if( isalpha( (unsigned char)*psz_text ) || *psz_text == '[' )
     {
-        while( *psz_text != ' ' )
-        { psz_text++ ;};
+        while( *psz_text && *psz_text != ' ' )
+            ++psz_text;
 
         /* Directives are NOT parsed yet */
         /* This has probably a better place in a decoder ? */
@@ -1886,7 +2029,7 @@ static int ParseJSS( vlc_object_t *p_obj, subs_properties_t *p_props,
             if( ( toupper((unsigned char)*(psz_text + 1 ) ) == 'C' ) ||
                     ( toupper((unsigned char)*(psz_text + 1 ) ) == 'F' ) )
             {
-                psz_text++; psz_text++;
+                psz_text++;
                 break;
             }
             if( (*(psz_text + 1 ) ) == 'B' || (*(psz_text + 1 ) ) == 'b' ||
@@ -1900,8 +2043,8 @@ static int ParseJSS( vlc_object_t *p_obj, subs_properties_t *p_props,
             if( (*(psz_text + 1 ) ) == '~' || (*(psz_text + 1 ) ) == '{' ||
                 (*(psz_text + 1 ) ) == '\\' )
                 psz_text++;
-            else if( *(psz_text + 1 ) == '\r' ||  *(psz_text + 1 ) == '\n' ||
-                     *(psz_text + 1 ) == '\0' )
+            else if( ( *(psz_text + 1 ) == '\r' ||  *(psz_text + 1 ) == '\n' ) &&
+                     *(psz_text + 1 ) != '\0' )
             {
                 psz_text++;
             }
@@ -2103,7 +2246,7 @@ static int ParseDKS( vlc_object_t *p_obj, subs_properties_t *p_props,
                                     (int64_t)m1 * 60*1000 +
                                     (int64_t)s1 * 1000 ) * 1000;
 
-            char *s = TextGetLine( txt );
+            s = TextGetLine( txt );
             if( !s )
             {
                 free( psz_text );
@@ -2156,7 +2299,7 @@ static int ParseSubViewer1( vlc_object_t *p_obj, subs_properties_t *p_props,
                                     (int64_t)m1 * 60*1000 +
                                     (int64_t)s1 * 1000 ) * 1000;
 
-            char *s = TextGetLine( txt );
+            s = TextGetLine( txt );
             if( !s )
                 return VLC_EGENERIC;
 
@@ -2272,6 +2415,44 @@ static int ParseCommonVTTSBV( vlc_object_t *p_obj, subs_properties_t *p_props,
         strcat( psz_text, s );
         strcat( psz_text, "\n" );
     }
+}
+
+static int ParseSCC( vlc_object_t *p_obj, subs_properties_t *p_props,
+                     text_t *txt, subtitle_t *p_subtitle, size_t i_idx )
+{
+    VLC_UNUSED(p_obj);
+    VLC_UNUSED( i_idx );
+    VLC_UNUSED( p_props );
+
+    for( ;; )
+    {
+        const char *psz_line = TextGetLine( txt );
+        if( !psz_line )
+            return VLC_EGENERIC;
+
+        unsigned h, m, s, f;
+        if( sscanf( psz_line, "%u:%u:%u:%u ", &h, &m, &s, &f ) != 4 )
+            continue;
+
+        p_subtitle->i_start = CLOCK_FREQ * ( h * 3600 + m * 60 + s ) +
+                              f * p_props->i_microsecperframe;
+        p_subtitle->i_stop = -1;
+
+        const char *psz_text = strchr( psz_line, '\t' );
+        if( !psz_text && !(psz_text = strchr( psz_line, ' ' )) )
+            continue;
+
+        if ( psz_text[1] == '\0' )
+            continue;
+
+        p_subtitle->psz_text = strdup( psz_text + 1 );
+        if( !p_subtitle->psz_text )
+            return VLC_ENOMEM;
+
+        break;
+    }
+
+    return VLC_SUCCESS;
 }
 
 /* Matches filename.xx.srt */

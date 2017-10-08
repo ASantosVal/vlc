@@ -57,7 +57,7 @@ static void Close  ( vlc_object_t * );
 #define REVERB_LEVEL_LONGTEXT N_( "Reverberation level (from 0 " \
                 "to 100, default value is 0)." )
 #define REVERB_DELAY_LONGTEXT N_("Reverberation delay, in ms." \
-                " Usual values are from to 40 to 200ms." )
+                " Usual values are from 40 to 200ms." )
 #define MEGABASS_LONGTEXT N_( "Enable megabass mode" )
 #define MEGABASS_LEVEL_LONGTEXT N_("Megabass mode level (from 0 to 100, " \
                 "default value is 0)." )
@@ -215,8 +215,6 @@ static int Open( vlc_object_t *p_this )
     if( !p_sys->f )
     {
         msg_Err( p_demux, "failed to understand the file" );
-        /* we try to seek to recover for other plugin */
-        vlc_stream_Seek( p_demux->s, 0 );
         free( p_sys->p_data );
         free( p_sys );
         return VLC_EGENERIC;
@@ -284,7 +282,7 @@ static int Demux( demux_t *p_demux )
     p_frame->i_pts = VLC_TS_0 + date_Get( &p_sys->pts );
 
     /* Set PCR */
-    es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_frame->i_pts );
+    es_out_SetPCR( p_demux->out, p_frame->i_pts );
 
     /* Send data */
     es_out_Send( p_demux->out, p_sys->es, p_frame );
@@ -310,7 +308,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         return VLC_SUCCESS;
 
     case DEMUX_GET_POSITION:
-        pf = (double*) va_arg( args, double* );
+        pf = va_arg( args, double* );
         if( p_sys->i_length > 0 )
         {
             double current = date_Get( &p_sys->pts );
@@ -321,7 +319,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         return VLC_EGENERIC;
 
     case DEMUX_SET_POSITION:
-        f = (double) va_arg( args, double );
+        f = va_arg( args, double );
 
         i64 = f * p_sys->i_length;
         if( i64 >= 0 && i64 <= p_sys->i_length )
@@ -334,17 +332,17 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         return VLC_EGENERIC;
 
     case DEMUX_GET_TIME:
-        pi64 = (int64_t*)va_arg( args, int64_t * );
+        pi64 = va_arg( args, int64_t * );
         *pi64 = date_Get( &p_sys->pts );
         return VLC_SUCCESS;
 
     case DEMUX_GET_LENGTH:
-        pi64 = (int64_t*)va_arg( args, int64_t * );
+        pi64 = va_arg( args, int64_t * );
         *pi64 = p_sys->i_length;
         return VLC_SUCCESS;
 
     case DEMUX_SET_TIME:
-        i64 = (int64_t)va_arg( args, int64_t );
+        i64 = va_arg( args, int64_t );
 
         if( i64 >= 0 && i64 <= p_sys->i_length )
         {
@@ -357,13 +355,13 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
     case DEMUX_HAS_UNSUPPORTED_META:
     {
-        bool *pb_bool = (bool*)va_arg( args, bool* );
+        bool *pb_bool = va_arg( args, bool* );
         *pb_bool = false; /* FIXME I am not sure of this one */
         return VLC_SUCCESS;
     }
     case DEMUX_GET_META:
     {
-        vlc_meta_t *p_meta = (vlc_meta_t *)va_arg( args, vlc_meta_t* );
+        vlc_meta_t *p_meta = va_arg( args, vlc_meta_t * );
         unsigned i_num_samples = ModPlug_NumSamples( p_sys->f ),
                  i_num_instruments = ModPlug_NumInstruments( p_sys->f );
         unsigned i_num_patterns = ModPlug_NumPatterns( p_sys->f ),
@@ -576,7 +574,7 @@ static int Validate( demux_t *p_demux, const char *psz_ext )
             const uint8_t *p_sample = &p_peek[20 + i*30];
 
             /* Check correct null padding */
-            const uint8_t *p = memchr( &p_sample[0], '\0', 22 );
+            p = memchr( &p_sample[0], '\0', 22 );
             if( p )
             {
                 for( ; p < &p_sample[22]; p++ )

@@ -50,6 +50,25 @@ struct vlc_gl_t
     void (*resize)(vlc_gl_t *, unsigned, unsigned);
     void (*swap)(vlc_gl_t *);
     void*(*getProcAddress)(vlc_gl_t *, const char *);
+
+    enum {
+        VLC_GL_EXT_DEFAULT,
+        VLC_GL_EXT_EGL,
+    } ext;
+
+    union {
+        /* if ext == VLC_GL_EXT_EGL */
+        struct {
+            /* call eglQueryString() with current display */
+            const char *(*queryString)(vlc_gl_t *, int32_t name);
+            /* call eglCreateImageKHR() with current display and context, can
+             * be NULL */
+            void *(*createImageKHR)(vlc_gl_t *, unsigned target, void *buffer,
+                                    const int32_t *attrib_list);
+            /* call eglDestroyImageKHR() with current display, can be NULL */
+            bool (*destroyImageKHR)(vlc_gl_t *, void *image);
+        } egl;
+    };
 };
 
 enum {
@@ -58,7 +77,8 @@ enum {
 };
 
 VLC_API vlc_gl_t *vlc_gl_Create(struct vout_window_t *, unsigned, const char *) VLC_USED;
-VLC_API void vlc_gl_Destroy(vlc_gl_t *);
+VLC_API void vlc_gl_Release(vlc_gl_t *);
+VLC_API void vlc_gl_Hold(vlc_gl_t *);
 
 static inline int vlc_gl_MakeCurrent(vlc_gl_t *gl)
 {

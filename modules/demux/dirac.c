@@ -156,6 +156,8 @@ static int Demux( demux_t *p_demux)
     demux_sys_t *p_sys = p_demux->p_sys;
     block_t *p_block_in, *p_block_out;
 
+    bool b_eof = false;
+
     if( p_sys->i_state == DIRAC_DEMUX_DISCONT )
     {
         p_sys->i_state++;
@@ -170,9 +172,9 @@ static int Demux( demux_t *p_demux)
         p_block_in = vlc_stream_Block( p_demux->s, DIRAC_PACKET_SIZE );
         if( !p_block_in )
         {
-            return 0;
+            b_eof = true;
         }
-        if ( p_sys->i_state == DIRAC_DEMUX_FIRST)
+        else if ( p_sys->i_state == DIRAC_DEMUX_FIRST)
         {
             p_sys->i_state++;
             /* by default, timestamps are invalid.
@@ -181,7 +183,8 @@ static int Demux( demux_t *p_demux)
         }
     }
 
-    while( (p_block_out = p_sys->p_packetizer->pf_packetize( p_sys->p_packetizer, &p_block_in )) )
+    while( (p_block_out = p_sys->p_packetizer->pf_packetize( p_sys->p_packetizer,
+                                                             (p_block_in) ? &p_block_in : NULL )) )
     {
         while( p_block_out )
         {
@@ -202,13 +205,14 @@ static int Demux( demux_t *p_demux)
                 p_sys->i_pts_offset_lowtide = i_delay;
             }
 
-            es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_block_out->i_dts );
+            es_out_SetPCR( p_demux->out, p_block_out->i_dts );
             es_out_Send( p_demux->out, p_sys->p_es, p_block_out );
 
             p_block_out = p_next;
         }
     }
-    return 1;
+
+    return b_eof ? VLC_DEMUXER_EOF : VLC_DEMUXER_SUCCESS;
 }
 
 /*****************************************************************************
@@ -219,7 +223,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
     demux_sys_t *p_sys  = p_demux->p_sys;
     if( DEMUX_GET_TIME == i_query )
     {
-        int64_t *pi64 = (int64_t*)va_arg( args, int64_t * );
+        int64_t *pi64 = va_arg( args, int64_t * );
         *pi64 = p_sys->i_dts;
         return VLC_SUCCESS;
     }
@@ -229,7 +233,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         {
             return VLC_EGENERIC;
         }
-        double *pd = (double*)va_arg( args, double * );
+        double *pd = va_arg( args, double * );
         *pd = (float) p_sys->p_packetizer->fmt_out.video.i_frame_rate
             / p_sys->p_packetizer->fmt_out.video.i_frame_rate_base;
         return VLC_SUCCESS;

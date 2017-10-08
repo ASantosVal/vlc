@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <errno.h>
 
 #include <vlc_common.h>
 #include <vlc_block.h>
@@ -37,9 +38,11 @@
 #include <vlc_access.h>
 #include <vlc_charset.h>
 #include <vlc_interrupt.h>
+#include <vlc_stream_extractor.h>
 
 #include <libvlc.h>
 #include "stream.h"
+#include "mrl_helpers.h"
 
 typedef struct stream_priv_t
 {
@@ -133,6 +136,32 @@ stream_t *(vlc_stream_NewURL)(vlc_object_t *p_parent, const char *psz_url)
     return s;
 }
 
+stream_t *(vlc_stream_NewMRL)(vlc_object_t* parent, const char* mrl )
+{
+    stream_t* stream = vlc_stream_NewURL( parent, mrl );
+
+    if( stream == NULL )
+        return NULL;
+
+    char const* anchor = strchr( mrl, '#' );
+
+    if( anchor == NULL )
+        return stream;
+
+    char const* extra;
+    if( stream_extractor_AttachParsed( &stream, anchor + 1, &extra ) )
+    {
+        msg_Err( parent, "unable to open %s", mrl );
+        vlc_stream_Delete( stream );
+        return NULL;
+    }
+
+    if( extra && *extra )
+        msg_Warn( parent, "ignoring extra fragment data: %s", extra );
+
+    return stream;
+}
+
 /**
  * Read from the stream until first newline.
  * \param s Stream handle to read from
@@ -167,6 +196,12 @@ char *vlc_stream_ReadLine( stream_t *s )
         {
             const char *psz_encoding = NULL;
 
+            if( unlikely(priv->text.conv != (vlc_iconv_t)-1) )
+            {   /* seek back to beginning? reset */
+                vlc_iconv_close( priv->text.conv );
+                priv->text.conv = (vlc_iconv_t)-1;
+            }
+
             if( !memcmp( p_data, "\xFF\xFE", 2 ) )
             {
                 psz_encoding = "UTF-16LE";
@@ -181,10 +216,13 @@ char *vlc_stream_ReadLine( stream_t *s )
             if( psz_encoding != NULL )
             {
                 msg_Dbg( s, "UTF-16 BOM detected" );
-                priv->text.char_width = 2;
                 priv->text.conv = vlc_iconv_open( "UTF-8", psz_encoding );
-                if( priv->text.conv == (vlc_iconv_t)-1 )
+                if( unlikely(priv->text.conv == (vlc_iconv_t)-1) )
+                {
                     msg_Err( s, "iconv_open failed" );
+                    goto error;
+                }
+                priv->text.char_width = 2;
             }
         }
 
@@ -270,9 +308,6 @@ char *vlc_stream_ReadLine( stream_t *s )
 
     if( i_read > 0 )
     {
-        memset(p_line + i_line, 0, priv->text.char_width);
-        i_line += priv->text.char_width; /* the added \0 */
-
         if( priv->text.char_width > 1 )
         {
             int i_new_line = 0;
@@ -294,8 +329,8 @@ char *vlc_stream_ReadLine( stream_t *s )
 
             if( vlc_iconv( priv->text.conv, &p_in, &i_in, &p_out, &i_out ) == (size_t)-1 )
             {
-                msg_Err( s, "iconv failed" );
-                msg_Dbg( s, "original: %d, in %d, out %d", i_line, (int)i_in, (int)i_out );
+                msg_Err( s, "conversion error: %s", vlc_strerror_c( errno ) );
+                msg_Dbg( s, "original: %d, in %zu, out %zu", i_line, i_in, i_out );
             }
             free( p_line );
             p_line = psz_new_line;
@@ -303,11 +338,12 @@ char *vlc_stream_ReadLine( stream_t *s )
         }
 
         /* Remove trailing LF/CR */
-        while( i_line >= 2 && ( p_line[i_line-2] == '\r' ||
-            p_line[i_line-2] == '\n') ) i_line--;
+        while( i_line >= 1 &&
+               (p_line[i_line - 1] == '\r' || p_line[i_line - 1] == '\n') )
+            i_line--;
 
         /* Make sure the \0 is there */
-        p_line[i_line-1] = '\0';
+        p_line[i_line] = '\0';
 
         return p_line;
     }

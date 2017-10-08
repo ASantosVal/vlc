@@ -291,38 +291,38 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         case DEMUX_CAN_CONTROL_PACE:
         case DEMUX_CAN_CONTROL_RATE:
         case DEMUX_HAS_UNSUPPORTED_META:
-            pb = (bool*)va_arg( args, bool * );
+            pb = va_arg( args, bool * );
             *pb = false;
             return VLC_SUCCESS;
 
         case DEMUX_CAN_RECORD:
-            pb = (bool*)va_arg( args, bool * );
+            pb = va_arg( args, bool * );
             *pb = true;
             return VLC_SUCCESS;
 
         case DEMUX_GET_PTS_DELAY:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = INT64_C(1000)
                   * var_InheritInteger( p_demux, "live-caching" );
             return VLC_SUCCESS;
 
         case DEMUX_GET_TIME:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = mdate() - p_demux->p_sys->i_starttime;
             return VLC_SUCCESS;
 
         case DEMUX_GET_LENGTH:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = 0;
             return VLC_SUCCESS;
 
         case DEMUX_GET_FPS:
-            p_dbl = (double*)va_arg( args, double * );
+            p_dbl = va_arg( args, double * );
             *p_dbl = p_demux->p_sys->f_fps;
             return VLC_SUCCESS;
 
         case DEMUX_GET_META:
-            p_meta = (vlc_meta_t*)va_arg( args, vlc_meta_t* );
+            p_meta = va_arg( args, vlc_meta_t * );
             vlc_meta_Set( p_meta, vlc_meta_Title, p_demux->psz_location );
             return VLC_SUCCESS;
 
@@ -408,7 +408,7 @@ static void *DemuxThread( void *p_data )
             if (likely( p_block && p_sys->p_block ))
             {
                 p_sys->p_block->i_dts = p_sys->p_block->i_pts = mdate() - p_sys->i_starttime;
-                es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_sys->p_block->i_pts );
+                es_out_SetPCR( p_demux->out, p_sys->p_block->i_pts );
                 es_out_Send( p_demux->out, p_sys->es, p_sys->p_block );
                 p_sys->p_block = p_block;
             }
@@ -425,7 +425,7 @@ static int Open( vlc_object_t *p_this )
     demux_t      *p_demux = (demux_t*)p_this;
     demux_sys_t  *p_sys;
 
-    p_sys = calloc( 1, sizeof(demux_sys_t) );
+    p_sys = vlc_calloc( p_this, 1, sizeof(demux_sys_t) );
     if( !p_sys ) return VLC_ENOMEM;
 
     p_sys->f_fps = var_InheritFloat( p_demux, CFG_PREFIX "fps" );
@@ -440,7 +440,6 @@ static int Open( vlc_object_t *p_this )
     if ( !p_sys->p_instance )
     {
         msg_Err( p_demux, "rdp instantiation error" );
-        free( p_sys );
         return VLC_EGENERIC;
     }
 
@@ -490,7 +489,6 @@ static int Open( vlc_object_t *p_this )
 error:
     freerdp_free( p_sys->p_instance );
     free( p_sys->psz_hostname );
-    free( p_sys );
     return VLC_EGENERIC;
 }
 
@@ -518,5 +516,4 @@ static void Close( vlc_object_t *p_this )
         block_Release( p_sys->p_block );
 
     free( p_sys->psz_hostname );
-    free( p_sys );
 }

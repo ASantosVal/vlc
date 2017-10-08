@@ -47,7 +47,7 @@ vlc_module_begin()
     set_description(N_("EBU STL subtitles decoder"))
     set_category(CAT_INPUT)
     set_subcategory(SUBCAT_INPUT_SCODEC)
-    set_capability("decoder", 10)
+    set_capability("spu decoder", 10)
     set_callbacks(Open, Close)
 vlc_module_end()
 
@@ -157,7 +157,7 @@ static void GroupParseTeletext(stl_sg_t *p_group, uint8_t code)
     /* See ETS 300 706 Table 26 as EBU 3264 does only name values
        and does not explain at all */
 
-    static const uint32_t const colors[] =
+    static const uint32_t colors[] =
     {
         0x000000,
         0xFF0000,
@@ -480,7 +480,6 @@ static int Open(vlc_object_t *object)
 
     dec->p_sys = sys;
     dec->pf_decode = Decode;
-    dec->fmt_out.i_cat = SPU_ES;
     dec->fmt_out.i_codec = 0;
     return VLC_SUCCESS;
 }

@@ -40,34 +40,38 @@ struct vlc_sd_internal_t
 
  /* A new item has been added to a certain sd */
 static void playlist_sd_item_added(services_discovery_t *sd,
-                                   input_item_t *p_input, const char *psz_cat)
+                                   input_item_t *parent, input_item_t *p_input,
+                                   const char *psz_cat)
 {
+    assert(parent == NULL || psz_cat == NULL);
+
     vlc_sd_internal_t *sds = sd->owner.sys;
     playlist_t *playlist = (playlist_t *)sd->obj.parent;
-    playlist_item_t *parent;
+    playlist_item_t *node;
     const char *longname = (sd->description != NULL) ? sd->description : "?";
 
-    msg_Dbg(sd, "adding %s", p_input->psz_name ? p_input->psz_name : "(null)");
+    msg_Dbg(sd, "adding: %s", p_input->psz_name ? p_input->psz_name : "(null)");
 
     playlist_Lock(playlist);
     if (sds->node == NULL)
-        sds->node = playlist_NodeCreate(playlist, longname, playlist->p_root,
-                                        PLAYLIST_END,
-                                        PLAYLIST_RO_FLAG|PLAYLIST_SKIP_FLAG);
+        sds->node = playlist_NodeCreate(playlist, longname, &playlist->root,
+                                        PLAYLIST_END, PLAYLIST_RO_FLAG);
 
-    /* If p_parent is in root category (this is clearly a hack) and we have a cat */
-    if (psz_cat == NULL)
-        parent = sds->node;
+    if (parent != NULL)
+        node = playlist_ItemGetByInput(playlist, parent);
     else
-    {
-        parent = playlist_ChildSearchName(sds->node, psz_cat);
-        if (parent == NULL)
-            parent = playlist_NodeCreate(playlist, psz_cat, sds->node,
-                                         PLAYLIST_END,
-                                         PLAYLIST_RO_FLAG|PLAYLIST_SKIP_FLAG);
+    if (psz_cat == NULL)
+        node = sds->node;
+    else
+    {   /* Parent is NULL (root) and category is specified.
+         * This is clearly a hack. TODO: remove this. */
+        node = playlist_ChildSearchName(sds->node, psz_cat);
+        if (node == NULL)
+            node = playlist_NodeCreate(playlist, psz_cat, sds->node,
+                                       PLAYLIST_END, PLAYLIST_RO_FLAG);
     }
 
-    playlist_NodeAddInput(playlist, p_input, parent, 0, PLAYLIST_END);
+    playlist_NodeAddInput(playlist, p_input, node, PLAYLIST_END);
     playlist_Unlock(playlist);
 }
 
@@ -76,24 +80,34 @@ static void playlist_sd_item_removed(services_discovery_t *sd,
                                      input_item_t *p_input)
 {
     vlc_sd_internal_t *sds = sd->owner.sys;
-    playlist_t *p_playlist = (playlist_t *)sd->obj.parent;
-    playlist_item_t *p_sd_node = sds->node;
+    playlist_t *playlist = (playlist_t *)sd->obj.parent;
+    playlist_item_t *node, *item;
 
-    PL_LOCK;
-    playlist_item_t *p_item =
-        playlist_ItemFindFromInputAndRoot( p_playlist, p_input, p_sd_node );
-    if( !p_item )
+    msg_Dbg(sd, "removing: %s", p_input->psz_name ? p_input->psz_name : "(null)");
+
+    playlist_Lock(playlist);
+    item = playlist_ItemGetByInput(playlist, p_input);
+    if (unlikely(item == NULL))
     {
-        PL_UNLOCK; return;
+        msg_Err(sd, "removing item not added"); /* SD plugin bug */
+        playlist_Unlock(playlist);
+        return;
     }
-    playlist_item_t *p_parent = p_item->p_parent;
+
+#ifndef NDEBUG
+    /* Check that the item belonged to the SD */
+    for (playlist_item_t *i = item->p_parent; i != sds->node; i = i->p_parent)
+        assert(i != NULL);
+#endif
+
+    node = item->p_parent;
     /* if the item was added under a category and the category node
        becomes empty, delete that node as well */
-    if( p_parent->i_children > 1 || p_parent == p_sd_node )
-        playlist_NodeDelete( p_playlist, p_item, false );
-    else
-        playlist_NodeDelete( p_playlist, p_parent, true );
-    PL_UNLOCK;
+    if (node != sds->node && node->i_children == 1)
+        item = node;
+    playlist_NodeDeleteExplicit(playlist, item,
+        PLAYLIST_DELETE_FORCE | PLAYLIST_DELETE_STOP_IF_CURRENT );
+    playlist_Unlock(playlist);
 }
 
 int playlist_ServicesDiscoveryAdd(playlist_t *playlist, const char *chain)
@@ -125,8 +139,8 @@ int playlist_ServicesDiscoveryAdd(playlist_t *playlist, const char *chain)
      * has not discovered any item. */
     if (sds->node == NULL && sds->sd->description != NULL)
         sds->node = playlist_NodeCreate(playlist, sds->sd->description,
-                                        playlist->p_root, PLAYLIST_END,
-                                        PLAYLIST_RO_FLAG|PLAYLIST_SKIP_FLAG);
+                                        &playlist->root, PLAYLIST_END,
+                                        PLAYLIST_RO_FLAG);
 
     TAB_APPEND(pl_priv(playlist)->i_sds, pl_priv(playlist)->pp_sds, sds);
     playlist_Unlock(playlist);
@@ -142,7 +156,8 @@ static void playlist_ServicesDiscoveryInternalRemove(playlist_t *playlist,
     /* Remove the sd playlist node if it exists */
     playlist_Lock(playlist);
     if (sds->node != NULL)
-        playlist_NodeDelete(playlist, sds->node, true);
+        playlist_NodeDeleteExplicit(playlist, sds->node,
+            PLAYLIST_DELETE_FORCE | PLAYLIST_DELETE_STOP_IF_CURRENT );
     playlist_Unlock(playlist);
 
     free(sds);
@@ -161,7 +176,7 @@ int playlist_ServicesDiscoveryRemove(playlist_t *playlist, const char *name)
 
         if (!strcmp(name, entry->name))
         {
-            REMOVE_ELEM(priv->pp_sds, priv->i_sds, i);
+            TAB_ERASE(priv->i_sds, priv->pp_sds, i);
             sds = entry;
             break;
         }
@@ -178,12 +193,12 @@ int playlist_ServicesDiscoveryRemove(playlist_t *playlist, const char *name)
     return VLC_SUCCESS;
 }
 
-bool playlist_IsServicesDiscoveryLoaded( playlist_t * p_playlist,
+bool playlist_IsServicesDiscoveryLoaded( playlist_t * playlist,
                                          const char *psz_name )
 {
-    playlist_private_t *priv = pl_priv( p_playlist );
+    playlist_private_t *priv = pl_priv( playlist );
     bool found = false;
-    PL_LOCK;
+    playlist_Lock(playlist);
 
     for( int i = 0; i < priv->i_sds; i++ )
     {
@@ -195,17 +210,17 @@ bool playlist_IsServicesDiscoveryLoaded( playlist_t * p_playlist,
             break;
         }
     }
-    PL_UNLOCK;
+    playlist_Unlock(playlist);
     return found;
 }
 
-int playlist_ServicesDiscoveryControl( playlist_t *p_playlist, const char *psz_name, int i_control, ... )
+int playlist_ServicesDiscoveryControl( playlist_t *playlist, const char *psz_name, int i_control, ... )
 {
-    playlist_private_t *priv = pl_priv( p_playlist );
+    playlist_private_t *priv = pl_priv( playlist );
     int i_ret = VLC_EGENERIC;
     int i;
 
-    PL_LOCK;
+    playlist_Lock(playlist);
     for( i = 0; i < priv->i_sds; i++ )
     {
         vlc_sd_internal_t *sds = priv->pp_sds[i];
@@ -220,7 +235,7 @@ int playlist_ServicesDiscoveryControl( playlist_t *p_playlist, const char *psz_n
     }
 
     assert( i != priv->i_sds );
-    PL_UNLOCK;
+    playlist_Unlock(playlist);
 
     return i_ret;
 }

@@ -817,7 +817,7 @@ static int Open( vlc_object_t *p_this )
     /* From this point on, we have to free p_sys if we return an error (e.g. "goto caf_open_end") */
 
     p_sys = p_demux->p_sys;
-    es_format_Init( &p_sys->fmt, UNKNOWN_ES, 0 );
+    es_format_Init( &p_sys->fmt, AUDIO_ES, 0 );
 
     vlc_fourcc_t i_fcc;
     uint64_t i_size;
@@ -987,7 +987,7 @@ static int Demux( demux_t *p_demux )
     FrameSpanAddSpan( &p_sys->position, &advance );
 
     /* set PCR */
-    es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_block->i_pts );
+    es_out_SetPCR( p_demux->out, p_block->i_pts );
 
     es_out_Send( p_demux->out, p_sys->es, p_block );
 
@@ -1013,22 +1013,22 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_SUCCESS;
 
         case DEMUX_GET_LENGTH:
-            pi64 = ( int64_t* )va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = CLOCK_FREQ * ( i_num_samples / p_sys->fmt.audio.i_rate );
             return VLC_SUCCESS;
 
         case DEMUX_GET_TIME:
-            pi64 = ( int64_t* )va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = CLOCK_FREQ * ( p_sys->position.i_samples / p_sys->fmt.audio.i_rate );
             return VLC_SUCCESS;
 
         case DEMUX_GET_POSITION:
-            pf = (double*)va_arg( args, double * );
+            pf = va_arg( args, double * );
             *pf = i_num_samples ? (double)p_sys->position.i_samples / (double)i_num_samples : 0.0;
             return VLC_SUCCESS;
 
         case DEMUX_SET_POSITION:
-            f = (double)va_arg( args, double );
+            f = va_arg( args, double );
             i_sample = f * i_num_samples;
             if( SetSpanWithSample( p_demux, &position, i_sample ))
                 return VLC_EGENERIC;
@@ -1036,7 +1036,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_SUCCESS;
 
         case DEMUX_SET_TIME:
-            i64 = (int64_t)va_arg( args, int64_t );
+            i64 = va_arg( args, int64_t );
             i_sample = i64 * p_sys->fmt.audio.i_rate / INT64_C( 1000000 );
             if( SetSpanWithSample( p_demux, &position, i_sample ))
                 return VLC_EGENERIC;

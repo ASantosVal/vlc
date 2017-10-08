@@ -30,6 +30,7 @@
 #include <vlc_plugin.h>
 #include <vlc_modules.h>
 #include <vlc_stream.h>
+#include <vlc_stream_extractor.h>
 #include <vlc_addons.h>
 #include <vlc_fs.h>
 #include <vlc_strings.h>
@@ -217,15 +218,18 @@ static int ListSkins( addons_finder_t *p_finder )
             break;
 
         if ( FileBelongsToManagedAddon( p_finder, ADDON_SKIN2, psz_file ) )
+        {
+            free( psz_file );
              continue;
+        }
 
         char *psz_uri;
-        if( asprintf( &psz_uri, "unzip://%s/%s!/theme.xml", psz_dir, psz_file ) >= 0)
+        if( asprintf( &psz_uri, "file://%s/%s#!/theme.xml", psz_dir, psz_file ) >= 0)
         {
             int i_ret;
             char *psz_name = NULL;
             char *psz_source = NULL;
-            stream_t *p_stream = vlc_stream_NewURL( p_finder, psz_uri );
+            stream_t *p_stream = vlc_stream_NewMRL( p_finder, psz_uri );
             free( psz_uri );
             if ( !p_stream )
             {
@@ -382,7 +386,7 @@ static int InstallFile( addons_storage_t *p_this, const char *psz_downloadlink,
     char buffer[1<<10];
     int i_read = 0;
 
-    p_stream = vlc_stream_NewURL( p_this, psz_downloadlink );
+    p_stream = vlc_stream_NewMRL( p_this, psz_downloadlink );
     if( !p_stream )
     {
         msg_Err( p_this, "Failed to access Addon download url %s", psz_downloadlink );

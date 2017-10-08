@@ -53,19 +53,3 @@ build*
 contrib-*
 install-*
 
-
-*.po
-
-contrib/win32/config\.mak
-
-contrib/win32/vlc-contrib-x86_64-w64-mingw32-latest\.tar\.bz2
-
-modules/gui/qt/ui/extmetamanager\.ui\.autosave
-
-doc-pak/
-
-description-pak
-
-vlc-extension_1-1_amd64\.deb
-
-backup-061220171636-pre-vlc-extension\.tgz

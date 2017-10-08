@@ -404,7 +404,6 @@ static int OpenDemux( vlc_object_t *p_this )
 error:
     FREENULL( psz_sdp );
     if( p_sdp ) FreeSDP( p_sdp );
-    vlc_stream_Seek( p_demux->s, 0 );
     return errval;
 }
 
@@ -458,7 +457,6 @@ static void *Run( void *data )
 {
     services_discovery_t *p_sd = data;
     char *psz_addr;
-    int i;
     int timeout = -1;
     int canc = vlc_savecancel ();
 
@@ -576,7 +574,7 @@ static void *Run( void *data )
         timeout = 1000 * 60 * 60;
 
         /* Check for items that need deletion */
-        for( i = 0; i < p_sd->p_sys->i_announces; i++ )
+        for( int i = 0; i < p_sd->p_sys->i_announces; i++ )
         {
             mtime_t i_timeout = ( mtime_t ) 1000000 * p_sd->p_sys->i_timeout;
             sap_announce_t * p_announce = p_sd->p_sys->pp_announces[i];
@@ -662,7 +660,6 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 static int ParseSAP( services_discovery_t *p_sd, const uint8_t *buf,
                      size_t len )
 {
-    int i;
     const char          *psz_sdp;
     const uint8_t *end = buf + len;
     sdp_t               *p_sdp;
@@ -787,7 +784,7 @@ static int ParseSAP( services_discovery_t *p_sd, const uint8_t *buf,
         goto error;
     }
 
-    for( i = 0 ; i< p_sd->p_sys->i_announces ; i++ )
+    for( int i = 0 ; i< p_sd->p_sys->i_announces ; i++ )
     {
         sap_announce_t * p_announce = p_sd->p_sys->pp_announces[i];
         /* FIXME: slow */
@@ -900,7 +897,7 @@ sap_announce_t *CreateAnnounce( services_discovery_t *p_sd, uint32_t *i_source, 
         if (likely(str != NULL))
             for (char *p = strchr(str, '.'); p != NULL; p = strchr(p, '.'))
                 *(p++) = '|';
-        services_discovery_AddItem(p_sd, p_input, str ? str : psz_value);
+        services_discovery_AddItemCat(p_sd, p_input, str ? str : psz_value);
         free(str);
     }
     else
@@ -908,7 +905,7 @@ sap_announce_t *CreateAnnounce( services_discovery_t *p_sd, uint32_t *i_source, 
         /* backward compatibility with VLC 0.7.3-2.0.0 senders */
         psz_value = GetAttribute(p_sap->p_sdp->pp_attributes,
                                  p_sap->p_sdp->i_attributes, "x-plgroup");
-        services_discovery_AddItem(p_sd, p_input, psz_value);
+        services_discovery_AddItemCat(p_sd, p_input, psz_value);
     }
 
     TAB_APPEND( p_sys->i_announces, p_sys->pp_announces, p_sap );
@@ -1240,7 +1237,6 @@ static sdp_t *ParseSDP (vlc_object_t *p_obj, const char *psz_sdp)
                 break;
 
             case 'O':
-            {
                 expect = 'S';
                 if (cat != 'o')
                 {
@@ -1261,10 +1257,8 @@ static sdp_t *ParseSDP (vlc_object_t *p_obj, const char *psz_sdp)
                 }
                 EnsureUTF8 (p_sdp->orig_host);
                 break;
-            }
 
             case 'S':
-            {
                 expect = 'I';
                 if ((cat != 's') || !*data)
                 {
@@ -1278,10 +1272,8 @@ static sdp_t *ParseSDP (vlc_object_t *p_obj, const char *psz_sdp)
                     goto error;
                 EnsureUTF8 (p_sdp->psz_sessionname);
                 break;
-            }
 
             case 'I':
-            {
                 expect = 'U';
                 /* optional (and may be empty) */
                 if (cat == 'i')
@@ -1293,20 +1285,23 @@ static sdp_t *ParseSDP (vlc_object_t *p_obj, const char *psz_sdp)
                     EnsureUTF8 (p_sdp->psz_sessioninfo);
                     break;
                 }
-            }
+                /* fall through */
 
             case 'U':
                 expect = 'E';
                 if (cat == 'u')
                     break;
+                /* fall through */
             case 'E':
                 expect = 'E';
                 if (cat == 'e')
                     break;
+                /* fall through */
             case 'P':
                 expect = 'P';
                 if (cat == 'p')
                     break;
+                /* fall through */
             case 'C':
                 expect = 'B';
                 if (cat == 'c')
@@ -1320,10 +1315,12 @@ static sdp_t *ParseSDP (vlc_object_t *p_obj, const char *psz_sdp)
                     }
                     break;
                 }
+                /* fall through */
             case 'B':
                 assert (expect == 'B');
                 if (cat == 'b')
                     break;
+                /* fall through */
             case 'T':
                 expect = 'R';
                 if (cat != 't')
@@ -1336,15 +1333,17 @@ static sdp_t *ParseSDP (vlc_object_t *p_obj, const char *psz_sdp)
             case 'R':
                 if ((cat == 't') || (cat == 'r'))
                     break;
-
+                /* fall through */
             case 'Z':
                 expect = 'K';
                 if (cat == 'z')
                     break;
+                /* fall through */
             case 'K':
                 expect = 'A';
                 if (cat == 'k')
                     break;
+                /* fall through */
             case 'A':
                 //expect = 'A';
                 if (cat == 'a')
@@ -1353,6 +1352,7 @@ static sdp_t *ParseSDP (vlc_object_t *p_obj, const char *psz_sdp)
                     TAB_APPEND( p_sdp->i_attributes, p_sdp->pp_attributes, p_attr );
                     break;
                 }
+                /* fall through */
 
             /* Media description */
             case 'm':
@@ -1404,10 +1404,12 @@ static sdp_t *ParseSDP (vlc_object_t *p_obj, const char *psz_sdp)
 
                 break;
             }
+
             case 'i':
                 expect = 'c';
                 if (cat == 'i')
                     break;
+                /* fall through */
             case 'c':
                 expect = 'b';
                 if (cat == 'c')
@@ -1423,14 +1425,17 @@ static sdp_t *ParseSDP (vlc_object_t *p_obj, const char *psz_sdp)
                     net_SetPort ((struct sockaddr *)&m->addr, htons (port));
                     break;
                 }
+                /* fall through */
             case 'b':
                 expect = 'b';
                 if (cat == 'b')
                     break;
+                /* fall through */
             case 'k':
                 expect = 'a';
                 if (cat == 'k')
                     break;
+                /* fall through */
             case 'a':
                 assert (expect == 'a');
                 if (cat == 'a')
@@ -1471,8 +1476,7 @@ static int InitSocket( services_discovery_t *p_sd, const char *psz_address,
         return VLC_EGENERIC;
 
     shutdown( i_fd, SHUT_WR );
-    INSERT_ELEM (p_sd->p_sys->pi_fd, p_sd->p_sys->i_fd,
-                 p_sd->p_sys->i_fd, i_fd);
+    TAB_APPEND(p_sd->p_sys->i_fd, p_sd->p_sys->pi_fd, i_fd);
     return VLC_SUCCESS;
 }
 
@@ -1550,8 +1554,6 @@ static void FreeSDP( sdp_t *p_sdp )
 static int RemoveAnnounce( services_discovery_t *p_sd,
                            sap_announce_t *p_announce )
 {
-    int i;
-
     if( p_announce->p_sdp )
     {
         FreeSDP( p_announce->p_sdp );
@@ -1561,20 +1563,12 @@ static int RemoveAnnounce( services_discovery_t *p_sd,
     if( p_announce->p_item )
     {
         services_discovery_RemoveItem( p_sd, p_announce->p_item );
-        vlc_gc_decref( p_announce->p_item );
+        input_item_Release( p_announce->p_item );
         p_announce->p_item = NULL;
     }
 
-    for( i = 0; i< p_sd->p_sys->i_announces; i++)
-    {
-        if( p_sd->p_sys->pp_announces[i] == p_announce )
-        {
-            REMOVE_ELEM( p_sd->p_sys->pp_announces, p_sd->p_sys->i_announces,
-                         i);
-            break;
-        }
-    }
-
+    TAB_REMOVE(p_sd->p_sys->i_announces, p_sd->p_sys->pp_announces,
+               p_announce);
     free( p_announce );
 
     return VLC_SUCCESS;

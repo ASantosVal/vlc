@@ -91,7 +91,7 @@ public:
                                 const QString& path = QString() );
     bool isDying() { return b_isDying; }
     static QString getDirectoryDialog( intf_thread_t *p_intf);
-    static QStringList getOpenURL(intf_thread_t* p_intf, QWidget *parent = NULL,
+    static QStringList getOpenURL(QWidget *parent = NULL,
                                   const QString &caption = QString(),
                                   const QString &dir = QString(),
                                   const QString &filter = QString(),
@@ -124,7 +124,6 @@ private:
 
     void openDialog( int );
     void addFromSimple( bool, bool );
-    void saveAPlaylist(playlist_t *p_playlist, playlist_item_t *p_node);
 
 public slots:
     void playlistDialog();
@@ -177,7 +176,6 @@ public slots:
 
     void openAPlaylist();
     void savePlayingToPlaylist();
-    void saveRecentsToPlaylist();
 
     void loadSubtitlesFile();
 

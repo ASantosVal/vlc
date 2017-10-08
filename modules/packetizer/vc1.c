@@ -129,7 +129,7 @@ static block_t *PacketizeParse( void *p_private, bool *pb_ts_used, block_t * );
 static int PacketizeValidate( void *p_private, block_t * );
 
 static block_t *ParseIDU( decoder_t *p_dec, bool *pb_ts_used, block_t *p_frag );
-static block_t *GetCc( decoder_t *p_dec, bool pb_present[4] );
+static block_t *GetCc( decoder_t *p_dec, bool pb_present[4], int * );
 
 static const uint8_t p_vc1_startcode[3] = { 0x00, 0x00, 0x01 };
 /*****************************************************************************
@@ -516,7 +516,7 @@ static block_t *ParseIDU( decoder_t *p_dec, bool *pb_ts_used, block_t *p_frag )
 
                 if( bs_read( &s, 1 ) )  /* Pixel aspect ratio (PAR/SAR) */
                 {
-                    static const int p_ar[16][2] = {
+                    static const unsigned p_ar[16][2] = {
                         { 0, 0}, { 1, 1}, {12,11}, {10,11}, {16,11}, {40,33},
                         {24,11}, {20,11}, {32,11}, {80,33}, {18,11}, {15,11},
                         {64,33}, {160,99},{ 0, 0}, { 0, 0}
@@ -541,8 +541,8 @@ static block_t *ParseIDU( decoder_t *p_dec, bool *pb_ts_used, block_t *p_frag )
             }
             if( bs_read( &s, 1 ) )  /* Frame rate */
             {
-                int i_fps_num = 0;
-                int i_fps_den = 0;
+                unsigned i_fps_num = 0;
+                unsigned i_fps_den = 0;
                 if( bs_read( &s, 1 ) )
                 {
                     i_fps_num = bs_read( &s, 16 )+1;
@@ -762,16 +762,14 @@ static block_t *ParseIDU( decoder_t *p_dec, bool *pb_ts_used, block_t *p_frag )
 /*****************************************************************************
  * GetCc:
  *****************************************************************************/
-static block_t *GetCc( decoder_t *p_dec, bool pb_present[4] )
+static block_t *GetCc( decoder_t *p_dec, bool pb_present[4], int *pi_reorder_depth )
 {
     decoder_sys_t *p_sys = p_dec->p_sys;
     block_t *p_cc;
+    *pi_reorder_depth = p_sys->cc.b_reorder ? 4 : -1;
 
     for( int i = 0; i < 4; i++ )
         pb_present[i] = p_sys->cc.pb_present[i];
-
-    if( p_sys->cc.i_data <= 0 )
-        return NULL;
 
     p_cc = block_Alloc( p_sys->cc.i_data);
     if( p_cc )
@@ -779,7 +777,7 @@ static block_t *GetCc( decoder_t *p_dec, bool pb_present[4] )
         memcpy( p_cc->p_buffer, p_sys->cc.p_data, p_sys->cc.i_data );
         p_cc->i_dts =
         p_cc->i_pts = p_sys->cc.b_reorder ? p_sys->i_cc_pts : p_sys->i_cc_dts;
-        p_cc->i_flags = ( p_sys->cc.b_reorder  ? p_sys->i_cc_flags : BLOCK_FLAG_TYPE_P ) & BLOCK_FLAG_TYPE_MASK;
+        p_cc->i_flags = p_sys->i_cc_flags & BLOCK_FLAG_TYPE_MASK;
     }
     cc_Flush( &p_sys->cc );
     return p_cc;

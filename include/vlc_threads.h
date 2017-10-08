@@ -42,7 +42,7 @@
  * This has no effects if thread cancellation is disabled.
  * This can be called when there is a rather slow non-sleeping operation.
  * This is also used to force a cancellation point in a function that would
- * otherwise <em>not always</em> be a one (block_FifoGet() is an example).
+ * otherwise <em>not always</em> be one (block_FifoGet() is an example).
  */
 VLC_API void vlc_testcancel(void);
 
@@ -825,7 +825,7 @@ VLC_API void msleep(mtime_t delay);
 #define VLC_HARD_MIN_SLEEP   10000 /* 10 milliseconds = 1 tick at 100Hz */
 #define VLC_SOFT_MIN_SLEEP 9000000 /* 9 seconds */
 
-#if VLC_GCC_VERSION(4,3)
+#if defined (__GNUC__) && !defined (__clang__)
 /* Linux has 100, 250, 300 or 1000Hz
  *
  * HZ=100 by default on FreeBSD, but some architectures use a 1000Hz timer
@@ -1053,6 +1053,9 @@ enum
    VLC_XLIB_MUTEX,
    VLC_MOSAIC_MUTEX,
    VLC_HIGHLIGHT_MUTEX,
+#ifdef _WIN32
+   VLC_MTA_MUTEX,
+#endif
    /* Insert new entry HERE */
    VLC_MAX_MUTEX
 };

@@ -45,6 +45,7 @@
 #include <vlc_http.h>
 #include <vlc_interrupt.h>
 #include <vlc_keystore.h>
+#include <vlc_memstream.h>
 
 #include <assert.h>
 #include <limits.h>
@@ -128,23 +129,20 @@ struct access_sys_t
     uint64_t size;
 
     bool b_reconnect;
-    bool b_continuous;
     bool b_has_size;
 };
 
 /* */
-static ssize_t Read( access_t *, void *, size_t );
-static int Seek( access_t *, uint64_t );
-static int Control( access_t *, int, va_list );
+static ssize_t Read( stream_t *, void *, size_t );
+static int Seek( stream_t *, uint64_t );
+static int Control( stream_t *, int, va_list );
 
 /* */
-static int Connect( access_t * );
-static void Disconnect( access_t * );
+static int Connect( stream_t * );
+static void Disconnect( stream_t * );
 
 
-static void AuthReply( access_t *p_acces, const char *psz_prefix,
-                       vlc_url_t *p_url, vlc_http_auth_t *p_auth );
-static int AuthCheckReply( access_t *p_access, const char *psz_header,
+static int AuthCheckReply( stream_t *p_access, const char *psz_header,
                            vlc_url_t *p_url, vlc_http_auth_t *p_auth );
 
 /*****************************************************************************
@@ -152,13 +150,13 @@ static int AuthCheckReply( access_t *p_access, const char *psz_header,
  *****************************************************************************/
 static int Open( vlc_object_t *p_this )
 {
-    access_t *p_access = (access_t*)p_this;
+    stream_t *p_access = (stream_t*)p_this;
     const char *psz_url = p_access->psz_url;
     char *psz;
     int ret = VLC_EGENERIC;
     vlc_credential credential;
 
-    access_sys_t *p_sys = malloc( sizeof(*p_sys) );
+    access_sys_t *p_sys = vlc_malloc( p_this, sizeof(*p_sys) );
     if( unlikely(p_sys == NULL) )
         return VLC_ENOMEM;
 
@@ -186,14 +184,11 @@ static int Open( vlc_object_t *p_this )
     {
         msg_Err( p_access, "invalid URL" );
         vlc_UrlClean( &p_sys->url );
-        free( p_sys );
         return VLC_EGENERIC;
     }
     if( p_sys->url.i_port <= 0 )
         p_sys->url.i_port = 80;
 
-    vlc_http_auth_Init( &p_sys->auth );
-    vlc_http_auth_Init( &p_sys->proxy_auth );
     vlc_credential_init( &credential, &p_sys->url );
 
     /* Determine the HTTP user agent */
@@ -283,7 +278,6 @@ static int Open( vlc_object_t *p_this )
     }
 
     p_sys->b_reconnect = var_InheritBool( p_access, "http-reconnect" );
-    p_sys->b_continuous = var_InheritBool( p_access, "http-continuous" );
 
     if( vlc_credential_get( &credential, p_access, NULL, NULL, NULL, NULL ) )
     {
@@ -377,7 +371,6 @@ error:
 
     Disconnect( p_access );
 
-    free( p_sys );
     return ret;
 }
 
@@ -386,14 +379,12 @@ error:
  *****************************************************************************/
 static void Close( vlc_object_t *p_this )
 {
-    access_t     *p_access = (access_t*)p_this;
+    stream_t     *p_access = (stream_t*)p_this;
     access_sys_t *p_sys = p_access->p_sys;
 
     vlc_UrlClean( &p_sys->url );
-    vlc_http_auth_Deinit( &p_sys->auth );
     if( p_sys->b_proxy )
         vlc_UrlClean( &p_sys->proxy );
-    vlc_http_auth_Deinit( &p_sys->proxy_auth );
 
     free( p_sys->psz_mime );
     free( p_sys->psz_location );
@@ -408,12 +399,10 @@ static void Close( vlc_object_t *p_this )
     free( p_sys->psz_password );
 
     Disconnect( p_access );
-
-    free( p_sys );
 }
 
 /* Read data from the socket */
-static int ReadData( access_t *p_access, int *pi_read,
+static int ReadData( stream_t *p_access, int *pi_read,
                      void *p_buffer, size_t i_len )
 {
     access_sys_t *p_sys = p_access->p_sys;
@@ -428,8 +417,8 @@ static int ReadData( access_t *p_access, int *pi_read,
  * Read: Read up to i_len bytes from the http connection and place in
  * p_buffer. Return the actual number of bytes read
  *****************************************************************************/
-static int ReadICYMeta( access_t *p_access );
-static ssize_t Read( access_t *p_access, void *p_buffer, size_t i_len )
+static int ReadICYMeta( stream_t *p_access );
+static ssize_t Read( stream_t *p_access, void *p_buffer, size_t i_len )
 {
     access_sys_t *p_sys = p_access->p_sys;
     int i_read;
@@ -442,15 +431,15 @@ static ssize_t Read( access_t *p_access, void *p_buffer, size_t i_len )
 
     if( p_sys->i_icy_meta > 0 && p_sys->offset - p_sys->i_icy_offset > 0 )
     {
-        int64_t i_next = p_sys->i_icy_meta -
-                                    (p_sys->offset - p_sys->i_icy_offset ) % p_sys->i_icy_meta;
+        int i_next = p_sys->i_icy_meta -
+                   (p_sys->offset - p_sys->i_icy_offset) % p_sys->i_icy_meta;
 
         if( i_next == p_sys->i_icy_meta )
         {
             if( ReadICYMeta( p_access ) )
                 return 0;
         }
-        if( i_len > i_next )
+        if( i_len > (size_t)i_next )
             i_len = i_next;
     }
 
@@ -480,7 +469,7 @@ static ssize_t Read( access_t *p_access, void *p_buffer, size_t i_len )
     return i_read;
 }
 
-static int ReadICYMeta( access_t *p_access )
+static int ReadICYMeta( stream_t *p_access )
 {
     access_sys_t *p_sys = p_access->p_sys;
 
@@ -559,7 +548,7 @@ static int ReadICYMeta( access_t *p_access )
 /*****************************************************************************
  * Seek: close and re-open a connection at the right place
  *****************************************************************************/
-static int Seek( access_t *p_access, uint64_t i_pos )
+static int Seek( stream_t *p_access, uint64_t i_pos )
 {
     (void) p_access; (void) i_pos;
     return VLC_EGENERIC;
@@ -568,7 +557,7 @@ static int Seek( access_t *p_access, uint64_t i_pos )
 /*****************************************************************************
  * Control:
  *****************************************************************************/
-static int Control( access_t *p_access, int i_query, va_list args )
+static int Control( stream_t *p_access, int i_query, va_list args )
 {
     access_sys_t *p_sys = p_access->p_sys;
     bool       *pb_bool;
@@ -579,18 +568,18 @@ static int Control( access_t *p_access, int i_query, va_list args )
         /* */
         case STREAM_CAN_SEEK:
         case STREAM_CAN_FASTSEEK:
-            pb_bool = (bool*)va_arg( args, bool* );
+            pb_bool = va_arg( args, bool* );
             *pb_bool = false;
             break;
         case STREAM_CAN_PAUSE:
         case STREAM_CAN_CONTROL_PACE:
-            pb_bool = (bool*)va_arg( args, bool* );
+            pb_bool = va_arg( args, bool* );
             *pb_bool = true;
             break;
 
         /* */
         case STREAM_GET_PTS_DELAY:
-            pi_64 = (int64_t*)va_arg( args, int64_t * );
+            pi_64 = va_arg( args, int64_t * );
             *pi_64 = INT64_C(1000)
                 * var_InheritInteger( p_access, "network-caching" );
             break;
@@ -598,8 +587,7 @@ static int Control( access_t *p_access, int i_query, va_list args )
         case STREAM_GET_SIZE:
             if( !p_sys->b_has_size )
                 return VLC_EGENERIC;
-            pi_64 = (int64_t*)va_arg( args, int64_t * );
-            *pi_64 = p_sys->size;
+            *va_arg( args, uint64_t*) = p_sys->size;
            break;
 
         /* */
@@ -633,32 +621,14 @@ static int Control( access_t *p_access, int i_query, va_list args )
     return VLC_SUCCESS;
 }
 
-static int WriteHeaders( access_t *access, const char *fmt, ... )
-{
-    access_sys_t *sys = access->p_sys;
-    char *str;
-    va_list args;
-    int len;
-
-    va_start( args, fmt );
-    len = vasprintf( &str, fmt, args );
-    if( likely(len >= 0) )
-    {
-        if( net_Write( access, sys->fd, str, len ) < len )
-            len = -1;
-        free( str );
-    }
-    va_end( args );
-    return len;
-}
-
 /*****************************************************************************
  * Connect:
  *****************************************************************************/
-static int Connect( access_t *p_access )
+static int Connect( stream_t *p_access )
 {
     access_sys_t   *p_sys = p_access->p_sys;
     vlc_url_t      srv = p_sys->b_proxy ? p_sys->proxy : p_sys->url;
+    ssize_t val;
 
     /* Clean info */
     free( p_sys->psz_location );
@@ -668,7 +638,8 @@ static int Connect( access_t *p_access )
     free( p_sys->psz_icy_name );
     free( p_sys->psz_icy_title );
 
-
+    vlc_http_auth_Init( &p_sys->auth );
+    vlc_http_auth_Init( &p_sys->proxy_auth );
     p_sys->psz_location = NULL;
     p_sys->psz_mime = NULL;
     p_sys->i_icy_meta = 0;
@@ -680,52 +651,87 @@ static int Connect( access_t *p_access )
     p_sys->offset = 0;
     p_sys->size = 0;
 
+    struct vlc_memstream stream;
+
+    vlc_memstream_open(&stream);
+
+    vlc_memstream_puts(&stream, "GET ");
+    if( p_sys->b_proxy )
+        vlc_memstream_printf( &stream, "http://%s:%d",
+                              p_sys->url.psz_host, p_sys->url.i_port );
+    if( p_sys->url.psz_path == NULL || p_sys->url.psz_path[0] == '\0' )
+        vlc_memstream_putc( &stream, '/' );
+    else
+        vlc_memstream_puts( &stream, p_sys->url.psz_path );
+    if( p_sys->url.psz_option != NULL )
+        vlc_memstream_printf( &stream, "?%s", p_sys->url.psz_option );
+    vlc_memstream_puts( &stream, " HTTP/1.0\r\n" );
+
+    vlc_memstream_printf( &stream, "Host: %s", p_sys->url.psz_host );
+    if( p_sys->url.i_port != 80 )
+        vlc_memstream_printf( &stream, ":%d", p_sys->url.i_port );
+    vlc_memstream_puts( &stream, "\r\n" );
+
+    /* User Agent */
+    vlc_memstream_printf( &stream, "User-Agent: %s\r\n",
+                          p_sys->psz_user_agent );
+    /* Referrer */
+    if (p_sys->psz_referrer)
+        vlc_memstream_printf( &stream, "Referer: %s\r\n",
+                              p_sys->psz_referrer );
+
+    /* Authentication */
+    if( p_sys->url.psz_username != NULL && p_sys->url.psz_password != NULL )
+    {
+        char *auth;
+
+        auth = vlc_http_auth_FormatAuthorizationHeader( VLC_OBJECT(p_access),
+                            &p_sys->auth, "GET", p_sys->url.psz_path,
+                            p_sys->url.psz_username, p_sys->url.psz_password );
+        if( auth != NULL )
+             vlc_memstream_printf( &stream, "Authorization: %s\r\n", auth );
+        free( auth );
+    }
+
+    /* Proxy Authentication */
+    if( p_sys->b_proxy && p_sys->proxy.psz_username != NULL
+     && p_sys->proxy.psz_password != NULL )
+    {
+        char *auth;
+
+        auth = vlc_http_auth_FormatAuthorizationHeader( VLC_OBJECT(p_access),
+                        &p_sys->proxy_auth, "GET", p_sys->url.psz_path,
+                        p_sys->proxy.psz_username, p_sys->proxy.psz_password );
+        if( auth != NULL )
+             vlc_memstream_printf( &stream, "Proxy-Authorization: %s\r\n",
+                                   auth );
+        free( auth );
+    }
+
+    /* ICY meta data request */
+    vlc_memstream_puts( &stream, "Icy-MetaData: 1\r\n" );
+
+    vlc_memstream_puts( &stream, "\r\n" );
+
+    if( vlc_memstream_close( &stream ) )
+        return -1;
+
     /* Open connection */
     assert( p_sys->fd == -1 ); /* No open sockets (leaking fds is BAD) */
     p_sys->fd = net_ConnectTCP( p_access, srv.psz_host, srv.i_port );
     if( p_sys->fd == -1 )
     {
         msg_Err( p_access, "cannot connect to %s:%d", srv.psz_host, srv.i_port );
+        free( stream.ptr );
         return -1;
     }
     setsockopt (p_sys->fd, SOL_SOCKET, SO_KEEPALIVE, &(int){ 1 }, sizeof (int));
 
-    const char *psz_path = p_sys->url.psz_path;
-    if( !psz_path || !*psz_path )
-        psz_path = "/";
-    if( p_sys->b_proxy )
-        WriteHeaders( p_access, "GET http://%s:%d%s%s%s HTTP/1.0\r\n",
-                      p_sys->url.psz_host, p_sys->url.i_port,
-                      psz_path, p_sys->url.psz_option ? "?" : "",
-                      p_sys->url.psz_option ? p_sys->url.psz_option : "" );
-    else
-        WriteHeaders( p_access, "GET %s%s%s HTTP/1.0\r\n",
-                      psz_path, p_sys->url.psz_option ? "?" : "",
-                      p_sys->url.psz_option ? p_sys->url.psz_option : "" );
-    if( p_sys->url.i_port != 80 )
-        WriteHeaders( p_access, "Host: %s:%d\r\n",
-                      p_sys->url.psz_host, p_sys->url.i_port );
-    else
-        WriteHeaders( p_access, "Host: %s\r\n", p_sys->url.psz_host );
-    /* User Agent */
-    WriteHeaders( p_access, "User-Agent: %s\r\n", p_sys->psz_user_agent );
-    /* Referrer */
-    if (p_sys->psz_referrer)
-        WriteHeaders( p_access, "Referer: %s\r\n", p_sys->psz_referrer );
+    msg_Dbg( p_access, "sending request:\n%s", stream.ptr );
+    val = net_Write( p_access, p_sys->fd, stream.ptr, stream.length );
+    free( stream.ptr );
 
-    /* Authentication */
-    if( p_sys->url.psz_username && p_sys->url.psz_password )
-        AuthReply( p_access, "", &p_sys->url, &p_sys->auth );
-
-    /* Proxy Authentication */
-    if( p_sys->b_proxy && p_sys->proxy.psz_username != NULL
-     && p_sys->proxy.psz_password != NULL )
-        AuthReply( p_access, "Proxy-", &p_sys->proxy, &p_sys->proxy_auth );
-
-    /* ICY meta data request */
-    WriteHeaders( p_access, "Icy-MetaData: 1\r\n" );
-
-    if( WriteHeaders( p_access, "\r\n" ) < 0 )
+    if( val < (ssize_t)stream.length )
     {
         msg_Err( p_access, "failed to send request" );
         Disconnect( p_access );
@@ -775,7 +781,7 @@ static int Connect( access_t *p_access )
     {
         char *p, *p_trailing;
 
-        char *psz = net_Gets( p_access, p_sys->fd );
+        psz = net_Gets( p_access, p_sys->fd );
         if( psz == NULL )
         {
             msg_Err( p_access, "failed to read answer" );
@@ -971,37 +977,23 @@ error:
 /*****************************************************************************
  * Disconnect:
  *****************************************************************************/
-static void Disconnect( access_t *p_access )
+static void Disconnect( stream_t *p_access )
 {
     access_sys_t *p_sys = p_access->p_sys;
 
     if( p_sys->fd != -1)
         net_Close(p_sys->fd);
     p_sys->fd = -1;
+
+    vlc_http_auth_Deinit( &p_sys->auth );
+    vlc_http_auth_Deinit( &p_sys->proxy_auth );
 }
 
 /*****************************************************************************
  * HTTP authentication
  *****************************************************************************/
 
-static void AuthReply( access_t *p_access, const char *psz_prefix,
-                       vlc_url_t *p_url, vlc_http_auth_t *p_auth )
-{
-    char *psz_value;
-
-    psz_value =
-        vlc_http_auth_FormatAuthorizationHeader( VLC_OBJECT(p_access), p_auth,
-                                                 "GET", p_url->psz_path,
-                                                 p_url->psz_username,
-                                                 p_url->psz_password );
-    if ( psz_value == NULL )
-        return;
-
-    WriteHeaders( p_access, "%sAuthorization: %s\r\n", psz_prefix, psz_value );
-    free( psz_value );
-}
-
-static int AuthCheckReply( access_t *p_access, const char *psz_header,
+static int AuthCheckReply( stream_t *p_access, const char *psz_header,
                            vlc_url_t *p_url, vlc_http_auth_t *p_auth )
 {
     return

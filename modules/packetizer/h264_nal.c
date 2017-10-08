@@ -21,6 +21,8 @@
 # include "config.h"
 #endif
 
+#include <assert.h>
+
 #include "h264_nal.h"
 #include "hxxx_nal.h"
 
@@ -101,11 +103,11 @@ static size_t get_avcC_to_AnnexB_NAL_size( const uint8_t *p_buf, size_t i_buf )
 {
     size_t i_total = 0;
 
-    p_buf += 5;
-    i_buf -= 5;
-
     if( i_buf < H264_MIN_AVCC_SIZE )
         return 0;
+
+    p_buf += 5;
+    i_buf -= 5;
 
     for ( unsigned int j = 0; j < 2; j++ )
     {
@@ -115,6 +117,9 @@ static size_t get_avcC_to_AnnexB_NAL_size( const uint8_t *p_buf, size_t i_buf )
 
         for ( unsigned int i = 0; i < i_loop_end; i++ )
         {
+            if( i_buf < 2 )
+                return 0;
+
             uint16_t i_nal_size = (p_buf[0] << 8) | p_buf[1];
             if(i_nal_size > i_buf - 2)
                 return 0;
@@ -122,6 +127,9 @@ static size_t get_avcC_to_AnnexB_NAL_size( const uint8_t *p_buf, size_t i_buf )
             p_buf += i_nal_size + 2;
             i_buf -= i_nal_size + 2;
         }
+
+        if( j == 0 && i_buf < 1 )
+            return 0;
     }
     return i_total;
 }
@@ -346,22 +354,14 @@ static bool h264_parse_sequence_parameter_set_rbsp( bs_t *p_bs,
     }
     else if( p_sps->i_pic_order_cnt_type == 1 )
     {
-        int i_cycle;
-        /* skip b_delta_pic_order_always_zero */
         p_sps->i_delta_pic_order_always_zero_flag = bs_read( p_bs, 1 );
-        /* skip i_offset_for_non_ref_pic */
-        bs_read_se( p_bs );
-        /* skip i_offset_for_top_to_bottom_field */
-        bs_read_se( p_bs );
-        /* read i_num_ref_frames_in_poc_cycle */
-        i_cycle = bs_read_ue( p_bs );
-        if( i_cycle > 256 ) i_cycle = 256;
-        while( i_cycle > 0 )
-        {
-            /* skip i_offset_for_ref_frame */
-            bs_read_se(p_bs );
-            i_cycle--;
-        }
+        p_sps->offset_for_non_ref_pic = bs_read_se( p_bs );
+        p_sps->offset_for_top_to_bottom_field = bs_read_se( p_bs );
+        p_sps->i_num_ref_frames_in_pic_order_cnt_cycle = bs_read_ue( p_bs );
+        if( p_sps->i_num_ref_frames_in_pic_order_cnt_cycle > 255 )
+            return false;
+        for( int i=0; i<p_sps->i_num_ref_frames_in_pic_order_cnt_cycle; i++ )
+            p_sps->offset_for_ref_frame[i] = bs_read_se( p_bs );
     }
     /* i_num_ref_frames */
     bs_read_ue( p_bs );
@@ -375,7 +375,7 @@ static bool h264_parse_sequence_parameter_set_rbsp( bs_t *p_bs,
     /* b_frame_mbs_only */
     p_sps->frame_mbs_only_flag = bs_read( p_bs, 1 );
     if( !p_sps->frame_mbs_only_flag )
-        bs_skip( p_bs, 1 );
+        p_sps->mb_adaptive_frame_field_flag = bs_read( p_bs, 1 );
 
     /* b_direct8x8_inference */
     bs_skip( p_bs, 1 );
@@ -494,7 +494,7 @@ static bool h264_parse_sequence_parameter_set_rbsp( bs_t *p_bs,
                     return false;
                 bs_read( p_bs, 4 );
                 bs_read( p_bs, 4 );
-                for( uint32_t i=0; i<count; i++ )
+                for( uint32_t j = 0; j < count; j++ )
                 {
                     if( bs_remain( p_bs ) < 23 )
                         return false;
@@ -548,6 +548,55 @@ static bool h264_parse_picture_parameter_set_rbsp( bs_t *p_bs,
 
     bs_skip( p_bs, 1 ); // entropy coding mode flag
     p_pps->i_pic_order_present_flag = bs_read( p_bs, 1 );
+    unsigned num_slice_groups_minus1 = bs_read_ue( p_bs );
+    if( num_slice_groups_minus1 > 0 )
+    {
+        unsigned slice_group_map_type = bs_read_ue( p_bs );
+        if( slice_group_map_type == 0 )
+        {
+            for( unsigned i=0; i <= num_slice_groups_minus1; i++ )
+                bs_read_ue( p_bs ); /* run_length_minus1[group] */
+        }
+        else if( slice_group_map_type == 2 )
+        {
+            for( unsigned i=0; i <= num_slice_groups_minus1; i++ )
+            {
+                bs_read_ue( p_bs ); /* top_left[group] */
+                bs_read_ue( p_bs ); /* bottom_right[group] */
+            }
+        }
+        else if( slice_group_map_type > 2 && slice_group_map_type < 6 )
+        {
+            bs_read1( p_bs );   /* slice_group_change_direction_flag */
+            bs_read_ue( p_bs ); /* slice_group_change_rate_minus1 */
+        }
+        else if( slice_group_map_type == 6 )
+        {
+            unsigned pic_size_in_maps_units_minus1 = bs_read_ue( p_bs );
+            unsigned sliceGroupSize = 1;
+            while(num_slice_groups_minus1 > 0)
+            {
+                sliceGroupSize++;
+                num_slice_groups_minus1 >>= 1;
+            }
+            for( unsigned i=0; i <= pic_size_in_maps_units_minus1; i++ )
+            {
+                bs_read( p_bs, sliceGroupSize );
+            }
+        }
+    }
+
+    bs_read_ue( p_bs ); /* num_ref_idx_l0_default_active_minus1 */
+    bs_read_ue( p_bs ); /* num_ref_idx_l1_default_active_minus1 */
+    p_pps->weighted_pred_flag = bs_read( p_bs, 1 );
+    p_pps->weighted_bipred_idc = bs_read( p_bs, 2 );
+    bs_read_se( p_bs ); /* pic_init_qp_minus26 */
+    bs_read_se( p_bs ); /* pic_init_qs_minus26 */
+    bs_read_se( p_bs ); /* chroma_qp_index_offset */
+    bs_read( p_bs, 1 ); /* deblocking_filter_control_present_flag */
+    bs_read( p_bs, 1 ); /* constrained_intra_pred_flag */
+    p_pps->i_redundant_pic_present_flag = bs_read( p_bs, 1 );
+
     /* TODO */
 
     return true;
@@ -585,57 +634,59 @@ IMPL_h264_generic_decode( h264_decode_pps, h264_picture_parameter_set_t,
                           h264_parse_picture_parameter_set_rbsp, h264_release_pps )
 
 block_t *h264_NAL_to_avcC( uint8_t i_nal_length_size,
-                           const uint8_t *p_sps_buf,
-                           size_t i_sps_size,
-                           const uint8_t *p_pps_buf,
-                           size_t i_pps_size )
+                           const uint8_t **pp_sps_buf,
+                           const size_t *p_sps_size, uint8_t i_sps_count,
+                           const uint8_t **pp_pps_buf,
+                           const size_t *p_pps_size, uint8_t i_pps_count )
 {
-    if( i_pps_size > UINT16_MAX || i_sps_size > UINT16_MAX )
-        return NULL;
-
     /* The length of the NAL size is encoded using 1, 2 or 4 bytes */
     if( i_nal_length_size != 1 && i_nal_length_size != 2
      && i_nal_length_size != 4 )
         return NULL;
+    if( i_sps_count == 0 || i_sps_count > H264_SPS_ID_MAX || i_pps_count == 0 )
+        return NULL;
+
+    /* Calculate the total size of all SPS and PPS NALs */
+    size_t i_spspps_size = 0;
+    for( size_t i = 0; i < i_sps_count; ++i )
+    {
+        assert( pp_sps_buf[i] && p_sps_size[i] );
+        if( p_sps_size[i] < 4 || p_sps_size[i] > UINT16_MAX )
+            return NULL;
+        i_spspps_size += p_sps_size[i] +  2 /* 16be size place holder */;
+    }
+    for( size_t i = 0; i < i_pps_count; ++i )
+    {
+        assert( pp_pps_buf[i] && p_pps_size[i] );
+        if( p_pps_size[i] > UINT16_MAX)
+            return NULL;
+        i_spspps_size += p_pps_size[i] +  2 /* 16be size place holder */;
+    }
 
     bo_t bo;
-    /* 6 * int(8), i_sps_size, 1 * int(8), i_pps_size */
-    if( bo_init( &bo, 7 + i_sps_size + i_pps_size ) != true )
+    /* 1 + 3 + 1 + 1 + 1 + i_spspps_size */
+    if( bo_init( &bo, 7 + i_spspps_size ) != true )
         return NULL;
 
     bo_add_8( &bo, 1 ); /* configuration version */
-    bo_add_mem( &bo, 3, &p_sps_buf[1] ); /* i_profile/profile_compatibility/level */
+    bo_add_mem( &bo, 3, &pp_sps_buf[0][1] ); /* i_profile/profile_compatibility/level */
     bo_add_8( &bo, 0xfc | (i_nal_length_size - 1) ); /* 0b11111100 | lengthsize - 1*/
 
-    bo_add_8( &bo, 0xe0 | (i_sps_size > 0 ? 1 : 0) ); /* 0b11100000 | sps_count */
-    if( i_sps_size )
+    bo_add_8( &bo, 0xe0 | i_sps_count ); /* 0b11100000 | sps_count */
+    for( size_t i = 0; i < i_sps_count; ++i )
     {
-        bo_add_16be( &bo, i_sps_size );
-        bo_add_mem( &bo, i_sps_size, p_sps_buf );
+        bo_add_16be( &bo, p_sps_size[i] );
+        bo_add_mem( &bo, p_sps_size[i], pp_sps_buf[i] );
     }
 
-    bo_add_8( &bo, (i_pps_size > 0 ? 1 : 0) ); /* pps_count */
-    if( i_pps_size )
+    bo_add_8( &bo, i_pps_count ); /* pps_count */
+    for( size_t i = 0; i < i_pps_count; ++i )
     {
-        bo_add_16be( &bo, i_pps_size );
-        bo_add_mem( &bo, i_pps_size, p_pps_buf );
+        bo_add_16be( &bo, p_pps_size[i] );
+        bo_add_mem( &bo, p_pps_size[i], pp_pps_buf[i] );
     }
 
     return bo.b;
-}
-
-block_t *h264_AnnexB_NAL_to_avcC( uint8_t i_nal_length_size,
-                                  const uint8_t *p_sps_buf,
-                                  size_t i_sps_size,
-                                  const uint8_t *p_pps_buf,
-                                  size_t i_pps_size )
-{
-    if( !hxxx_strip_AnnexB_startcode( &p_sps_buf, &i_sps_size ) ||
-        !hxxx_strip_AnnexB_startcode( &p_pps_buf, &i_pps_size ) )
-        return NULL;
-    return h264_NAL_to_avcC( i_nal_length_size,
-                             p_sps_buf, i_sps_size,
-                             p_pps_buf, i_pps_size );
 }
 
 static const h264_level_limits_t * h264_get_level_limits( const h264_sequence_parameter_set_t *p_sps )
@@ -743,6 +794,24 @@ bool h264_get_chroma_luma( const h264_sequence_parameter_set_t *p_sps, uint8_t *
     *pi_depth_chroma = p_sps->i_bit_depth_chroma;
     return true;
 }
+bool h264_get_colorimetry( const h264_sequence_parameter_set_t *p_sps,
+                           video_color_primaries_t *p_primaries,
+                           video_transfer_func_t *p_transfer,
+                           video_color_space_t *p_colorspace,
+                           bool *p_full_range )
+{
+    if( !p_sps->vui.b_valid )
+        return false;
+    *p_primaries =
+        hxxx_colour_primaries_to_vlc( p_sps->vui.colour.i_colour_primaries );
+    *p_transfer =
+        hxxx_transfer_characteristics_to_vlc( p_sps->vui.colour.i_transfer_characteristics );
+    *p_colorspace =
+        hxxx_matrix_coeffs_to_vlc( p_sps->vui.colour.i_matrix_coefficients );
+    *p_full_range = p_sps->vui.colour.b_full_range;
+    return true;
+}
+
 
 bool h264_get_profile_level(const es_format_t *p_fmt, uint8_t *pi_profile,
                             uint8_t *pi_level, uint8_t *pi_nal_length_size)

@@ -415,11 +415,6 @@ static int Open(vlc_object_t *p_this)
          */
         audiofmt.audio.i_physical_channels = AOUT_CHAN_RIGHT | AOUT_CHAN_LEFT;
         /*
-         * i_original_channels Describes from which original channels,
-         * before downmixing, the buffer is derived.
-         */
-        audiofmt.audio.i_original_channels = AOUT_CHAN_RIGHT | AOUT_CHAN_LEFT;
-        /*
          * Please note that it may be completely arbitrary - buffers are not
          * obliged to contain a integral number of so-called "frames". It's
          * just here for the division:
@@ -526,7 +521,7 @@ static int Demux(demux_t *p_demux)
             return 1;
         }
 
-        es_out_Control(p_demux->out, ES_OUT_SET_PCR, p_blocka->i_pts);
+        es_out_SetPCR(p_demux->out, p_blocka->i_pts);
         es_out_Send(p_demux->out, p_sys->p_es_audio, p_blocka);
     }
 

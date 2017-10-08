@@ -51,15 +51,10 @@
 
 #include "config/vlc_getopt.h"
 
-#ifdef HAVE_DBUS
-/* used for one-instance mode */
-#   include <dbus/dbus.h>
-#endif
-
-
 #include <vlc_playlist.h>
 #include <vlc_interface.h>
 
+#include <vlc_actions.h>
 #include <vlc_charset.h>
 #include <vlc_dialog.h>
 #include <vlc_keystore.h>
@@ -73,10 +68,6 @@
 #include "misc/variables.h"
 
 #include <vlc_vlm.h>
-
-#ifdef __APPLE__
-# include <libkern/OSAtomic.h>
-#endif
 
 #include <assert.h>
 
@@ -236,120 +227,6 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
     if( libvlc_InternalKeystoreInit( p_libvlc ) != VLC_SUCCESS )
         msg_Warn( p_libvlc, "memory keystore init failed" );
 
-/* FIXME: could be replaced by using Unix sockets */
-#ifdef HAVE_DBUS
-
-#define MPRIS_APPEND "/org/mpris/MediaPlayer2/TrackList/Append"
-#define MPRIS_BUS_NAME "org.mpris.MediaPlayer2.vlc"
-#define MPRIS_OBJECT_PATH "/org/mpris/MediaPlayer2"
-#define MPRIS_TRACKLIST_INTERFACE "org.mpris.MediaPlayer2.TrackList"
-
-    if( var_InheritBool( p_libvlc, "one-instance" )
-    || ( var_InheritBool( p_libvlc, "one-instance-when-started-from-file" )
-      && var_InheritBool( p_libvlc, "started-from-file" ) ) )
-    {
-        for( int i = vlc_optind; i < i_argc; i++ )
-            if( ppsz_argv[i][0] == ':' )
-            {
-                msg_Err( p_libvlc, "item option %s incompatible with single instance",
-                         ppsz_argv[i] );
-                goto dbus_out;
-            }
-
-        /* Initialise D-Bus interface, check for other instances */
-        dbus_threads_init_default();
-
-        DBusError err;
-        dbus_error_init( &err );
-
-        /* connect to the session bus */
-        DBusConnection  *conn = dbus_bus_get( DBUS_BUS_SESSION, &err );
-        if( conn == NULL )
-        {
-            msg_Err( p_libvlc, "Failed to connect to D-Bus session daemon: %s",
-                    err.message );
-            dbus_error_free( &err );
-            goto dbus_out;
-        }
-
-        /* check if VLC is available on the bus
-         * if not: D-Bus control is not enabled on the other
-         * instance and we can't pass MRLs to it */
-        /* FIXME: This check is totally brain-dead and buggy. */
-        if( !dbus_bus_name_has_owner( conn, MPRIS_BUS_NAME, &err ) )
-        {
-            dbus_connection_unref( conn );
-            if( dbus_error_is_set( &err ) )
-            {
-                msg_Err( p_libvlc, "D-Bus error: %s", err.message );
-            }
-            else
-                msg_Dbg( p_libvlc, "No media player running. Continuing normally." );
-            dbus_error_free( &err );
-            goto dbus_out;
-        }
-
-        const dbus_bool_t play = !var_InheritBool( p_libvlc, "playlist-enqueue" );
-
-        msg_Warn( p_libvlc, "media player running. Exiting...");
-        for( int i = vlc_optind; i < i_argc; i++ )
-        {
-            DBusMessage *msg = dbus_message_new_method_call(
-               MPRIS_BUS_NAME, MPRIS_OBJECT_PATH, MPRIS_TRACKLIST_INTERFACE, "AddTrack" );
-            if( unlikely(msg == NULL) )
-                continue;
-
-            /* We need to resolve relative paths in this instance */
-            char *mrl;
-            if( strstr( ppsz_argv[i], "://" ) )
-                mrl = strdup( ppsz_argv[i] );
-            else
-                mrl = vlc_path2uri( ppsz_argv[i], NULL );
-            if( mrl == NULL )
-            {
-                dbus_message_unref( msg );
-                continue;
-            }
-
-            const char *after_track = MPRIS_APPEND;
-
-            /* append MRLs */
-            if( !dbus_message_append_args( msg, DBUS_TYPE_STRING, &mrl,
-                                                DBUS_TYPE_OBJECT_PATH, &after_track,
-                                                DBUS_TYPE_BOOLEAN, &play,
-                                                DBUS_TYPE_INVALID ) )
-            {
-                 dbus_message_unref( msg );
-                 msg = NULL;
-                 free( mrl );
-                 continue;
-            }
-
-            msg_Dbg( p_libvlc, "Adds %s to the running media player", mrl );
-            free( mrl );
-
-            /* send message and get a handle for a reply */
-            DBusMessage *reply = dbus_connection_send_with_reply_and_block( conn, msg, -1,
-                                                                            &err );
-            dbus_message_unref( msg );
-            if( reply == NULL )
-            {
-                msg_Err( p_libvlc, "D-Bus error: %s", err.message );
-                continue;
-            }
-            dbus_message_unref( reply );
-        }
-        /* we unreference the connection when we've finished with it */
-        dbus_connection_unref( conn );
-        exit( 0 );
-    }
-#undef MPRIS_APPEND
-#undef MPRIS_BUS_NAME
-#undef MPRIS_OBJECT_PATH
-#undef MPRIS_TRACKLIST_INTERFACE
-dbus_out:
-#endif // HAVE_DBUS
-
     vlc_CPU_dump( VLC_OBJECT(p_libvlc) );
 
     priv->b_stats = var_InheritBool( p_libvlc, "stats" );
@@ -357,8 +234,7 @@ dbus_out:
     /*
      * Initialize hotkey handling
      */
-    priv->actions = vlc_InitActions( p_libvlc );
-    if( !priv->actions )
+    if( libvlc_InternalActionsInit( p_libvlc ) != VLC_SUCCESS )
         goto error;
 
     /*
@@ -507,6 +383,9 @@ void libvlc_InternalCleanup( libvlc_int_t *p_libvlc )
 {
     libvlc_priv_t *priv = libvlc_priv (p_libvlc);
 
+    if (priv->parser != NULL)
+        playlist_preparser_Deactivate(priv->parser);
+
     /* Ask the interfaces to stop and destroy them */
     msg_Dbg( p_libvlc, "removing all interfaces" );
     intf_DestroyAll( p_libvlc );
@@ -537,7 +416,7 @@ void libvlc_InternalCleanup( libvlc_int_t *p_libvlc )
     if (priv->parser != NULL)
         playlist_preparser_Delete(priv->parser);
 
-    vlc_DeinitActions( p_libvlc, priv->actions );
+    libvlc_InternalActionsClean( p_libvlc );
 
     /* Save the configuration */
     if( !var_InheritBool( p_libvlc, "ignore-config" ) )

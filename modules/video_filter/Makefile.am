@@ -107,9 +107,23 @@ video_filter_LTLIBRARIES = \
 	libpuzzle_plugin.la \
 	librotate_plugin.la
 
+# macOS / iOS hardware video filters
+libci_filters_plugin_la_SOURCES = video_filter/ci_filters.m codec/vt_utils.c codec/vt_utils.h
+if HAVE_OSX
+libci_filters_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(video_filterdir)' \
+	-Wl,-framework,Foundation -Wl,-framework,CoreGraphics -Wl,-framework,CoreImage -Wl,-framework,CoreVideo
+video_filter_LTLIBRARIES += libci_filters_plugin.la
+endif
+
+if HAVE_IOS
+libci_filters_plugin_la_OBJCFLAGS = $(AM_CFLAGS) -miphoneos-version-min=9.0
+video_filter_LTLIBRARIES += libci_filters_plugin.la
+endif
+
 libdeinterlace_plugin_la_SOURCES = \
 	video_filter/deinterlace/deinterlace.c video_filter/deinterlace/deinterlace.h \
-	video_filter/deinterlace/mmx.h video_filter/deinterlace/common.h \
+        video_filter/deinterlace/mmx.h \
+        video_filter/deinterlace/common.c video_filter/deinterlace/common.h \
 	video_filter/deinterlace/merge.c video_filter/deinterlace/merge.h \
 	video_filter/deinterlace/helpers.c video_filter/deinterlace/helpers.h \
 	video_filter/deinterlace/algo_basic.c video_filter/deinterlace/algo_basic.h \

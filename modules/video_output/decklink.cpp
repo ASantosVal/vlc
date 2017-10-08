@@ -445,7 +445,6 @@ static picture_t * CreateNoSignalPicture(vlc_object_t *p_this, const video_forma
     if (png)
     {
         video_format_Clean(&dummy);
-        video_format_Init(&dummy, 0);
         video_format_Copy(&dummy, fmt);
         p_pic = image_Convert(img, png, &in, &dummy);
         if(!video_format_IsSimilar(&dummy, fmt))
@@ -1067,12 +1066,10 @@ static int OpenVideo(vlc_object_t *p_this)
     video_format_Clean( &vd->fmt );
     video_format_Copy( &vd->fmt, &sys->video.currentfmt );
 
-    vd->info.has_hide_mouse = true;
     vd->pool    = PoolVideo;
     vd->prepare = PrepareVideo;
     vd->display = DisplayVideo;
     vd->control = ControlVideo;
-    vd->manage  = NULL;
 
     return VLC_SUCCESS;
 }
@@ -1119,6 +1116,7 @@ static int Start(audio_output_t *aout, audio_sample_format_t *restrict fmt)
     fmt->i_format = VLC_CODEC_S16N;
     fmt->i_channels = 2; //decklink_sys->i_channels;
     fmt->i_physical_channels = AOUT_CHANS_STEREO; //pi_channels_maps[fmt->i_channels];
+    fmt->channel_type = AUDIO_CHANNEL_TYPE_BITMAP;
     fmt->i_rate = sys->i_rate;
     fmt->i_bitspersample = 16;
     fmt->i_blockalign = fmt->i_channels * fmt->i_bitspersample /8 ;

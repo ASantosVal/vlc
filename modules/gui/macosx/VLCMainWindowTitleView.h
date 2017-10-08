@@ -59,14 +59,6 @@
 
 @end
 
-@interface VLCResizeControl : NSImageView
-
-@end
-
-@interface VLCColorView : NSView
-
-@end
-
 @interface VLCCustomWindowButtonPrototype : NSButton
 
 - (NSArray*)extendedAccessibilityAttributeNames: (NSArray*)theAttributeNames;

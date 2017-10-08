@@ -93,7 +93,7 @@ static int Open( vlc_object_t * p_this )
 
     if( vlc_stream_Peek( p_demux->s, &p_peek, 4 ) < 4 )
     {
-        msg_Err( p_demux, "cannot peek" );
+        msg_Dbg( p_demux, "cannot peek" );
         return VLC_EGENERIC;
     }
 
@@ -129,7 +129,6 @@ static int Open( vlc_object_t * p_this )
     }
 
     /* create the output */
-    es_format_Init( &fmt, VIDEO_ES, VLC_CODEC_MPGV );
     p_sys->p_es = es_out_Add( p_demux->out, &fmt );
     if( p_sys->p_es == NULL )
     {
@@ -171,7 +170,7 @@ static int Demux( demux_t *p_demux )
         {
             block_t *p_next = p_block_out->p_next;
 
-            es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_block_out->i_dts );
+            es_out_SetPCR( p_demux->out, p_block_out->i_dts );
 
             p_block_out->p_next = NULL;
             es_out_Send( p_demux->out, p_sys->p_es, p_block_out );

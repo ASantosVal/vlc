@@ -57,4 +57,5 @@ private slots:
 signals:
     void metaApplied( input_item_t * );
 };
+
 #endif // FINGERPRINTDIALOG_HPP

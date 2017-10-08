@@ -76,12 +76,11 @@ vlc_module_end ()
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-static ssize_t  Read( access_t *, void *, size_t );
-static int      Seek( access_t *, uint64_t );
-static int      Control( access_t *, int, va_list );
+static ssize_t  Read( stream_t *, void *, size_t );
+static int      Seek( stream_t *, uint64_t );
+static int      Control( stream_t *, int, va_list );
 
-static int DirRead( access_t *, input_item_node_t * );
-static int DirControl( access_t *, int, va_list );
+static int DirRead( stream_t *, input_item_node_t * );
 
 struct access_sys_t
 {
@@ -93,7 +92,7 @@ struct access_sys_t
     char *psz_base_url;
 };
 
-static int AuthKeyAgent( access_t *p_access, const char *psz_username )
+static int AuthKeyAgent( stream_t *p_access, const char *psz_username )
 {
     access_sys_t* p_sys = p_access->p_sys;
     int i_result = VLC_EGENERIC;
@@ -145,7 +144,7 @@ bailout:
 }
 
 
-static int AuthPublicKey( access_t *p_access, const char *psz_home, const char *psz_username )
+static int AuthPublicKey( stream_t *p_access, const char *psz_home, const char *psz_username )
 {
     access_sys_t* p_sys = p_access->p_sys;
     int i_result = VLC_EGENERIC;
@@ -181,7 +180,7 @@ static int AuthPublicKey( access_t *p_access, const char *psz_home, const char *
  */
 static int Open( vlc_object_t* p_this )
 {
-    access_t*   p_access = (access_t*)p_this;
+    stream_t*   p_access = (stream_t*)p_this;
     access_sys_t* p_sys;
     vlc_url_t credential_url;
     vlc_credential credential;
@@ -198,7 +197,7 @@ static int Open( vlc_object_t* p_this )
     if( !p_access->psz_location )
         return VLC_EGENERIC;
 
-    p_sys = p_access->p_sys = (access_sys_t*)calloc( 1, sizeof( access_sys_t ) );
+    p_sys = p_access->p_sys = vlc_calloc( p_this, 1, sizeof( access_sys_t ) );
     if( !p_sys ) return VLC_ENOMEM;
 
     p_sys->i_socket = -1;
@@ -224,7 +223,7 @@ static int Open( vlc_object_t* p_this )
 
 
     /* Connect to the server using a regular socket */
-    p_sys->i_socket = net_Connect( p_access, url.psz_host, i_port, SOCK_STREAM, 0 );
+    p_sys->i_socket = net_ConnectTCP( p_access, url.psz_host, i_port );
     if( p_sys->i_socket < 0 )
     {
         msg_Err( p_access, "Impossible to open the connection to %s:%i", url.psz_host, i_port );
@@ -402,7 +401,7 @@ static int Open( vlc_object_t* p_this )
         p_sys->file = libssh2_sftp_opendir( p_sys->sftp_session, psz_path );
 
         p_access->pf_readdir = DirRead;
-        p_access->pf_control = DirControl;
+        p_access->pf_control = access_vaDirectoryControlHelper;
 
         if( !p_sys->psz_base_url )
         {
@@ -440,7 +439,7 @@ error:
 /* Close: quit the module */
 static void Close( vlc_object_t* p_this )
 {
-    access_t*   p_access = (access_t*)p_this;
+    stream_t*   p_access = (stream_t*)p_this;
     access_sys_t* p_sys = p_access->p_sys;
 
     if( p_sys->file )
@@ -453,11 +452,10 @@ static void Close( vlc_object_t* p_this )
         net_Close( p_sys->i_socket );
 
     free( p_sys->psz_base_url );
-    free( p_sys );
 }
 
 
-static ssize_t Read( access_t *p_access, void *buf, size_t len )
+static ssize_t Read( stream_t *p_access, void *buf, size_t len )
 {
     access_sys_t *p_sys = p_access->p_sys;
 
@@ -472,7 +470,7 @@ static ssize_t Read( access_t *p_access, void *buf, size_t len )
 }
 
 
-static int Seek( access_t* p_access, uint64_t i_pos )
+static int Seek( stream_t* p_access, uint64_t i_pos )
 {
     access_sys_t *sys = p_access->p_sys;
 
@@ -481,7 +479,7 @@ static int Seek( access_t* p_access, uint64_t i_pos )
 }
 
 
-static int Control( access_t* p_access, int i_query, va_list args )
+static int Control( stream_t* p_access, int i_query, va_list args )
 {
     access_sys_t *sys = p_access->p_sys;
     bool*       pb_bool;
@@ -490,18 +488,18 @@ static int Control( access_t* p_access, int i_query, va_list args )
     switch( i_query )
     {
     case STREAM_CAN_SEEK:
-        pb_bool = (bool*)va_arg( args, bool* );
+        pb_bool = va_arg( args, bool * );
         *pb_bool = true;
         break;
 
     case STREAM_CAN_FASTSEEK:
-        pb_bool = (bool*)va_arg( args, bool* );
+        pb_bool = va_arg( args, bool * );
         *pb_bool = false;
         break;
 
     case STREAM_CAN_PAUSE:
     case STREAM_CAN_CONTROL_PACE:
-        pb_bool = (bool*)va_arg( args, bool* );
+        pb_bool = va_arg( args, bool * );
         *pb_bool = true;
         break;
 
@@ -512,7 +510,7 @@ static int Control( access_t* p_access, int i_query, va_list args )
         break;
 
     case STREAM_GET_PTS_DELAY:
-        pi_64 = (int64_t*)va_arg( args, int64_t* );
+        pi_64 = va_arg( args, int64_t * );
         *pi_64 = INT64_C(1000)
                * var_InheritInteger( p_access, "network-caching" );
         break;
@@ -532,7 +530,7 @@ static int Control( access_t* p_access, int i_query, va_list args )
  * Directory access
  *****************************************************************************/
 
-static int DirRead (access_t *p_access, input_item_node_t *p_current_node)
+static int DirRead (stream_t *p_access, input_item_node_t *p_current_node)
 {
     access_sys_t *p_sys = p_access->p_sys;
     LIBSSH2_SFTP_ATTRIBUTES attrs;
@@ -549,8 +547,8 @@ static int DirRead (access_t *p_access, input_item_node_t *p_current_node)
     if( !psz_file )
         return VLC_ENOMEM;
 
-    struct access_fsdir fsdir;
-    access_fsdir_init( &fsdir, p_access, p_current_node );
+    struct vlc_readdir_helper rdh;
+    vlc_readdir_helper_init( &rdh, p_access, p_current_node );
 
     while( i_ret == VLC_SUCCESS
         && 0 != ( err = libssh2_sftp_readdir( p_sys->file, psz_file, i_size, &attrs ) ) )
@@ -591,26 +589,12 @@ static int DirRead (access_t *p_access, input_item_node_t *p_current_node)
         free( psz_uri );
 
         int i_type = LIBSSH2_SFTP_S_ISDIR( attrs.permissions ) ? ITEM_TYPE_DIRECTORY : ITEM_TYPE_FILE;
-        i_ret = access_fsdir_additem( &fsdir, psz_full_uri, psz_file, i_type,
-                                      ITEM_NET );
+        i_ret = vlc_readdir_helper_additem( &rdh, psz_full_uri, NULL, psz_file,
+                                            i_type, ITEM_NET );
         free( psz_full_uri );
     }
 
-    access_fsdir_finish( &fsdir, i_ret == VLC_SUCCESS );
+    vlc_readdir_helper_finish( &rdh, i_ret == VLC_SUCCESS );
     free( psz_file );
     return i_ret;
-}
-
-static int DirControl( access_t *p_access, int i_query, va_list args )
-{
-    switch( i_query )
-    {
-    case STREAM_IS_DIRECTORY:
-        *va_arg( args, bool * ) = true; /* might loop */
-        break;
-    default:
-        return access_vaDirectoryControlHelper( p_access, i_query, args );
-    }
-
-    return VLC_SUCCESS;
 }

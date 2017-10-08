@@ -154,6 +154,9 @@ static const luaL_Reg p_reg[] = { { NULL, NULL } };
  *****************************************************************************/
 int Open_LuaSD( vlc_object_t *p_this )
 {
+    if( lua_Disabled( p_this ) )
+        return VLC_EGENERIC;
+
     services_discovery_t *p_sd = ( services_discovery_t * )p_this;
     services_discovery_sys_t *p_sys;
     lua_State *L = NULL;
@@ -315,7 +318,7 @@ static void* Run( void *data )
 
         /* Execute one query (protected against cancellation) */
         char *psz_query = p_sys->ppsz_query[p_sys->i_query - 1];
-        REMOVE_ELEM( p_sys->ppsz_query, p_sys->i_query, p_sys->i_query - 1 );
+        TAB_ERASE(p_sys->i_query, p_sys->ppsz_query, p_sys->i_query - 1);
         vlc_mutex_unlock( &p_sys->lock );
 
         cancel = vlc_savecancel();

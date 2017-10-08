@@ -51,28 +51,6 @@
 #define SKIP_ADS_LONGTEXT N_( "Use playlist options usually used to prevent " \
     "ads skipping to detect ads and prevent adding them to the playlist." )
 
-static const char *const psz_recursive_list[] = { "none", "collapse", "expand" };
-static const char *const psz_recursive_list_text[] = {
-    N_("None"), N_("Collapse"), N_("Expand"), N_("Expand distant files") };
-
-#define RECURSIVE_TEXT N_("Subdirectory behavior")
-#define RECURSIVE_LONGTEXT N_( \
-        "Select whether subdirectories must be expanded.\n" \
-        "none: subdirectories do not appear in the playlist.\n" \
-        "collapse: subdirectories appear but are expanded on first play.\n" \
-        "expand: all subdirectories are expanded.\n" )
-
-#define IGNORE_TEXT N_("Ignored extensions")
-#define IGNORE_LONGTEXT N_( \
-        "Files with these extensions will not be added to playlist when " \
-        "opening a directory.\n" \
-        "This is useful if you add directories that contain playlist files " \
-        "for instance. Use a comma-separated list of extensions." )
-
-#define SHOW_HIDDENFILES_TEXT N_("Show hidden files")
-#define SHOW_HIDDENFILES_LONGTEXT N_( \
-        "Ignore files starting with '.'" )
-
 vlc_module_begin ()
     add_shortcut( "playlist" )
     set_category( CAT_INPUT )
@@ -87,140 +65,72 @@ vlc_module_begin ()
     set_description( N_("Playlist") )
     add_submodule ()
         set_description( N_("M3U playlist import") )
-        add_shortcut( "playlist", "m3u", "m3u8", "m3u-open" )
-        set_capability( "demux", 10 )
-        set_callbacks( Import_M3U, Close_M3U )
+        add_shortcut( "m3u", "m3u8" )
+        set_capability( "stream_filter", 10 )
+        set_callbacks( Import_M3U, NULL )
     add_submodule ()
         set_description( N_("RAM playlist import") )
-        add_shortcut( "playlist", "ram-open" )
-        set_capability( "demux", 10 )
+        set_capability( "stream_filter", 10 )
         set_callbacks( Import_RAM, NULL )
     add_submodule ()
         set_description( N_("PLS playlist import") )
-        add_shortcut( "playlist", "pls-open" )
-        set_capability( "demux", 10 )
+        set_capability( "stream_filter", 10 )
         set_callbacks( Import_PLS, NULL )
     add_submodule ()
         set_description( N_("B4S playlist import") )
-        add_shortcut( "playlist", "b4s-open", "shout-b4s" )
-        set_capability( "demux", 10 )
+        add_shortcut( "shout-b4s" )
+        set_capability( "stream_filter", 10 )
         set_callbacks( Import_B4S, NULL )
     add_submodule ()
         set_description( N_("DVB playlist import") )
-        add_shortcut( "playlist", "dvb-open" )
-        set_capability( "demux", 10 )
+        add_shortcut( "dvb" )
+        set_capability( "stream_filter", 10 )
         set_callbacks( Import_DVB, NULL )
     add_submodule ()
         set_description( N_("Podcast parser") )
-        add_shortcut( "playlist", "podcast" )
-        set_capability( "demux", 10 )
+        add_shortcut( "podcast" )
+        set_capability( "stream_filter", 10 )
         set_callbacks( Import_podcast, NULL )
     add_submodule ()
         set_description( N_("XSPF playlist import") )
-        add_shortcut( "playlist", "xspf-open" )
-        set_capability( "demux", 10 )
+        set_capability( "stream_filter", 10 )
         set_callbacks( Import_xspf, Close_xspf )
     add_submodule ()
         set_description( N_("New winamp 5.2 shoutcast import") )
-        add_shortcut( "playlist", "shout-winamp" )
-        set_capability( "demux", 10 )
+        add_shortcut( "shout-winamp" )
+        set_capability( "stream_filter", 0 )
         set_callbacks( Import_Shoutcast, NULL )
         add_bool( "shoutcast-show-adult", false,
                    SHOW_ADULT_TEXT, SHOW_ADULT_LONGTEXT, false )
     add_submodule ()
         set_description( N_("ASX playlist import") )
-        add_shortcut( "playlist", "asx-open" )
-        set_capability( "demux", 10 )
+        set_capability( "stream_filter", 10 )
         set_callbacks( Import_ASX, NULL )
     add_submodule ()
         set_description( N_("Kasenna MediaBase parser") )
-        add_shortcut( "playlist", "sgimb" )
-        set_capability( "demux", 10 )
+        add_shortcut( "sgimb" )
+        set_capability( "stream_filter", 10 )
         set_callbacks( Import_SGIMB, Close_SGIMB )
     add_submodule ()
         set_description( N_("QuickTime Media Link importer") )
-        add_shortcut( "playlist", "qtl" )
-        set_capability( "demux", 10 )
+        add_shortcut( "qtl" )
+        set_capability( "stream_filter", 10 )
         set_callbacks( Import_QTL, NULL )
     add_submodule ()
-        set_description( N_("Google Video Playlist importer") )
-        add_shortcut( "playlist", "gvp" )
-        set_capability( "demux", 10 )
-        set_callbacks( Import_GVP, NULL )
-    add_submodule ()
         set_description( N_("Dummy IFO demux") )
-        add_shortcut( "playlist" )
-        set_capability( "demux", 12 )
+        set_capability( "stream_filter", 12 )
         set_callbacks( Import_IFO, NULL )
     add_submodule ()
         set_description( N_("iTunes Music Library importer") )
-        add_shortcut( "playlist", "itml" )
-        set_capability( "demux", 10 )
-        set_callbacks( Import_iTML, Close_iTML )
+        add_shortcut( "itml" )
+        set_capability( "stream_filter", 10 )
+        set_callbacks( Import_iTML, NULL )
     add_submodule ()
         set_description( N_("WPL playlist import") )
-        add_shortcut( "playlist", "wpl" )
-        set_capability( "demux", 10 )
+        add_shortcut( "wpl" )
+        set_capability( "stream_filter", 10 )
         set_callbacks( Import_WPL, Close_WPL )
-    add_submodule ()
-        set_description( N_("Directory import") )
-        add_shortcut( "playlist", "directory" )
-        set_capability( "demux", 10 )
-        set_callbacks( Import_Dir, Close_Dir )
-        add_string( "recursive", "collapse" , RECURSIVE_TEXT,
-                    RECURSIVE_LONGTEXT, false )
-          change_string_list( psz_recursive_list, psz_recursive_list_text )
-        add_string( "ignore-filetypes", "m3u,db,nfo,ini,jpg,jpeg,ljpg,gif,png,pgm,pgmyuv,pbm,pam,tga,bmp,pnm,xpm,xcf,pcx,tif,tiff,lbm,sfv,txt,sub,idx,srt,cue,ssa",
-                    IGNORE_TEXT, IGNORE_LONGTEXT, false )
-        add_bool( "show-hiddenfiles", false,
-                   SHOW_HIDDENFILES_TEXT, SHOW_HIDDENFILES_LONGTEXT, false )
 vlc_module_end ()
-
-int Control(demux_t *demux, int query, va_list args)
-{
-    (void) demux;
-    switch( query )
-    {
-        case DEMUX_IS_PLAYLIST:
-        {
-            bool *pb_bool = (bool*)va_arg( args, bool * );
-            *pb_bool = true;
-            return VLC_SUCCESS;
-        }
-        case DEMUX_GET_META:
-        {
-            return vlc_stream_vaControl(demux->s, STREAM_GET_META, args);
-        }
-        case DEMUX_HAS_UNSUPPORTED_META:
-        {
-            *(va_arg( args, bool * )) = false;
-            return VLC_SUCCESS;
-        }
-    }
-    return VLC_EGENERIC;
-}
-
-input_item_t * GetCurrentItem(demux_t *p_demux)
-{
-    input_item_t *p_current_input = input_GetItem( p_demux->p_input );
-    vlc_gc_incref(p_current_input);
-    return p_current_input;
-}
-
-/**
- * Computes the base URL.
- *
- * Rebuilds the base URL for the playlist.
- */
-char *FindPrefix(demux_t *p_demux)
-{
-    char *url;
-
-    if (unlikely(asprintf(&url, "%s://%s", p_demux->psz_access,
-                          p_demux->psz_location) == -1))
-        url = NULL;
-    return url;
-}
 
 /**
  * Resolves a playlist location.
@@ -230,6 +140,8 @@ char *FindPrefix(demux_t *p_demux)
  */
 char *ProcessMRL(const char *str, const char *base)
 {
+    char const* orig = str;
+
     if (str == NULL)
         return NULL;
 
@@ -267,31 +179,24 @@ char *ProcessMRL(const char *str, const char *base)
 
     char *abs = vlc_uri_resolve(base, str);
     free(rel);
-    return abs;
-}
 
-/**
- * Checks stream Content-Type against a known one
- */
-bool CheckContentType( stream_t * p_stream, const char * psz_ctype )
-{
-    char *psz_check = stream_ContentType( p_stream );
-    if( !psz_check ) return false;
-
-    int i_len = strlen( psz_check );
-    if ( i_len == 0 )
+    if (abs == NULL)
     {
-        free( psz_check );
-        return false;
+        /** If the input is not a valid URL, see if there is a scheme:// where
+         * the scheme itself consists solely of valid scheme-characters
+         * (including the VLC's scheme-extension). If it does, fall back to
+         * allowing the URI in order to not break back-compatibility.
+         */
+        char const* scheme_end = strstr( orig, "://" );
+        char const* valid_chars = "abcdefghijklmnopqrstuvwxyz"
+                                  "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                  "0123456789" "+-./";
+        if (scheme_end &&
+            strspn (orig, valid_chars) == (size_t)(scheme_end - orig))
+        {
+            abs = strdup (orig);
+        }
     }
 
-    /* check for Content-Type: foo-type; charset=... */
-    const char * psz_sep = strchr( psz_check, ';' );
-    if ( psz_sep )
-        i_len = __MIN( i_len, psz_sep - psz_check );
-
-    int i_res = strncasecmp( psz_check, psz_ctype, i_len );
-    free( psz_check );
-
-    return ( i_res == 0 ) ? true : false;
+    return abs;
 }

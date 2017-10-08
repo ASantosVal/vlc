@@ -46,7 +46,7 @@ static void CloseDecoder  ( vlc_object_t * );
  "VLC partly implements this, but you can choose to disable all formatting.")
 
 vlc_module_begin ()
-    set_capability( "decoder", 40 )
+    set_capability( "spu decoder", 40 )
     set_shortname( N_("USFSubs"))
     set_description( N_("USF subtitles decoder") )
     set_callbacks( OpenDecoder, CloseDecoder )
@@ -127,7 +127,6 @@ static int OpenDecoder( vlc_object_t *p_this )
         return VLC_ENOMEM;
 
     p_dec->pf_decode = DecodeBlock;
-    p_dec->fmt_out.i_cat = SPU_ES;
     p_dec->fmt_out.i_codec = 0;
 
     /* init of p_sys */
@@ -411,13 +410,11 @@ static void SetupPositions( subpicture_region_t *p_region, char *psz_subtitle )
 
 static subpicture_region_t *CreateTextRegion( decoder_t *p_dec,
                                               char *psz_subtitle,
-                                              int i_len,
                                               int i_sys_align )
 {
     decoder_sys_t        *p_sys = p_dec->p_sys;
     subpicture_region_t  *p_text_region;
     video_format_t        fmt;
-    VLC_UNUSED( i_len );
 
     /* Create a new subpicture region */
     video_format_Init( &fmt, VLC_CODEC_TEXT );
@@ -630,12 +627,17 @@ static void ParseUSFHeaderTags( decoder_t *p_dec, xml_reader_t *p_xml_reader )
                         if( !strcasecmp( p_sys->pp_ssa_styles[i]->psz_stylename, "Default" ) )
                         {
                             ssa_style_t *p_default_style = p_sys->pp_ssa_styles[i];
+                            text_style_t *p_orig_text_style = p_ssa_style->p_style;
 
                             memcpy( p_ssa_style, p_default_style, sizeof( ssa_style_t ) );
+
+                            // reset data-members that are not to be overwritten
+                            p_ssa_style->p_style = p_orig_text_style;
+                            p_ssa_style->psz_stylename = NULL;
+
                             //FIXME: Make font_style a pointer. Actually we double copy some data here,
                             //   we use text_style_Copy to avoid copying psz_fontname, though .
                             text_style_Copy( p_ssa_style->p_style, p_default_style->p_style );
-                            p_ssa_style->psz_stylename = NULL;
                         }
                     }
 
@@ -847,7 +849,6 @@ static subpicture_region_t *ParseUSFString( decoder_t *p_dec,
 
                     p_text_region = CreateTextRegion( p_dec,
                                                       psz_subtitle,
-                                                      psz_end - psz_subtitle,
                                                       p_sys->i_align );
 
                     if( !p_region_first )
@@ -926,7 +927,6 @@ static subpicture_region_t *ParseUSFString( decoder_t *p_dec,
 
                 p_text_region = CreateTextRegion( p_dec,
                                                   psz_subtitle,
-                                                  psz_end - psz_subtitle,
                                                   p_sys->i_align );
 
                 if( p_text_region )

@@ -110,10 +110,9 @@ static int Open( vlc_object_t * p_this )
     if( !p_sys )
         return VLC_ENOMEM;
 
-    es_format_Init( &p_sys->fmt, AUDIO_ES, 0 );
-
     char *psz_fourcc = var_CreateGetString( p_demux, "rawaud-fourcc" );
-    p_sys->fmt.i_codec = vlc_fourcc_GetCodecFromString( AUDIO_ES, psz_fourcc );
+    es_format_Init( &p_sys->fmt, AUDIO_ES,
+                    vlc_fourcc_GetCodecFromString( AUDIO_ES, psz_fourcc ) );
     free( psz_fourcc );
 
     if( !p_sys->fmt.i_codec )
@@ -254,7 +253,7 @@ static int Demux( demux_t *p_demux )
 
     p_block->i_dts = p_block->i_pts = VLC_TS_0 + date_Get( &p_sys->pts );
 
-    es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_block->i_pts );
+    es_out_SetPCR( p_demux->out, p_block->i_pts );
     es_out_Send( p_demux->out, p_sys->p_es, p_block );
 
     date_Increment( &p_sys->pts, p_sys->i_frame_samples );

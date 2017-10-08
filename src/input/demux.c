@@ -36,9 +36,6 @@
 #include <vlc_modules.h>
 #include <vlc_strings.h>
 
-static bool SkipID3Tag( demux_t * );
-static bool SkipAPETag( demux_t *p_demux );
-
 typedef const struct
 {
     char const key[20];
@@ -58,14 +55,13 @@ static demux_mapping* demux_lookup( char const* key,
     return bsearch( key, data, size, sizeof( *data ), demux_mapping_cmp );
 }
 
-static const char *demux_NameFromContentType(const char *mime)
+static const char *demux_NameFromMimeType(const char *mime)
 {
     static demux_mapping types[] =
     {   /* Must be sorted in ascending ASCII order */
         { "audio/aac",           "m4a"     },
         { "audio/aacp",          "m4a"     },
         { "audio/mpeg",          "mp3"     },
-        { "application/rss+xml", "podcast" },
         //{ "video/MP1S",          "es,mpgv" }, !b_force
         { "video/dv",            "rawdv"   },
         { "video/MP2P",          "ps"      },
@@ -176,7 +172,23 @@ static void demux_DestroyAccessDemux(demux_t *demux)
 static void demux_DestroyDemuxFilter(demux_t *demux)
 {
     assert(demux->p_next != NULL);
-    (void) demux;
+    demux_Delete(demux->p_next);
+}
+
+static int demux_Probe(void *func, va_list ap)
+{
+    int (*probe)(vlc_object_t *) = func;
+    demux_t *demux = va_arg(ap, demux_t *);
+
+    /* Restore input stream offset (in case previous probed demux failed to
+     * to do so). */
+    if (vlc_stream_Tell(demux->s) != 0 && vlc_stream_Seek(demux->s, 0))
+    {
+        msg_Err(demux, "seek failure before probing");
+        return VLC_EGENERIC;
+    }
+
+    return probe(VLC_OBJECT(demux));
 }
 
 /*****************************************************************************
@@ -196,11 +208,11 @@ demux_t *demux_NewAdvanced( vlc_object_t *p_obj, input_thread_t *p_parent_input,
     demux_t *p_demux = &priv->demux;
 
     if( s != NULL && (!strcasecmp( psz_demux, "any" ) || !psz_demux[0]) )
-    {   /* Look up demux by Content-Type for hard to detect formats */
-        char *type = stream_ContentType( s );
+    {   /* Look up demux by mime-type for hard to detect formats */
+        char *type = stream_MimeType( s );
         if( type != NULL )
         {
-            psz_demux = demux_NameFromContentType( type );
+            psz_demux = demux_NameFromMimeType( type );
             free( type );
         }
     }
@@ -249,16 +261,8 @@ demux_t *demux_NewAdvanced( vlc_object_t *p_obj, input_thread_t *p_parent_input,
         if( psz_module == NULL )
             psz_module = p_demux->psz_demux;
 
-        /* ID3/APE tags will mess-up demuxer probing so we skip it here.
-         * ID3/APE parsers will called later on in the demuxer to access the
-         * skipped info. */
-        while (SkipID3Tag( p_demux ))
-          ;
-        SkipAPETag( p_demux );
-
-        p_demux->p_module =
-            module_need( p_demux, "demux", psz_module,
-                         !strcmp( psz_module, p_demux->psz_demux ) );
+        p_demux->p_module = vlc_module_load(p_demux, "demux", psz_module,
+             !strcmp(psz_module, p_demux->psz_demux), demux_Probe, p_demux);
     }
     else
     {
@@ -476,6 +480,15 @@ int demux_vaControlHelper( stream_t *s,
         case DEMUX_TEST_AND_CLEAR_FLAGS:
         case DEMUX_GET_TITLE:
         case DEMUX_GET_SEEKPOINT:
+        case DEMUX_NAV_ACTIVATE:
+        case DEMUX_NAV_UP:
+        case DEMUX_NAV_DOWN:
+        case DEMUX_NAV_LEFT:
+        case DEMUX_NAV_RIGHT:
+        case DEMUX_NAV_POPUP:
+        case DEMUX_NAV_MENU:
+        case DEMUX_FILTER_ENABLE:
+        case DEMUX_FILTER_DISABLE:
             return VLC_EGENERIC;
 
         case DEMUX_SET_TITLE:
@@ -508,7 +521,7 @@ decoder_t *demux_PacketizerNew( demux_t *p_demux, es_format_t *p_fmt, const char
     p_packetizer->pf_packetize = NULL;
 
     p_packetizer->fmt_in = *p_fmt;
-    es_format_Init( &p_packetizer->fmt_out, UNKNOWN_ES, 0 );
+    es_format_Init( &p_packetizer->fmt_out, p_fmt->i_cat, 0 );
 
     p_packetizer->p_module = module_need( p_packetizer, "packetizer", NULL, false );
     if( !p_packetizer->p_module )
@@ -533,81 +546,16 @@ void demux_PacketizerDestroy( decoder_t *p_packetizer )
     vlc_object_release( p_packetizer );
 }
 
-static bool SkipID3Tag( demux_t *p_demux )
-{
-    const uint8_t *p_peek;
-    uint8_t version, revision;
-    int i_size;
-    int b_footer;
-
-    if( !p_demux->s )
-        return false;
-
-    /* Get 10 byte id3 header */
-    if( vlc_stream_Peek( p_demux->s, &p_peek, 10 ) < 10 )
-        return false;
-
-    if( memcmp( p_peek, "ID3", 3 ) )
-        return false;
-
-    version = p_peek[3];
-    revision = p_peek[4];
-    b_footer = p_peek[5] & 0x10;
-    i_size = (p_peek[6]<<21) + (p_peek[7]<<14) + (p_peek[8]<<7) + p_peek[9];
-
-    if( b_footer ) i_size += 10;
-    i_size += 10;
-
-    /* Skip the entire tag */
-    if( vlc_stream_Read( p_demux->s, NULL, i_size ) < i_size )
-        return false;
-
-    msg_Dbg( p_demux, "ID3v2.%d revision %d tag found, skipping %d bytes",
-             version, revision, i_size );
-    return true;
-}
-static bool SkipAPETag( demux_t *p_demux )
-{
-    const uint8_t *p_peek;
-
-    if( !p_demux->s )
-        return false;
-
-    /* Get 32 byte ape header */
-    if( vlc_stream_Peek( p_demux->s, &p_peek, 32 ) < 32 )
-        return false;
-
-    if( memcmp( p_peek, "APETAGEX", 8 ) )
-        return false;
-
-    uint_fast32_t version = GetDWLE( &p_peek[8] );
-    uint_fast32_t size = GetDWLE( &p_peek[8+4] );
-    uint_fast32_t flags = GetDWLE( &p_peek[8+4+4] );
-
-    if( (version != 1000 && version != 2000) || !(flags & (1u << 29))
-     || (size > SSIZE_MAX - 32u) )
-        return false;
-
-    if( flags & (1u << 30) )
-        size += 32;
-
-    /* Skip the entire tag */
-    if( vlc_stream_Read( p_demux->s, NULL, size ) < (ssize_t)size )
-        return false;
-
-    msg_Dbg( p_demux, "AP2 v%"PRIuFAST32" tag found, "
-             "skipping %"PRIuFAST32" bytes", version / 1000, size );
-    return true;
-}
-
 unsigned demux_TestAndClearFlags( demux_t *p_demux, unsigned flags )
 {
-    unsigned i_update;
-    if ( demux_Control( p_demux, DEMUX_TEST_AND_CLEAR_FLAGS, &i_update ) == VLC_SUCCESS )
-        return i_update;
-    unsigned ret = p_demux->info.i_update & flags;
+    unsigned update = flags;
+
+    if ( demux_Control( p_demux, DEMUX_TEST_AND_CLEAR_FLAGS, &update ) == VLC_SUCCESS )
+        return update;
+
+    update = p_demux->info.i_update & flags;
     p_demux->info.i_update &= ~flags;
-    return ret;
+    return update;
 }
 
 int demux_GetTitle( demux_t *p_demux )
@@ -664,9 +612,6 @@ demux_t *demux_FilterChainNew( demux_t *p_demux, const char *psz_chain )
     if(!psz_parser)
         return NULL;
 
-    vlc_array_t name;
-    vlc_array_init(&name);
-
     /* parse chain */
     while(psz_parser)
     {
@@ -676,40 +621,38 @@ demux_t *demux_FilterChainNew( demux_t *p_demux, const char *psz_chain )
         free( psz_parser );
         psz_parser = psz_rest_chain;
 
-        vlc_array_append(&name, psz_name);
+        demux_t *filter = demux_FilterNew(p_demux, psz_name);
+        if (filter != NULL)
+            p_demux = filter;
+
+        free(psz_name);
         config_ChainDestroy(p_cfg);
     }
 
-    int i = vlc_array_count(&name);
-    vlc_array_t module;
-    vlc_array_init(&module);
-    while(i--)
-    {
-        const char *p_name = vlc_array_item_at_index(&name, i);
-        demux_t *p_next = demux_FilterNew( p_demux, p_name );
-        if(!p_next)
-            goto error;
-
-        vlc_array_append(&module, p_next);
-        p_demux = p_next;
-    }
-
-    vlc_array_clear(&name);
-    vlc_array_clear(&module);
-
     return p_demux;
- error:
-    i++;    /* last module couldn't be created */
+}
 
-    /* destroy all modules created, starting with the last one */
-    int modules = vlc_array_count(&module);
-    while(modules--)
-        demux_Delete(vlc_array_item_at_index(&module, modules));
-    vlc_array_clear(&module);
+static bool demux_filter_enable_disable( demux_t *p_demux_chain,
+                                          const char* psz_demux, bool b_enable )
+{
+    demux_t *p_demux = p_demux_chain;
 
-    while(i--)
-        free(vlc_array_item_at_index(&name, i));
-    vlc_array_clear(&name);
+     if( strcmp( module_get_name( p_demux->p_module, false ), psz_demux) == 0 ||
+         strcmp( module_get_name( p_demux->p_module, true ), psz_demux ) == 0 )
+     {
+        demux_Control( p_demux,
+                       b_enable ? DEMUX_FILTER_ENABLE : DEMUX_FILTER_DISABLE );
+        return true;
+    }
+    return false;
+}
 
-    return NULL;
+bool demux_FilterEnable( demux_t *p_demux_chain, const char* psz_demux )
+{
+    return demux_filter_enable_disable( p_demux_chain, psz_demux, true );
+}
+
+bool demux_FilterDisable( demux_t *p_demux_chain, const char* psz_demux )
+{
+    return demux_filter_enable_disable( p_demux_chain, psz_demux, false );
 }

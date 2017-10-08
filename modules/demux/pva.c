@@ -128,8 +128,8 @@ static void Close( vlc_object_t *p_this )
     demux_t     *p_demux = (demux_t*)p_this;
     demux_sys_t *p_sys = p_demux->p_sys;
 
-    if( p_sys->p_es )  block_Release( p_sys->p_es );
-    if( p_sys->p_pes ) block_Release( p_sys->p_pes );
+    if( p_sys->p_es )  block_ChainRelease( p_sys->p_es );
+    if( p_sys->p_pes ) block_ChainRelease( p_sys->p_pes );
 
     free( p_sys );
 }
@@ -217,7 +217,7 @@ static int Demux( demux_t *p_demux )
 
                     if( p_frame->i_pts > VLC_TS_INVALID && !p_sys->b_pcr_audio )
                     {
-                        es_out_Control( p_demux->out, ES_OUT_SET_PCR, (int64_t)p_frame->i_pts);
+                        es_out_SetPCR( p_demux->out, p_frame->i_pts);
                     }
                     es_out_Send( p_demux->out, p_sys->p_video, p_frame );
 
@@ -274,7 +274,8 @@ static int Demux( demux_t *p_demux )
 
         default:
             msg_Warn( p_demux, "unknown id=0x%x", p_peek[2] );
-            vlc_stream_Read( p_demux->s, NULL, i_size + 8 );
+            if( vlc_stream_Read( p_demux->s, NULL, i_size + 8 ) < i_size + 8 )
+                return 0;
             break;
     }
     return 1;
@@ -296,7 +297,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         case DEMUX_GET_POSITION:
             if( ( i64 = stream_Size( p_demux->s ) ) > 0 )
             {
-                pf = (double*) va_arg( args, double* );
+                pf = va_arg( args, double * );
                 double current = vlc_stream_Tell( p_demux->s );
                 *pf = current / (double)i64;
                 return VLC_SUCCESS;
@@ -304,7 +305,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_EGENERIC;
 
         case DEMUX_SET_POSITION:
-            f = (double) va_arg( args, double );
+            f = va_arg( args, double );
             i64 = stream_Size( p_demux->s );
 
             if( vlc_stream_Seek( p_demux->s, (int64_t)(i64 * f) ) || ReSynch( p_demux ) )
@@ -315,7 +316,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
 #if 0
         case DEMUX_GET_TIME:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             if( p_sys->i_time < 0 )
             {
                 *pi64 = 0;
@@ -326,7 +327,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
 #if 0
         case DEMUX_GET_LENGTH:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             if( p_sys->i_mux_rate > 0 )
             {
                 *pi64 = (int64_t)1000000 * ( stream_Size( p_demux->s ) / 50 ) / p_sys->i_mux_rate;
@@ -337,7 +338,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
 #endif
         case DEMUX_GET_FPS:
-            pf = (double*)va_arg( args, double * );
+            pf = va_arg( args, double * );
             *pf = (double)1000000.0 / (double)p_sys->i_pcr_inc;
             return VLC_SUCCESS;
 #endif
@@ -445,7 +446,7 @@ static void ParsePES( demux_t *p_demux )
     /* Set PCR */
     if( p_pes->i_pts > 0 )
     {
-        es_out_Control( p_demux->out, ES_OUT_SET_PCR, (int64_t)p_pes->i_pts);
+        es_out_SetPCR( p_demux->out, p_pes->i_pts);
         p_sys->b_pcr_audio = true;
     }
     es_out_Send( p_demux->out, p_sys->p_audio, p_pes );

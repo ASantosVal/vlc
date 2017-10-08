@@ -129,8 +129,8 @@ struct decoder_t
      * return CC for the pictures returned by the last pf_packetize call only,
      * pb_present will be used to known which cc channel are present (but
      * globaly, not necessary for the current packet. Video decoders should use
-     * the decoder_QueueVideoWithCc() function to pass closed captions. */
-    block_t *           ( * pf_get_cc )      ( decoder_t *, bool pb_present[4] );
+     * the decoder_QueueCc() function to pass closed captions. */
+    block_t *           ( * pf_get_cc )      ( decoder_t *, bool pb_present[4], int * );
 
     /* Meta data at codec level
      *  The decoder owner set it back to NULL once it has retreived what it needs.
@@ -174,10 +174,11 @@ struct decoder_t
     int             (*pf_get_display_rate)( decoder_t * );
 
     /* XXX use decoder_QueueVideo or decoder_QueueVideoWithCc */
-    int             (*pf_queue_video)( decoder_t *, picture_t *, block_t *p_cc,
-                                       bool p_cc_present[4] );
+    int             (*pf_queue_video)( decoder_t *, picture_t * );
     /* XXX use decoder_QueueAudio */
     int             (*pf_queue_audio)( decoder_t *, block_t * );
+    /* XXX use decoder_QueueCC */
+    int             (*pf_queue_cc)( decoder_t *, block_t *, bool p_cc_present[4], int );
     /* XXX use decoder_QueueSub */
     int             (*pf_queue_sub)( decoder_t *, subpicture_t *);
     void             *p_queue_ctx;
@@ -246,9 +247,11 @@ struct encoder_t
  *
  * @return 0 if the video output was set up successfully, -1 otherwise.
  */
+VLC_USED
 static inline int decoder_UpdateVideoFormat( decoder_t *dec )
 {
-    if( dec->pf_vout_format_update != NULL )
+    assert( dec->fmt_in.i_cat == VIDEO_ES );
+    if( dec->fmt_in.i_cat == VIDEO_ES && dec->pf_vout_format_update != NULL )
         return dec->pf_vout_format_update( dec );
     else
         return -1;
@@ -300,22 +303,29 @@ static inline int decoder_QueueVideo( decoder_t *dec, picture_t *p_pic )
 {
     assert( p_pic->p_next == NULL );
     assert( dec->pf_queue_video != NULL );
-    return dec->pf_queue_video( dec, p_pic, NULL, NULL );
+    return dec->pf_queue_video( dec, p_pic );
 }
 
 /**
- * This function queues a single picture with CC to the video output
+ * This function queues the Closed Captions
  *
- * This function also queues the Closed Captions associated with the picture.
- *
- * \return 0 if the picture is queued, -1 on error
+ * \param dec the decoder object
+ * \param p_cc the closed-caption to queue
+ * \param p_cc_present array-of-bool where each entry indicates whether the
+ *                     given channel is present or not
+ * \param i_depth the closed-caption to queue reorder depth, or simply 0
+ *                     if using the old mpgv block flag tagging
+ * \return 0 if queued, -1 on error
  */
-static inline int decoder_QueueVideoWithCc( decoder_t *dec, picture_t *p_pic,
-                                            block_t *p_cc, bool p_cc_present[4] )
+static inline int decoder_QueueCc( decoder_t *dec, block_t *p_cc,
+                                   bool p_cc_present[4], int i_depth )
 {
-    assert( p_pic->p_next == NULL );
-    assert( dec->pf_queue_video != NULL );
-    return dec->pf_queue_video( dec, p_pic, p_cc, p_cc_present );
+    if( dec->pf_queue_cc == NULL )
+    {
+        block_Release( p_cc );
+        return -1;
+    }
+    return dec->pf_queue_cc( dec, p_cc, p_cc_present, i_depth );
 }
 
 /**
@@ -355,9 +365,11 @@ static inline int decoder_QueueSub( decoder_t *dec, subpicture_t *p_spu )
  * format (fmt_out.audio). If there is currently no audio output or if the
  * audio output format has changed, a new audio output will be set up.
  * @return 0 if the audio output is working, -1 if not. */
+VLC_USED
 static inline int decoder_UpdateAudioFormat( decoder_t *dec )
 {
-    if( dec->pf_aout_format_update != NULL )
+    assert(dec->fmt_in.i_cat == AUDIO_ES);
+    if( dec->fmt_in.i_cat == AUDIO_ES && dec->pf_aout_format_update != NULL )
         return dec->pf_aout_format_update( dec );
     else
         return -1;
@@ -368,7 +380,7 @@ static inline int decoder_UpdateAudioFormat( decoder_t *dec )
  * output buffer. It must be released with block_Release() or returned it to
  * the caller as a decoder_QueueAudio parameter.
  */
-VLC_API block_t * decoder_NewAudioBuffer( decoder_t *, int i_size ) VLC_USED;
+VLC_API block_t * decoder_NewAudioBuffer( decoder_t *, int i_nb_samples ) VLC_USED;
 
 /**
  * This function will return a new subpicture usable by a decoder as an output

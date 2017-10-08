@@ -378,12 +378,12 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         case DEMUX_CAN_PAUSE:
         case DEMUX_CAN_CONTROL_PACE:
             /* TODO */
-            pb = (bool*)va_arg( args, bool * );
+            pb = va_arg( args, bool * );
             *pb = false;
             return VLC_SUCCESS;
 
         case DEMUX_GET_PTS_DELAY:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
+            pi64 = va_arg( args, int64_t * );
             *pi64 = INT64_C(1000)
                   * var_InheritInteger( p_demux, "live-caching" );
             return VLC_SUCCESS;
@@ -847,7 +847,6 @@ static int InitAudio( demux_t *p_demux, sdi_audio_t *p_audio )
     es_format_Init( &fmt, AUDIO_ES, VLC_CODEC_S16L );
     fmt.i_id = p_audio->i_id;
     fmt.audio.i_channels          = 2;
-    fmt.audio.i_original_channels =
     fmt.audio.i_physical_channels = AOUT_CHANS_STEREO;
     fmt.audio.i_rate              = p_audio->i_rate;
     fmt.audio.i_bitspersample     = 16;
@@ -994,7 +993,7 @@ static int DecodeFrame( demux_t *p_demux )
 
     DecodeVideo( p_demux );
 
-    es_out_Control( p_demux->out, ES_OUT_SET_PCR, p_sys->i_next_date );
+    es_out_SetPCR( p_demux->out, p_sys->i_next_date );
     p_sys->i_next_date += p_sys->i_incr;
 
     if( NewFrame( p_demux ) != VLC_SUCCESS )

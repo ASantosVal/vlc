@@ -27,14 +27,15 @@
 #endif
 
 #include <GLES2/gl2ext.h>
-#include "internal.h"
+#include "converter.h"
 #include "../android/display.h"
 #include "../android/utils.h"
 
 struct priv
 {
-    SurfaceTexture *stex;
+    AWindowHandler *awh;
     const float *transform_mtx;
+    bool stex_attached;
 
     struct {
         GLint uSTMatrix;
@@ -68,18 +69,17 @@ tc_anop_allocate_textures(const opengl_tex_converter_t *tc, GLuint *textures,
     (void) tex_width; (void) tex_height;
     struct priv *priv = tc->priv;
     assert(textures[0] != 0);
-    priv->stex = SurfaceTexture_create(VLC_OBJECT(tc->gl), textures[0]);
-    if (priv->stex == NULL)
+    if (SurfaceTexture_attachToGLContext(priv->awh, textures[0]) != 0)
     {
-        msg_Err(tc->gl, "tc_anop_get_pool: SurfaceTexture_create failed");
+        msg_Err(tc->gl, "SurfaceTexture_attachToGLContext failed");
         return VLC_EGENERIC;
     }
+    priv->stex_attached = true;
     return VLC_SUCCESS;
 }
 
 static picture_pool_t *
-tc_anop_get_pool(const opengl_tex_converter_t *tc, const video_format_t *fmt,
-                 unsigned requested_count)
+tc_anop_get_pool(const opengl_tex_converter_t *tc, unsigned requested_count)
 {
     struct priv *priv = tc->priv;
 #define FORCED_COUNT 31
@@ -98,12 +98,12 @@ tc_anop_get_pool(const opengl_tex_converter_t *tc, const video_format_t *fmt,
         };
 
         p_picsys->hw.b_vd_ref = true;
-        p_picsys->hw.p_surface = SurfaceTexture_getANativeWindow(priv->stex);
-        p_picsys->hw.p_jsurface = SurfaceTexture_getSurface(priv->stex);
+        p_picsys->hw.p_surface = SurfaceTexture_getANativeWindow(priv->awh);
+        p_picsys->hw.p_jsurface = SurfaceTexture_getSurface(priv->awh);
         p_picsys->hw.i_index = -1;
         vlc_mutex_init(&p_picsys->hw.lock);
 
-        picture[count] = picture_NewFromResource(fmt, &rsc);
+        picture[count] = picture_NewFromResource(&tc->fmt, &rsc);
         if (!picture[count])
         {
             free(p_picsys);
@@ -147,15 +147,15 @@ tc_anop_update(const opengl_tex_converter_t *tc, GLuint *textures,
 
     AndroidOpaquePicture_Release(pic->p_sys, true);
 
-    if (SurfaceTexture_waitAndUpdateTexImage(priv->stex, &priv->transform_mtx)
+    if (SurfaceTexture_waitAndUpdateTexImage(priv->awh, &priv->transform_mtx)
         != VLC_SUCCESS)
     {
         priv->transform_mtx = NULL;
         return VLC_EGENERIC;
     }
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(tc->tex_target, textures[0]);
+    tc->vt->ActiveTexture(GL_TEXTURE0);
+    tc->vt->BindTexture(tc->tex_target, textures[0]);
 
     return VLC_SUCCESS;
 }
@@ -164,7 +164,7 @@ static int
 tc_anop_fetch_locations(opengl_tex_converter_t *tc, GLuint program)
 {
     struct priv *priv = tc->priv;
-    priv->uloc.uSTMatrix = tc->api->GetUniformLocation(program, "uSTMatrix");
+    priv->uloc.uSTMatrix = tc->vt->GetUniformLocation(program, "uSTMatrix");
     return priv->uloc.uSTMatrix != -1 ? VLC_SUCCESS : VLC_EGENERIC;
 }
 
@@ -176,83 +176,86 @@ tc_anop_prepare_shader(const opengl_tex_converter_t *tc,
     (void) tex_width; (void) tex_height; (void) alpha;
     struct priv *priv = tc->priv;
     if (priv->transform_mtx != NULL)
-        tc->api->UniformMatrix4fv(priv->uloc.uSTMatrix, 1, GL_FALSE,
+        tc->vt->UniformMatrix4fv(priv->uloc.uSTMatrix, 1, GL_FALSE,
                                   priv->transform_mtx);
 }
 
 static void
-tc_anop_release(const opengl_tex_converter_t *tc)
+Close(vlc_object_t *obj)
 {
+    opengl_tex_converter_t *tc = (void *)obj;
     struct priv *priv = tc->priv;
-    if (priv->stex != NULL)
-        SurfaceTexture_release(priv->stex);
+
+    if (priv->stex_attached)
+        SurfaceTexture_detachFromGLContext(priv->awh);
 
     free(priv);
 }
 
-GLuint
-opengl_tex_converter_anop_init(const video_format_t *fmt,
-                               opengl_tex_converter_t *tc)
+static int
+Open(vlc_object_t *obj)
 {
-    if (fmt->i_chroma != VLC_CODEC_ANDROID_OPAQUE)
-        return 0;
+    opengl_tex_converter_t *tc = (void *) obj;
+
+    if (tc->fmt.i_chroma != VLC_CODEC_ANDROID_OPAQUE
+     || !tc->gl->surface->handle.anativewindow)
+        return VLC_EGENERIC;
 
     tc->priv = malloc(sizeof(struct priv));
     if (unlikely(tc->priv == NULL))
-        return 0;
+        return VLC_ENOMEM;
 
     struct priv *priv = tc->priv;
-    priv->stex = NULL;
+    priv->awh = tc->gl->surface->handle.anativewindow;
     priv->transform_mtx = NULL;
+    priv->stex_attached = false;
 
     tc->pf_allocate_textures = tc_anop_allocate_textures;
     tc->pf_get_pool       = tc_anop_get_pool;
     tc->pf_update         = tc_anop_update;
     tc->pf_fetch_locations = tc_anop_fetch_locations;
     tc->pf_prepare_shader = tc_anop_prepare_shader;
-    tc->pf_release        = tc_anop_release;
 
     tc->tex_count = 1;
-    tc->texs[0] = (struct opengl_tex_cfg) { { 1, 1 }, { 1, 1 } };
+    tc->texs[0] = (struct opengl_tex_cfg) { { 1, 1 }, { 1, 1 }, 0, 0, 0 };
 
-    tc->chroma       = VLC_CODEC_ANDROID_OPAQUE;
     tc->tex_target   = GL_TEXTURE_EXTERNAL_OES;
 
     /* The transform Matrix (uSTMatrix) given by the SurfaceTexture is not
      * using the same origin than us. Ask the caller to rotate textures
      * coordinates, via the vertex shader, by forcing an orientation. */
-    switch (tc->orientation)
+    switch (tc->fmt.orientation)
     {
         case ORIENT_TOP_LEFT:
-            tc->orientation = ORIENT_BOTTOM_LEFT;
+            tc->fmt.orientation = ORIENT_BOTTOM_LEFT;
             break;
         case ORIENT_TOP_RIGHT:
-            tc->orientation = ORIENT_BOTTOM_RIGHT;
+            tc->fmt.orientation = ORIENT_BOTTOM_RIGHT;
             break;
         case ORIENT_BOTTOM_LEFT:
-            tc->orientation = ORIENT_TOP_LEFT;
+            tc->fmt.orientation = ORIENT_TOP_LEFT;
             break;
         case ORIENT_BOTTOM_RIGHT:
-            tc->orientation = ORIENT_TOP_RIGHT;
+            tc->fmt.orientation = ORIENT_TOP_RIGHT;
             break;
         case ORIENT_LEFT_TOP:
-            tc->orientation = ORIENT_RIGHT_TOP;
+            tc->fmt.orientation = ORIENT_RIGHT_TOP;
             break;
         case ORIENT_LEFT_BOTTOM:
-            tc->orientation = ORIENT_RIGHT_BOTTOM;
+            tc->fmt.orientation = ORIENT_RIGHT_BOTTOM;
             break;
         case ORIENT_RIGHT_TOP:
-            tc->orientation = ORIENT_LEFT_TOP;
+            tc->fmt.orientation = ORIENT_LEFT_TOP;
             break;
         case ORIENT_RIGHT_BOTTOM:
-            tc->orientation = ORIENT_LEFT_BOTTOM;
+            tc->fmt.orientation = ORIENT_LEFT_BOTTOM;
             break;
     }
 
-    static const char *code =
-        "#version " GLSL_VERSION "\n"
+    static const char *template =
+        "#version %u\n"
         "#extension GL_OES_EGL_image_external : require\n"
-        PRECISION
+        "%s" /* precision */
         "varying vec2 TexCoord0;"
         "uniform samplerExternalOES sTexture;"
         "uniform mat4 uSTMatrix;"
@@ -260,9 +263,23 @@ opengl_tex_converter_anop_init(const video_format_t *fmt,
         "{ "
         "  gl_FragColor = texture2D(sTexture, (uSTMatrix * vec4(TexCoord0, 1, 1)).xy);"
         "}";
-    GLuint fragment_shader = tc->api->CreateShader(GL_FRAGMENT_SHADER);
-    tc->api->ShaderSource(fragment_shader, 1, &code, NULL);
-    tc->api->CompileShader(fragment_shader);
 
-    return fragment_shader;
+    char *code;
+    if (asprintf(&code, template, tc->glsl_version, tc->glsl_precision_header) < 0)
+        return 0;
+    GLuint fragment_shader = tc->vt->CreateShader(GL_FRAGMENT_SHADER);
+    tc->vt->ShaderSource(fragment_shader, 1, (const char **) &code, NULL);
+    tc->vt->CompileShader(fragment_shader);
+    tc->fshader = fragment_shader;
+    free(code);
+
+    return VLC_SUCCESS;
 }
+
+vlc_module_begin ()
+    set_description("Android OpenGL SurfaceTexture converter")
+    set_capability("glconv", 1)
+    set_callbacks(Open, Close)
+    set_category(CAT_VIDEO)
+    set_subcategory(SUBCAT_VIDEO_VOUT)
+vlc_module_end ()

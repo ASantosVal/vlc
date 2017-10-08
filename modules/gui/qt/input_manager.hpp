@@ -59,7 +59,6 @@ public:
         StatisticsUpdate,
         InterfaceAoutUpdate, /* 10 */
         MetaChanged,
-        NameChanged,
         InfoChanged,
         SynchroChanged,
         CachingEvent,
@@ -81,13 +80,13 @@ public:
         : QEvent( (QEvent::Type)(type) )
     {
         if( (p_item = p_input) != NULL )
-            vlc_gc_incref( p_item );
+            input_item_Hold( p_item );
     }
 
     virtual ~IMEvent()
     {
         if( p_item )
-            vlc_gc_decref( p_item );
+            input_item_Release( p_item );
     }
 
     input_item_t *item() const { return p_item; };
@@ -272,6 +271,7 @@ public:
     }
 
     vout_thread_t* getVout();
+    QVector<vout_thread_t*> getVouts() const;
     audio_output_t *getAout();
 
     bool getPlayExitState();

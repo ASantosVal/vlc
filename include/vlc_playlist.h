@@ -29,6 +29,7 @@ extern "C" {
 # endif
 
 #include <vlc_events.h>
+#include <vlc_aout.h>
 
 TYPEDEF_ARRAY(playlist_item_t*, playlist_item_array_t)
 
@@ -116,7 +117,7 @@ struct intf_thread_t;
 typedef struct playlist_export_t
 {
     VLC_COMMON_MEMBERS
-    const char *psz_filename;
+    char *base_url;
     FILE *p_file;
     playlist_item_t *p_root;
 } playlist_export_t;
@@ -136,11 +137,10 @@ struct playlist_item_t
 };
 
 typedef enum {
-    PLAYLIST_SKIP_FLAG         = 0x0002,  /**< Must playlist skip after it ? */
-    PLAYLIST_DBL_FLAG          = 0x0004,  /**< Is it disabled ? */
-    PLAYLIST_RO_FLAG           = 0x0008,  /**< Write-enabled ? */
-    PLAYLIST_SUBITEM_STOP_FLAG = 0x0040,  /**< Must playlist stop if the item gets subitems ?*/
-    PLAYLIST_NO_INHERIT_FLAG   = 0x0080,  /**< Childs must not inherit flags from parent node */
+    PLAYLIST_DBL_FLAG          = 0x04,  /**< Is it disabled ? */
+    PLAYLIST_RO_FLAG           = 0x08,  /**< Write-enabled ? */
+    PLAYLIST_SUBITEM_STOP_FLAG = 0x40,  /**< Must playlist stop if the item gets subitems ?*/
+    PLAYLIST_NO_INHERIT_FLAG   = 0x80,  /**< Will children inherit flags the R/O flag ? */
 } playlist_item_flags_e;
 
 /** Playlist status */
@@ -158,9 +158,9 @@ struct playlist_t
     int                   i_current_index; /**< Index in current array */
 
     /* Predefined items */
-    playlist_item_t *     p_root;
-    playlist_item_t *     p_playing;
-    playlist_item_t *     p_media_library;
+    playlist_item_t  root;
+    playlist_item_t *p_playing;
+    playlist_item_t *p_media_library;
 };
 
 /* A bit of macro magic to generate an enum out of the following list,
@@ -200,9 +200,6 @@ enum
     ORDER_NORMAL = 0,
     ORDER_REVERSE = 1,
 };
-
-/* Used by playlist_Import */
-#define PLAYLIST_GO              0x0004
 
 #define PLAYLIST_END           -1
 
@@ -305,7 +302,13 @@ VLC_API void playlist_Deactivate( playlist_t * );
  * \param b_locked TRUE if playlist is locked when entering this function
  * \param variable number of arguments
  */
-VLC_API void playlist_Control( playlist_t *p_playlist, int i_query, bool b_locked, ...  );
+VLC_API void playlist_Control( playlist_t *p_playlist, int i_query, int b_locked, ...  );
+
+static inline void playlist_ViewPlay(playlist_t *pl, playlist_item_t *node,
+                                     playlist_item_t *item)
+{
+    playlist_Control(pl, PLAYLIST_VIEWPLAY, pl_Locked, node, item);
+}
 
 /** Get current playing input. The object is retained.
  */
@@ -355,6 +358,14 @@ VLC_API bool playlist_IsServicesDiscoveryLoaded( playlist_t *,const char *) VLC_
 /** Query a services discovery */
 VLC_API int playlist_ServicesDiscoveryControl( playlist_t *, const char *, int, ... );
 
+/********************** Renderer ***********************/
+/**
+ * Sets a renderer or remove the current one
+ * @param p_item    The renderer item to be used, or NULL to disable the current
+ *                  one. If a renderer is provided, its reference count will be
+ *                  incremented.
+ */
+VLC_API int playlist_SetRenderer( playlist_t* p_pl, vlc_renderer_item_t* p_item );
 
 
 /********************************************************
@@ -362,10 +373,10 @@ VLC_API int playlist_ServicesDiscoveryControl( playlist_t *, const char *, int, 
  ********************************************************/
 
 /******************** Item addition ********************/
-VLC_API int playlist_Add( playlist_t *, const char *, const char *, int );
-VLC_API int playlist_AddExt( playlist_t *, const char *, const char *, int, int, const char *const *, unsigned, bool );
-VLC_API int playlist_AddInput( playlist_t *, input_item_t *, int, bool );
-VLC_API playlist_item_t * playlist_NodeAddInput( playlist_t *, input_item_t *, playlist_item_t *, int, int );
+VLC_API int playlist_Add( playlist_t *, const char *, bool );
+VLC_API int playlist_AddExt( playlist_t *, const char *, const char *, bool, int, const char *const *, unsigned, bool );
+VLC_API int playlist_AddInput( playlist_t *, input_item_t *, bool, bool );
+VLC_API playlist_item_t * playlist_NodeAddInput( playlist_t *, input_item_t *, playlist_item_t *, int );
 VLC_API int playlist_NodeAddCopy( playlist_t *, playlist_item_t *, playlist_item_t *, int );
 
 /********************************** Item search *************************/
@@ -382,16 +393,13 @@ VLC_API int playlist_LiveSearchUpdate(playlist_t *, playlist_item_t *, const cha
 /* Node management */
 VLC_API playlist_item_t * playlist_NodeCreate( playlist_t *, const char *, playlist_item_t * p_parent, int i_pos, int i_flags );
 VLC_API playlist_item_t * playlist_ChildSearchName(playlist_item_t*, const char* ) VLC_USED;
-VLC_API void playlist_NodeDelete( playlist_t *, playlist_item_t *, bool );
+VLC_API void playlist_NodeDelete( playlist_t *, playlist_item_t * );
 
 /**************************
  * Audio output management
  **************************/
 
 VLC_API audio_output_t *playlist_GetAout( playlist_t * );
-
-#define AOUT_VOLUME_DEFAULT             256
-#define AOUT_VOLUME_MAX                 512
 
 VLC_API float playlist_VolumeGet( playlist_t * );
 VLC_API int playlist_VolumeSet( playlist_t *, float );

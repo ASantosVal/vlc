@@ -56,7 +56,7 @@ demux_LTLIBRARIES += libaiff_plugin.la
 libmjpeg_plugin_la_SOURCES = demux/mjpeg.c demux/mxpeg_helper.h
 demux_LTLIBRARIES += libmjpeg_plugin.la
 
-libsubtitle_plugin_la_SOURCES = demux/subtitle.c demux/subtitle_helper.h
+libsubtitle_plugin_la_SOURCES = demux/subtitle.c
 libsubtitle_plugin_la_LIBADD = $(LIBM)
 demux_LTLIBRARIES += libsubtitle_plugin.la
 
@@ -160,8 +160,12 @@ demux_LTLIBRARIES += libavformat_plugin.la
 endif
 endif
 
+libdirectory_demux_plugin_la_SOURCES = demux/directory.c
+demux_LTLIBRARIES += libdirectory_demux_plugin.la
+
 libes_plugin_la_SOURCES  = demux/mpeg/es.c \
                            meta_engine/ID3Tag.h \
+                           meta_engine/ID3Text.h \
                            packetizer/dts_header.c packetizer/dts_header.h
 demux_LTLIBRARIES += libes_plugin.la
 
@@ -199,10 +203,11 @@ EXTRA_LTLIBRARIES += libmkv_plugin.la
 libmp4_plugin_la_SOURCES = demux/mp4/mp4.c demux/mp4/mp4.h \
                            demux/mp4/fragments.c demux/mp4/fragments.h \
                            demux/mp4/libmp4.c demux/mp4/libmp4.h \
-                           demux/mp4/id3genres.h demux/mp4/languages.h \
+                           demux/mp4/languages.h \
                            demux/asf/asfpacket.c demux/asf/asfpacket.h \
                            demux/mp4/avci.h \
-                           demux/mp4/essetup.c demux/mp4/meta.c
+                           demux/mp4/essetup.c demux/mp4/meta.c \
+                           meta_engine/ID3Genres.h
 libmp4_plugin_la_LIBADD = $(LIBM)
 libmp4_plugin_la_LDFLAGS = $(AM_LDFLAGS)
 if HAVE_ZLIB
@@ -217,7 +222,6 @@ libplaylist_plugin_la_SOURCES = \
 	demux/playlist/asx.c \
 	demux/playlist/b4s.c \
 	demux/playlist/dvb.c \
-	demux/playlist/gvp.c \
 	demux/playlist/ifo.c \
 	demux/playlist/itml.c \
 	demux/playlist/itml.h \
@@ -230,7 +234,6 @@ libplaylist_plugin_la_SOURCES = \
 	demux/playlist/shoutcast.c \
 	demux/playlist/wpl.c \
 	demux/playlist/xspf.c \
-	demux/playlist/directory.c \
 	demux/playlist/playlist.c demux/playlist/playlist.h
 demux_LTLIBRARIES += libplaylist_plugin.la
 
@@ -245,6 +248,7 @@ libts_plugin_la_SOURCES = demux/mpeg/ts.c demux/mpeg/ts.h \
         demux/mpeg/ts_scte.h demux/mpeg/ts_scte.c \
         demux/mpeg/sections.c demux/mpeg/sections.h \
         demux/mpeg/mpeg4_iod.c demux/mpeg/mpeg4_iod.h \
+        demux/mpeg/ts_arib.c demux/mpeg/ts_arib.h \
         demux/mpeg/ts_sl.c demux/mpeg/ts_sl.h \
         demux/mpeg/ts_metadata.c demux/mpeg/ts_metadata.h \
         demux/mpeg/ts_hotfixes.c demux/mpeg/ts_hotfixes.h \
@@ -259,7 +263,7 @@ libts_plugin_la_SOURCES = demux/mpeg/ts.c demux/mpeg/ts.h \
         mux/mpeg/tables.c mux/mpeg/tables.h \
 	mux/mpeg/tsutil.c mux/mpeg/tsutil.h \
         access/dtv/en50221_capmt.h \
-        codec/scte18.h \
+        codec/jpeg2000.h codec/scte18.h \
         codec/atsc_a65.c codec/atsc_a65.h \
 	codec/opus_header.c
 libts_plugin_la_CFLAGS = $(AM_CFLAGS) $(DVBPSI_CFLAGS)
@@ -312,6 +316,8 @@ libadaptive_plugin_la_SOURCES = \
     demux/adaptive/logic/AlwaysLowestAdaptationLogic.cpp \
     demux/adaptive/logic/AlwaysLowestAdaptationLogic.hpp \
     demux/adaptive/logic/IDownloadRateObserver.h \
+    demux/adaptive/logic/NearOptimalAdaptationLogic.cpp \
+    demux/adaptive/logic/NearOptimalAdaptationLogic.hpp \
     demux/adaptive/logic/PredictiveAdaptationLogic.hpp \
     demux/adaptive/logic/PredictiveAdaptationLogic.cpp \
     demux/adaptive/logic/RateBasedAdaptationLogic.h \
@@ -458,3 +464,5 @@ libadaptive_plugin_la_LIBADD += $(GCRYPT_LIBS)
 endif
 demux_LTLIBRARIES += libadaptive_plugin.la
 
+libnoseek_plugin_la_SOURCES = demux/filter/noseek.c
+demux_LTLIBRARIES += libnoseek_plugin.la

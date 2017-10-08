@@ -47,6 +47,7 @@
 #endif
 
 #define HAS_QT5  ( QT_VERSION >= 0x050000 )
+#define HAS_QT54 ( QT_VERSION >= 0x050400 )
 #define HAS_QT56 ( QT_VERSION >= 0x050600 )
 
 /* Q_DECL_OVERRIDE is a Qt5 feature, add empty define to not break with Qt4 */
@@ -67,22 +68,14 @@ enum{
     NOTIFICATION_ALWAYS = 2,
 };
 
-class QVLCApp;
-class MainInterface;
-class QSettings;
-class PLModel;
-
 struct intf_sys_t
 {
     vlc_thread_t thread;
 
-    QVLCApp *p_app;          /* Main Qt Application */
-
-    MainInterface *p_mi;     /* Main Interface, NULL if DialogProvider Mode */
-
-    QSettings *mainSettings; /* Qt State settings not messing main VLC ones */
-
-    PLModel *pl_model;
+    class QVLCApp *p_app;          /* Main Qt Application */
+    class MainInterface *p_mi;     /* Main Interface, NULL if DialogProvider Mode */
+    class QSettings *mainSettings; /* Qt State settings not messing main VLC ones */
+    class PLModel *pl_model;
 
     QString filepath;        /* Last path used in dialogs */
 
@@ -149,11 +142,6 @@ struct vlc_playlist_locker {
 #define BUTTON_SET_ACT_I( button, text, image, tooltip, thisslot ) \
     BUTTON_SET_IMG( button, text, image, tooltip );                \
     BUTTONACT( button, thisslot );
-
-#define VISIBLE(i) (i && i->isVisible())
-
-#define TOGGLEV( x ) { if( x->isVisible() ) x->hide();          \
-            else  x->show(); }
 
 /* for widgets which must not follow the RTL auto layout changes */
 #define RTL_UNAFFECTED_WIDGET setLayoutDirection( Qt::LeftToRight );

@@ -183,7 +183,7 @@ static const char *const polarization_user[] = { N_("Unspecified (0V)"),
 #define LNB_LOW_TEXT N_("Local oscillator low frequency (kHz)")
 #define LNB_HIGH_TEXT N_("Local oscillator high frequency (kHz)")
 #define LNB_LONGTEXT N_( \
-    "The downconverter (LNB) will substract the local oscillator frequency " \
+    "The downconverter (LNB) will subtract the local oscillator frequency " \
     "from the satellite transmission frequency. " \
     "The intermediate frequency (IF) on the RF cable is the result.")
 #define LNB_SWITCH_TEXT N_("Universal LNB switch frequency (kHz)")
@@ -431,8 +431,8 @@ struct access_sys_t
     tuner_setup_t pf_setup;
 };
 
-static block_t *Read (access_t *, bool *);
-static int Control (access_t *, int, va_list);
+static block_t *Read (stream_t *, bool *);
+static int Control (stream_t *, int, va_list);
 static dtv_delivery_t GuessSystem (const char *, dvb_device_t *);
 static dtv_delivery_t GetDeliveryByScheme(const char *psz_scheme);
 static int Tune (vlc_object_t *, dvb_device_t *, tuner_setup_t, uint64_t);
@@ -442,7 +442,7 @@ tuner_setup_t dtv_get_delivery_tuner_setup( dtv_delivery_t d );
 
 static int Open (vlc_object_t *obj)
 {
-    access_t *access = (access_t *)obj;
+    stream_t *access = (stream_t *)obj;
     access_sys_t *sys = malloc (sizeof (*sys));
     if (unlikely(sys == NULL))
         return VLC_ENOMEM;
@@ -492,14 +492,14 @@ error:
 
 static void Close (vlc_object_t *obj)
 {
-    access_t *access = (access_t *)obj;
+    stream_t *access = (stream_t *)obj;
     access_sys_t *sys = access->p_sys;
 
     dvb_close (sys->dev);
     free (sys);
 }
 
-static block_t *Read (access_t *access, bool *restrict eof)
+static block_t *Read (stream_t *access, bool *restrict eof)
 {
 #define BUFSIZE (20*188)
     block_t *block = block_Alloc (BUFSIZE);
@@ -522,7 +522,7 @@ static block_t *Read (access_t *access, bool *restrict eof)
     return block;
 }
 
-static int Control (access_t *access, int query, va_list args)
+static int Control (stream_t *access, int query, va_list args)
 {
     access_sys_t *sys = access->p_sys;
     dvb_device_t *dev = sys->dev;
@@ -713,6 +713,7 @@ static unsigned var_InheritGuardInterval (vlc_object_t *obj)
                            "Use \"guard=1/%"PRIu16" instead.", a, a);
             b = a;
             a = 1;
+            /* fall through */
         case 2:
             return VLC_GUARD(a, b);
     }

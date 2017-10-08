@@ -82,7 +82,7 @@ int vlc_memstream_putc(struct vlc_memstream *ms, int c)
     return fputc(c, ms->stream);
 }
 
-int vlc_memstream_puts(struct vlc_memstream *ms, const char *str)
+int (vlc_memstream_puts)(struct vlc_memstream *ms, const char *str)
 {
     if (unlikely(ms->stream == NULL))
         return EOF;
@@ -105,9 +105,11 @@ int vlc_memstream_vprintf(struct vlc_memstream *ms, const char *fmt,
 int vlc_memstream_open(struct vlc_memstream *ms)
 {
     ms->error = 0;
-    ms->ptr = NULL;
+    ms->ptr = calloc(1, 1);
+    if (unlikely(ms->ptr == NULL))
+        ms->error = EOF;
     ms->length = 0;
-    return 0;
+    return ms->error;
 }
 
 int vlc_memstream_flush(struct vlc_memstream *ms)
@@ -137,7 +139,7 @@ size_t vlc_memstream_write(struct vlc_memstream *ms, const void *ptr,
 
 error:
     ms->error = EOF;
-    return EOF;
+    return 0;
 }
 
 int vlc_memstream_putc(struct vlc_memstream *ms, int c)
@@ -145,7 +147,7 @@ int vlc_memstream_putc(struct vlc_memstream *ms, int c)
     return (vlc_memstream_write(ms, &(unsigned char){ c }, 1u) == 1) ? c : EOF;
 }
 
-int vlc_memstream_puts(struct vlc_memstream *ms, const char *str)
+int (vlc_memstream_puts)(struct vlc_memstream *ms, const char *str)
 {
     size_t len = strlen(str);
     return (vlc_memstream_write(ms, str, len) == len) ? 0 : EOF;
@@ -161,6 +163,9 @@ int vlc_memstream_vprintf(struct vlc_memstream *ms, const char *fmt,
     va_copy(ap, args);
     len = vsnprintf(NULL, 0, fmt, ap);
     va_end(ap);
+
+    if (len < 0)
+        goto error;
 
     ptr = realloc(ms->ptr, ms->length + len + 1);
     if (ptr == NULL)

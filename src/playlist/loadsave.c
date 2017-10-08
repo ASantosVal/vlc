@@ -52,7 +52,7 @@ int playlist_Export( playlist_t * p_playlist, const char *psz_filename,
     int ret = VLC_EGENERIC;
 
     /* Prepare the playlist_export_t structure */
-    p_export->psz_filename = psz_filename;
+    p_export->base_url = vlc_path2uri( psz_filename, NULL );
     p_export->p_file = vlc_fopen( psz_filename, "wt" );
     if( p_export->p_file == NULL )
     {
@@ -84,6 +84,7 @@ int playlist_Export( playlist_t * p_playlist, const char *psz_filename,
         msg_Err( p_playlist, "could not export playlist" );
    fclose( p_export->p_file );
 out:
+   free( p_export->base_url );
    vlc_object_release( p_export );
    return ret;
 }
@@ -99,7 +100,7 @@ int playlist_Import( playlist_t *p_playlist, const char *psz_file )
     p_input = input_item_New( psz_uri, psz_file );
     free( psz_uri );
 
-    playlist_AddInput( p_playlist, p_input, 0, true );
+    playlist_AddInput( p_playlist, p_input, false, true );
 
     vlc_object_t *dummy = vlc_object_create( p_playlist, sizeof (*dummy) );
     var_Create( dummy, "meta-file", VLC_VAR_VOID );
@@ -150,7 +151,7 @@ int playlist_MLLoad( playlist_t *p_playlist )
         return VLC_EGENERIC;
     }
 
-    char *psz_uri = vlc_path2uri( psz_file, "file/xspf-open" );
+    char *psz_uri = vlc_path2uri( psz_file, "file/directory" );
     free( psz_file );
     if( psz_uri == NULL )
         return VLC_ENOMEM;
@@ -170,7 +171,7 @@ int playlist_MLLoad( playlist_t *p_playlist )
 
     vlc_event_detach( &p_input->event_manager, vlc_InputItemSubItemTreeAdded,
                         input_item_subitem_tree_added, p_playlist );
-    vlc_gc_decref( p_input );
+    input_item_Release( p_input );
 
     return VLC_SUCCESS;
 }

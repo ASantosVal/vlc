@@ -47,8 +47,6 @@ class ExtVideo: public QObject
     friend class ExtendedDialog;
 public:
     ExtVideo( struct intf_thread_t *, QTabWidget * );
-    static void setPostprocessing( struct intf_thread_t *, int q);
-    static int getPostprocessing( struct intf_thread_t *p_intf);
 private:
     Ui::ExtVideoWidget ui;
     QSignalMapper* filterMapper;
@@ -56,7 +54,9 @@ private:
     void initComboBoxItems( QObject* );
     void setWidgetValue( QObject* );
     void clean();
-    static void setFilterOption( struct intf_thread_t *, const char *psz_module, const char *psz_option, int, double, QString );
+    void setFilterOption( const char *psz_module, const char *psz_option, int,
+                          double, const char * );
+    void changeVFiltersString( const char *psz_name, bool b_add );
 
 private slots:
     void updateFilters();
@@ -64,6 +64,8 @@ private slots:
     void cropChange();
     void browseLogo();
     void browseEraseFile();
+signals:
+    void configChanged( QString name, QVariant value );
 };
 
 class ExtV4l2 : public QWidget
@@ -110,18 +112,19 @@ public:
 protected:
     FilterSliderData( QObject *parent, QSlider *slider );
     virtual float initialValue();
+    virtual void writeToConfig();
     QSlider *slider;
     QLabel *valueLabel;
     QLabel *nameLabel;
     const slider_data_t *p_data;
     intf_thread_t *p_intf;
-    bool b_save_to_config;
 
 public slots:
-    virtual void onValueChanged( int i ) const;
+    virtual void onValueChanged( int i );
     virtual void updateText( int i );
-    virtual void writeToConfig() const;
-    void setSaveToConfig( bool );
+
+signals:
+    void configChanged( QString name, QVariant value );
 };
 
 class AudioFilterControlWidget : public QWidget
@@ -129,21 +132,25 @@ class AudioFilterControlWidget : public QWidget
     Q_OBJECT
 
 public:
-    AudioFilterControlWidget( intf_thread_t *, QWidget *, const char *name );
-    virtual ~AudioFilterControlWidget();
+    AudioFilterControlWidget( intf_thread_t *, QWidget *, const char *shortcut,
+                              const char *name /* = NULL */ );
 
 protected:
     virtual void build();
+    void connectConfigChanged( FilterSliderData *slider );
     QVector<FilterSliderData::slider_data_t> controls;
     QVector<FilterSliderData *> sliderDatas;
     QGroupBox *slidersBox;
     intf_thread_t *p_intf;
+    QString shortcut; // filter's module shorcut name
     QString name; // filter's module name
     int i_smallfont;
 
 protected slots:
-    void enable( bool ) const;
-    virtual void setSaveToConfig( bool );
+    void enable( bool );
+
+signals:
+    void configChanged( QString name, QVariant value );
 };
 
 class EqualizerSliderData : public FilterSliderData
@@ -160,10 +167,10 @@ protected:
     float initialValue() Q_DECL_OVERRIDE;
     int index;
     QStringList getBandsFromAout() const;
+    void writeToConfig();
 
 public slots:
-    void onValueChanged( int i ) const Q_DECL_OVERRIDE;
-    void writeToConfig() const Q_DECL_OVERRIDE;
+    void onValueChanged( int i ) Q_DECL_OVERRIDE;
 };
 
 class Equalizer: public AudioFilterControlWidget
@@ -176,16 +183,13 @@ public:
 protected:
     void build() Q_DECL_OVERRIDE;
 
-protected slots:
-    void setSaveToConfig( bool ) Q_DECL_OVERRIDE;
-
 private:
     FilterSliderData *preamp;
     FilterSliderData::slider_data_t preamp_values;
 
 private slots:
     void setCorePreset( int );
-    void enable2Pass( bool ) const;
+    void enable2Pass( bool );
 };
 
 class Compressor: public AudioFilterControlWidget
@@ -210,6 +214,14 @@ class StereoWidener: public AudioFilterControlWidget
 
 public:
     StereoWidener( intf_thread_t *, QWidget * );
+};
+
+class PitchShifter: public AudioFilterControlWidget
+{
+    Q_OBJECT
+
+public:
+    PitchShifter( intf_thread_t *, QWidget * );
 };
 
 class SyncWidget : public QWidget
@@ -248,6 +260,7 @@ private:
     void initSubsDuration();
     void subsdelayClean();
     void subsdelaySetFactor( double );
+    void changeVFiltersString( const char *psz_name, bool b_add );
 public slots:
     void update();
 private slots:

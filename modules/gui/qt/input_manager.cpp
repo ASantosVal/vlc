@@ -30,7 +30,7 @@
 #include "input_manager.hpp"
 #include "recents.hpp"
 
-#include <vlc_keys.h>           /* ACTION_ID */
+#include <vlc_actions.h>           /* ACTION_ID */
 #include <vlc_url.h>            /* vlc_uri_decode */
 #include <vlc_strings.h>        /* vlc_strfinput */
 #include <vlc_aout.h>           /* audio_output_t */
@@ -250,9 +250,6 @@ void InputManager::customEvent( QEvent *event )
     case IMEvent::ItemStateChanged:
         UpdateStatus();
         break;
-    case IMEvent::NameChanged:
-        UpdateName();
-        break;
     case IMEvent::MetaChanged:
         UpdateMeta();
         UpdateName(); /* Needed for NowPlaying */
@@ -376,9 +373,6 @@ static int InputEvent( vlc_object_t *, const char *,
         break;
     case INPUT_EVENT_ITEM_INFO: /* Codec Info */
         event = new IMEvent( IMEvent::InfoChanged );
-        break;
-    case INPUT_EVENT_ITEM_NAME:
-        event = new IMEvent( IMEvent::NameChanged );
         break;
 
     case INPUT_EVENT_AUDIO_DELAY:
@@ -1061,6 +1055,28 @@ MainInputManager::~MainInputManager()
 vout_thread_t* MainInputManager::getVout()
 {
     return p_input ? input_GetVout( p_input ) : NULL;
+}
+
+QVector<vout_thread_t*> MainInputManager::getVouts() const
+{
+    vout_thread_t **pp_vout;
+    size_t i_vout;
+
+    if( p_input == NULL
+     || input_Control( p_input, INPUT_GET_VOUTS, &pp_vout, &i_vout ) != VLC_SUCCESS
+     || i_vout == 0 )
+        return QVector<vout_thread_t*>();
+
+    QVector<vout_thread_t*> vector = QVector<vout_thread_t*>();
+    vector.reserve( i_vout );
+    for( size_t i = 0; i < i_vout; i++ )
+    {
+        assert( pp_vout[i] );
+        vector.append( pp_vout[i] );
+    }
+    free( pp_vout );
+
+    return vector;
 }
 
 audio_output_t * MainInputManager::getAout()

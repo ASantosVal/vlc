@@ -96,6 +96,9 @@ DialogsProvider::~DialogsProvider()
     MediaInfoDialog::killInstance();
     MessagesDialog::killInstance();
     BookmarksDialog::killInstance();
+#ifdef ENABLE_VLM
+    VLMDialog::killInstance();
+#endif
     HelpDialog::killInstance();
 #ifdef UPDATE_CHECK
     UpdateDialog::killInstance();
@@ -112,7 +115,7 @@ DialogsProvider::~DialogsProvider()
     delete miscPopupMenu;
 }
 
-QStringList DialogsProvider::getOpenURL( intf_thread_t* p_intf, QWidget *parent,
+QStringList DialogsProvider::getOpenURL( QWidget *parent,
                                          const QString &caption,
                                          const QString &dir,
                                          const QString &filter,
@@ -403,9 +406,8 @@ void DialogsProvider::openFileGenericDialog( intf_dialog_args_t *p_arg )
     }
     else /* non-save mode */
     {
-        QStringList urls = getOpenURL( p_intf, NULL,
-                qfu( p_arg->psz_title ), p_intf->p_sys->filepath,
-                extensions );
+        QStringList urls = getOpenURL( NULL, qfu( p_arg->psz_title ),
+                                       p_intf->p_sys->filepath, extensions );
         p_arg->i_results = urls.count();
         p_arg->psz_results = (char **)malloc( p_arg->i_results * sizeof( char * ) );
         i = 0;
@@ -502,7 +504,7 @@ QStringList DialogsProvider::showSimpleOpen( const QString& help,
     ADD_EXT_FILTER( fileTypes, EXTENSIONS_ALL );
     fileTypes.replace( ";*", " *");
 
-    QStringList urls = getOpenURL( p_intf, NULL,
+    QStringList urls = getOpenURL( NULL,
         help.isEmpty() ? qtr(I_OP_SEL_FILES ) : help,
         path.isEmpty() ? p_intf->p_sys->filepath : path,
         fileTypes );
@@ -628,7 +630,7 @@ void DialogsProvider::openAPlaylist()
     }
 }
 
-void DialogsProvider::saveAPlaylist(playlist_t *p_playlist, playlist_item_t *p_node)
+void DialogsProvider::savePlayingToPlaylist()
 {
     static const struct
     {
@@ -694,31 +696,10 @@ void DialogsProvider::saveAPlaylist(playlist_t *p_playlist, playlist_item_t *p_n
 
     if ( psz_selected_module )
     {
-        playlist_Export( p_playlist, qtu( toNativeSeparators( file ) ),
+        playlist_Export( THEPL, qtu( toNativeSeparators( file ) ),
                          true, psz_selected_module );
         getSettings()->setValue( "last-playlist-ext", psz_last_playlist_ext );
     }
-}
-
-void DialogsProvider::savePlayingToPlaylist()
-{
-    saveAPlaylist(THEPL, THEPL->p_playing);
-}
-
-void DialogsProvider::saveRecentsToPlaylist()
-{
-    playlist_item_t *p_node_recents = RecentsMRL::getInstance(p_intf)->toPlaylist(0);
-
-    if (p_node_recents == NULL)
-    {
-        msg_Warn(p_intf, "cannot create playlist from recents");
-        return;
-    }
-
-    saveAPlaylist(THEPL, p_node_recents);
-    playlist_Lock(THEPL);
-    playlist_NodeDelete(THEPL, p_node_recents, false);
-    playlist_Unlock(THEPL);
 }
 
 /****************************************************************************
@@ -833,8 +814,7 @@ void DialogsProvider::loadSubtitlesFile()
     free( path2 );
     foreach( const QString &qsUrl, qsl )
     {
-        if( input_AddSubtitleOSD( p_input, qtu( toNativeSeparators( QUrl( qsUrl ).toLocalFile() ) ),
-                    true, true ) )
+        if( input_AddSlave( p_input, SLAVE_TYPE_SPU, qtu( qsUrl ), true, true, true ) )
             msg_Warn( p_intf, "unable to load subtitles from '%s'",
                       qtu( qsUrl ) );
     }

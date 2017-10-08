@@ -68,6 +68,7 @@ vlc_module_begin ()
     add_module ("gl", "opengl", NULL,
                 GL_TEXT, PROVIDER_LONGTEXT, true)
 #endif
+    add_glconv ()
 vlc_module_end ()
 
 struct vout_display_sys_t
@@ -103,7 +104,33 @@ static int Open (vlc_object_t *obj)
         goto error;
     }
 
-    sys->gl = vlc_gl_Create (surface, API, "$" MODULE_VARNAME);
+    const char *gl_name = "$" MODULE_VARNAME;
+
+    /* VDPAU GL interop works only with GLX. Override the "gl" option to force
+     * it. */
+#ifndef USE_OPENGL_ES2
+    if (surface->type == VOUT_WINDOW_TYPE_XID)
+    {
+        switch (vd->fmt.i_chroma)
+        {
+            case VLC_CODEC_VDPAU_VIDEO_444:
+            case VLC_CODEC_VDPAU_VIDEO_422:
+            case VLC_CODEC_VDPAU_VIDEO_420:
+            {
+                /* Force the option only if it was not previously set */
+                char *str = var_InheritString(surface, MODULE_VARNAME);
+                if (str == NULL)
+                    gl_name = "glx";
+                free(str);
+                break;
+            }
+            default:
+                break;
+        }
+    }
+#endif
+
+    sys->gl = vlc_gl_Create (surface, API, gl_name);
     if (sys->gl == NULL)
         goto error;
 
@@ -129,12 +156,11 @@ static int Open (vlc_object_t *obj)
     vd->prepare = PictureRender;
     vd->display = PictureDisplay;
     vd->control = Control;
-    vd->manage = NULL;
     return VLC_SUCCESS;
 
 error:
     if (sys->gl != NULL)
-        vlc_gl_Destroy (sys->gl);
+        vlc_gl_Release (sys->gl);
     if (surface != NULL)
         vout_display_DeleteWindow (vd, surface);
     free (sys);
@@ -155,7 +181,7 @@ static void Close (vlc_object_t *obj)
     vout_display_opengl_Delete (sys->vgl);
     vlc_gl_ReleaseCurrent (gl);
 
-    vlc_gl_Destroy (gl);
+    vlc_gl_Release (gl);
     vout_display_DeleteWindow (vd, surface);
     free (sys);
 }
@@ -167,9 +193,8 @@ static picture_pool_t *Pool (vout_display_t *vd, unsigned count)
 {
     vout_display_sys_t *sys = vd->sys;
 
-    if (!sys->pool)
+    if (!sys->pool && vlc_gl_MakeCurrent (sys->gl) == VLC_SUCCESS)
     {
-        vlc_gl_MakeCurrent (sys->gl);
         sys->pool = vout_display_opengl_GetPool (sys->vgl, count);
         vlc_gl_ReleaseCurrent (sys->gl);
     }
@@ -180,8 +205,8 @@ static void PictureRender (vout_display_t *vd, picture_t *pic, subpicture_t *sub
 {
     vout_display_sys_t *sys = vd->sys;
 
-    vlc_gl_MakeCurrent (sys->gl);
-    vout_display_opengl_Prepare (sys->vgl, pic, subpicture);
+    if (vlc_gl_MakeCurrent (sys->gl) == VLC_SUCCESS)
+        vout_display_opengl_Prepare (sys->vgl, pic, subpicture);
     vlc_gl_ReleaseCurrent (sys->gl);
 }
 
@@ -189,9 +214,11 @@ static void PictureDisplay (vout_display_t *vd, picture_t *pic, subpicture_t *su
 {
     vout_display_sys_t *sys = vd->sys;
 
-    vlc_gl_MakeCurrent (sys->gl);
-    vout_display_opengl_Display (sys->vgl, &vd->source);
-    vlc_gl_ReleaseCurrent (sys->gl);
+    if (vlc_gl_MakeCurrent (sys->gl) == VLC_SUCCESS)
+    {
+        vout_display_opengl_Display (sys->vgl, &vd->source);
+        vlc_gl_ReleaseCurrent (sys->gl);
+    }
 
     picture_Release (pic);
     if (subpicture != NULL)
@@ -204,8 +231,6 @@ static int Control (vout_display_t *vd, int query, va_list ap)
 
     switch (query)
     {
-      case VOUT_DISPLAY_HIDE_MOUSE: /* FIXME TODO */
-        break;
 #ifndef NDEBUG
       case VOUT_DISPLAY_RESET_PICTURES: // not needed
         vlc_assert_unreachable();
@@ -215,13 +240,20 @@ static int Control (vout_display_t *vd, int query, va_list ap)
       case VOUT_DISPLAY_CHANGE_DISPLAY_FILLED:
       case VOUT_DISPLAY_CHANGE_ZOOM:
       {
-        const vout_display_cfg_t *c = va_arg (ap, const vout_display_cfg_t *);
+        vout_display_cfg_t c = *va_arg (ap, const vout_display_cfg_t *);
         const video_format_t *src = &vd->source;
         vout_display_place_t place;
 
-        vout_display_PlacePicture (&place, src, c, false);
+        /* Reverse vertical alignment as the GL tex are Y inverted */
+        if (c.align.vertical == VOUT_DISPLAY_ALIGN_TOP)
+            c.align.vertical = VOUT_DISPLAY_ALIGN_BOTTOM;
+        else if (c.align.vertical == VOUT_DISPLAY_ALIGN_BOTTOM)
+            c.align.vertical = VOUT_DISPLAY_ALIGN_TOP;
+
+        vout_display_PlacePicture (&place, src, &c, false);
         vlc_gl_Resize (sys->gl, place.width, place.height);
-        vlc_gl_MakeCurrent (sys->gl);
+        if (vlc_gl_MakeCurrent (sys->gl) != VLC_SUCCESS)
+            return VLC_EGENERIC;
         vout_display_opengl_SetWindowAspectRatio(sys->vgl, (float)place.width / place.height);
         glViewport (place.x, place.y, place.width, place.height);
         vlc_gl_ReleaseCurrent (sys->gl);
@@ -232,11 +264,11 @@ static int Control (vout_display_t *vd, int query, va_list ap)
       case VOUT_DISPLAY_CHANGE_SOURCE_CROP:
       {
         const vout_display_cfg_t *cfg = vd->cfg;
-        const video_format_t *src = va_arg (ap, const video_format_t *);
         vout_display_place_t place;
 
-        vout_display_PlacePicture (&place, src, cfg, false);
-        vlc_gl_MakeCurrent (sys->gl);
+        vout_display_PlacePicture (&place, &vd->source, cfg, false);
+        if (vlc_gl_MakeCurrent (sys->gl) != VLC_SUCCESS)
+            return VLC_EGENERIC;
         vout_display_opengl_SetWindowAspectRatio(sys->vgl, (float)place.width / place.height);
         glViewport (place.x, place.y, place.width, place.height);
         vlc_gl_ReleaseCurrent (sys->gl);

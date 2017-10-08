@@ -25,6 +25,7 @@ GNU ?= http://ftp.gnu.org/gnu
 SF := https://netcologne.dl.sourceforge.net/
 VIDEOLAN := http://downloads.videolan.org/pub/videolan
 CONTRIB_VIDEOLAN := http://downloads.videolan.org/pub/contrib
+GITHUB := https://github.com/
 
 #
 # Machine-dependent variables
@@ -100,18 +101,16 @@ endif
 endif
 
 ifdef HAVE_ANDROID
+ifneq ($(findstring $(origin CC),undefined default),)
 CC :=  clang
+endif
+ifneq ($(findstring $(origin CXX),undefined default),)
 CXX := clang++
+endif
 endif
 
 ifdef HAVE_MACOSX
 MIN_OSX_VERSION=10.7
-CC=xcrun cc
-CXX=xcrun c++
-AR=xcrun ar
-LD=xcrun ld
-STRIP=xcrun strip
-RANLIB=xcrun ranlib
 EXTRA_CFLAGS += -isysroot $(MACOSX_SDK) -mmacosx-version-min=$(MIN_OSX_VERSION) -DMACOSX_DEPLOYMENT_TARGET=$(MIN_OSX_VERSION)
 EXTRA_CXXFLAGS += -stdlib=libc++
 EXTRA_LDFLAGS += -Wl,-syslibroot,$(MACOSX_SDK) -mmacosx-version-min=$(MIN_OSX_VERSION) -isysroot $(MACOSX_SDK) -DMACOSX_DEPLOYMENT_TARGET=$(MIN_OSX_VERSION)
@@ -143,7 +142,6 @@ LD=xcrun ld
 STRIP=xcrun strip
 RANLIB=xcrun ranlib
 EXTRA_CFLAGS += $(CFLAGS)
-EXTRA_LDFLAGS += $(LDFLAGS)
 endif
 
 ifdef HAVE_WIN32
@@ -168,8 +166,7 @@ EXTRA_CFLAGS += -I$(PREFIX)/include
 CPPFLAGS := $(CPPFLAGS) $(EXTRA_CFLAGS)
 CFLAGS := $(CFLAGS) $(EXTRA_CFLAGS) -g
 CXXFLAGS := $(CXXFLAGS) $(EXTRA_CFLAGS) $(EXTRA_CXXFLAGS) -g
-EXTRA_LDFLAGS += -L$(PREFIX)/lib
-LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
+LDFLAGS := $(LDFLAGS) -L$(PREFIX)/lib $(EXTRA_LDFLAGS)
 
 ifndef WITH_OPTIMIZATION
 CFLAGS := $(CFLAGS) -O0
@@ -246,30 +243,10 @@ endif
 download_pkg = $(call download,$(CONTRIB_VIDEOLAN)/$(2)/$(lastword $(subst /, ,$(@)))) || \
 	( $(call download,$(1)) && echo "Please upload this package $(lastword $(subst /, ,$(@))) to our FTP" )
 
-ifeq ($(shell which xzcat >/dev/null 2>&1 || echo FAIL),)
-XZCAT = xzcat
-else
-XZCAT ?= $(error xz and lzma client not found!)
-endif
-
 ifeq ($(shell which xz >/dev/null 2>&1 || echo FAIL),)
 XZ = xz
 else
 XZ ?= $(error XZ (LZMA) compressor not found!)
-endif
-
-ifeq ($(shell which bzcat >/dev/null 2>&1 || echo FAIL),)
-BZCAT = bzcat
-else
-BZCAT ?= $(error Bunzip2 client (bzcat) not found!)
-endif
-
-ifeq ($(shell gzcat --version >/dev/null 2>&1 || echo FAIL),)
-ZCAT = gzcat
-else ifeq ($(shell zcat --version >/dev/null 2>&1 || echo FAIL),)
-ZCAT = zcat
-else
-ZCAT ?= $(error Gunzip client (zcat) not found!)
 endif
 
 ifeq ($(shell sha512sum --version >/dev/null 2>&1 || echo FAIL),)
@@ -332,8 +309,9 @@ download_git = \
 	$(GIT) archive --prefix="$(notdir $(@:.tar.xz=))/" \
 		--format=tar "$(3)") > "$(@:.xz=)" && \
 	echo "$(3) $(@)" > "$(@:.tar.xz=.githash)" && \
-	rm -Rf -- "$(@:.tar.xz)" && \
+	rm -Rf -- "$(@:.tar.xz=)" && \
 	$(XZ) --stdout "$(@:.xz=)" > "$@.tmp" && \
+	rm -f "$(@:.xz=)" && \
 	mv -f -- "$@.tmp" "$@"
 check_githash = \
 	h=`sed -n -e "s,^\([0-9a-fA-F]\{40\}\) $<,\1,p" \
@@ -374,6 +352,19 @@ RECONF = mkdir -p -- $(PREFIX)/share/aclocal && \
 	cd $< && $(AUTORECONF) -fiv $(ACLOCAL_AMFLAGS)
 CMAKE = cmake . -DCMAKE_TOOLCHAIN_FILE=$(abspath toolchain.cmake) \
 		-DCMAKE_INSTALL_PREFIX=$(PREFIX) $(CMAKE_GENERATOR)
+
+ifdef GPL
+REQUIRE_GPL =
+else
+REQUIRE_GPL = @echo "Package \"$<\" requires the GPL license." >&2; exit 1
+endif
+ifdef GNUV3
+REQUIRE_GNUV3 =
+else
+REQUIRE_GNUV3 = \
+	@echo "Package \"$<\" requires the version 3 of GNU licenses." >&2; \
+	exit 1
+endif
 
 #
 # Per-package build rules
@@ -416,7 +407,7 @@ distclean: clean
 	$(RM) config.mak
 	unlink Makefile
 
-PREBUILT_URL=ftp://ftp.videolan.org/pub/videolan/contrib/$(HOST)/vlc-contrib-$(HOST)-latest.tar.bz2
+PREBUILT_URL=http://download.videolan.org/pub/videolan/contrib/$(HOST)/vlc-contrib-$(HOST)-latest.tar.bz2
 
 vlc-contrib-$(HOST)-latest.tar.bz2:
 	$(call download,$(PREBUILT_URL))
@@ -477,7 +468,14 @@ else
 	echo "set(CMAKE_SYSTEM_NAME Windows)" >> $@
 endif
 endif
+ifndef WITH_OPTIMIZATION
+	echo "set(CMAKE_BUILD_TYPE Debug)" >> $@
+else
+	echo "set(CMAKE_BUILD_TYPE Release)" >> $@
+endif
+ifdef HAVE_CROSS_COMPILE
 	echo "set(CMAKE_RC_COMPILER $(HOST)-windres)" >> $@
+endif
 endif
 ifdef HAVE_DARWIN_OS
 	echo "set(CMAKE_SYSTEM_NAME Darwin)" >> $@

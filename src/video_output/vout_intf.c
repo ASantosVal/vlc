@@ -295,16 +295,16 @@ void vout_IntfInit( vout_thread_t *p_vout )
                 VLC_VAR_INTEGER | VLC_VAR_DOINHERIT | VLC_VAR_ISCOMMAND );
     var_AddCallback( p_vout, "sub-margin", SubMarginCallback, NULL );
 
-    var_Create( p_vout, "sub-text-scale",
-                VLC_VAR_INTEGER | VLC_VAR_DOINHERIT | VLC_VAR_ISCOMMAND );
-
     /* Mouse coordinates */
     var_Create( p_vout, "mouse-button-down", VLC_VAR_INTEGER );
     var_Create( p_vout, "mouse-moved", VLC_VAR_COORDS );
     var_Create( p_vout, "mouse-clicked", VLC_VAR_COORDS );
 
+    /* Device orientation */
+    var_Create( p_vout, "viewpoint-moved", VLC_VAR_ADDRESS );
+
     /* Viewpoint */
-    var_Create( p_vout, "viewpoint", VLC_VAR_ADDRESS  | VLC_VAR_DOINHERIT );
+    var_Create( p_vout, "viewpoint", VLC_VAR_ADDRESS  );
     var_AddCallback( p_vout, "viewpoint", ViewpointCallback, NULL );
     var_Create( p_vout, "viewpoint-changeable", VLC_VAR_BOOL );
 
@@ -324,7 +324,6 @@ void vout_IntfReinit( vout_thread_t *p_vout )
     var_TriggerCallback( p_vout, "sub-source" );
     var_TriggerCallback( p_vout, "sub-filter" );
     var_TriggerCallback( p_vout, "sub-margin" );
-    var_TriggerCallback( p_vout, "viewpoint" );
 }
 
 /*****************************************************************************
@@ -363,7 +362,7 @@ static int VoutSnapshotPip( vout_thread_t *p_vout, picture_t *p_pic )
 static void VoutOsdSnapshot( vout_thread_t *p_vout, picture_t *p_pic, const char *psz_filename )
 {
     msg_Dbg( p_vout, "snapshot taken (%s)", psz_filename );
-    vout_OSDMessage( p_vout, SPU_DEFAULT_CHANNEL, "%s", psz_filename );
+    vout_OSDMessage( p_vout, VOUT_SPU_CHANNEL_OSD, "%s", psz_filename );
 
     if( var_InheritBool( p_vout, "snapshot-preview" ) )
     {
@@ -384,11 +383,10 @@ static void VoutSaveSnapshot( vout_thread_t *p_vout )
     /* */
     picture_t *p_picture;
     block_t *p_image;
-    video_format_t fmt;
 
     /* 500ms timeout
      * XXX it will cause trouble with low fps video (< 2fps) */
-    if( vout_GetSnapshot( p_vout, &p_image, &p_picture, &fmt, psz_format, 500*1000 ) )
+    if( vout_GetSnapshot( p_vout, &p_image, &p_picture, NULL, psz_format, 500*1000 ) )
     {
         p_picture = NULL;
         p_image = NULL;
@@ -436,98 +434,6 @@ exit:
     free( psz_prefix );
     free( psz_format );
     free( psz_path );
-}
-
-/*****************************************************************************
- * Handle filters
- *****************************************************************************/
-
-void vout_EnableFilter( vout_thread_t *p_vout, const char *psz_name,
-                        bool b_add, bool b_setconfig )
-{
-    char *psz_parser;
-    char *psz_string;
-    const char *psz_filter_type;
-
-    module_t *p_obj = module_find( psz_name );
-    if( !p_obj )
-    {
-        msg_Err( p_vout, "Unable to find filter module \"%s\".", psz_name );
-        return;
-    }
-
-    if( module_provides( p_obj, "video filter" ) )
-    {
-        psz_filter_type = "video-filter";
-    }
-    else if( module_provides( p_obj, "sub source" ) )
-    {
-        psz_filter_type = "sub-source";
-    }
-    else if( module_provides( p_obj, "sub filter" ) )
-    {
-        psz_filter_type = "sub-filter";
-    }
-    else
-    {
-        msg_Err( p_vout, "Unknown video filter type." );
-        return;
-    }
-
-    psz_string = var_GetString( p_vout, psz_filter_type );
-
-    /* Todo : Use some generic chain manipulation functions */
-    if( !psz_string ) psz_string = strdup("");
-
-    psz_parser = strstr( psz_string, psz_name );
-    if( b_add )
-    {
-        if( !psz_parser )
-        {
-            psz_parser = psz_string;
-            if( asprintf( &psz_string, (*psz_string) ? "%s:%s" : "%s%s",
-                          psz_string, psz_name ) == -1 )
-            {
-                free( psz_parser );
-                return;
-            }
-            free( psz_parser );
-        }
-        else
-        {
-            free( psz_string );
-            return;
-        }
-    }
-    else
-    {
-        if( psz_parser )
-        {
-            memmove( psz_parser, psz_parser + strlen(psz_name) +
-                            (*(psz_parser + strlen(psz_name)) == ':' ? 1 : 0 ),
-                            strlen(psz_parser + strlen(psz_name)) + 1 );
-
-            /* Remove trailing : : */
-            if( *(psz_string+strlen(psz_string ) -1 ) == ':' )
-            {
-                *(psz_string+strlen(psz_string ) -1 ) = '\0';
-            }
-         }
-         else
-         {
-             free( psz_string );
-             return;
-         }
-    }
-
-    if( b_setconfig )
-    {
-        config_PutPsz( p_vout, psz_filter_type, psz_string );
-    }
-
-    var_SetString( p_vout, psz_filter_type, psz_string );
-
-    free( psz_string );
 }
 
 /*****************************************************************************
@@ -583,7 +489,7 @@ static int AspectCallback( vlc_object_t *object, char const *cmd,
     unsigned num, den;
 
     if (sscanf(newval.psz_string, "%u:%u", &num, &den) == 2 &&
-        (num > 0) == (den > 0))
+        (num != 0) == (den != 0))
         vout_ControlChangeSampleAspectRatio(vout, num, den);
     else if (*newval.psz_string == '\0')
         vout_ControlChangeSampleAspectRatio(vout, 0, 0);

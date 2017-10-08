@@ -32,10 +32,14 @@
 using namespace adaptive;
 
 FakeESOut::FakeESOut( es_out_t *es, CommandsQueue *queue )
+    : real_es_out( es )
+    , extrainfo( NULL )
+    , commandsqueue( queue )
+    , fakeesout( new es_out_t )
+    , timestamps_offset( 0 )
+    , timestamps_expected( 0 )
+    , timestamps_check_done( false )
 {
-    real_es_out = es;
-    fakeesout = new es_out_t;
-
     fakeesout->pf_add = esOutAdd_Callback;
     fakeesout->pf_control = esOutControl_Callback;
     fakeesout->pf_del = esOutDel_Callback;
@@ -43,12 +47,6 @@ FakeESOut::FakeESOut( es_out_t *es, CommandsQueue *queue )
     fakeesout->pf_send = esOutSend_Callback;
     fakeesout->p_sys = (es_out_sys_t*) this;
 
-    commandsqueue = queue;
-
-    timestamps_offset = 0;
-    timestamps_expected = 0;
-    timestamps_check_done = false;
-    extrainfo = NULL;
     vlc_mutex_init(&lock);
 }
 
@@ -93,7 +91,7 @@ void FakeESOut::setExtraInfoProvider( ExtraFMTInfoInterface *extra )
 FakeESOutID * FakeESOut::createNewID( const es_format_t *p_fmt )
 {
     es_format_t fmtcopy;
-    es_format_Init( &fmtcopy, 0, 0 );
+    es_format_Init( &fmtcopy, p_fmt->i_cat, p_fmt->i_codec );
     es_format_Copy( &fmtcopy, p_fmt );
     fmtcopy.i_group = 0; /* Always ignore group for adaptive */
     fmtcopy.i_id = -1;
@@ -147,7 +145,7 @@ void FakeESOut::createOrRecycleRealEsID( FakeESOutID *es_id )
     {
         realid = es_out_Add( real_es_out, es_id->getFmt() );
         if( b_select )
-            es_out_Control( real_es_out, ES_OUT_SET_ES_STATE, realid, b_select );
+            es_out_Control( real_es_out, ES_OUT_SET_ES, realid );
     }
 
     es_id->setRealESID( realid );
@@ -250,23 +248,11 @@ bool FakeESOut::hasSelectedEs() const
     return b_selected;
 }
 
-bool FakeESOut::drain()
+bool FakeESOut::decodersDrained()
 {
-    bool b_drained = true;
-    std::list<FakeESOutID *>::const_iterator it;
-    vlc_mutex_lock(&lock);
-    for( it=fakeesidlist.begin(); it!=fakeesidlist.end(); ++it )
-    {
-        FakeESOutID *esID = *it;
-        if( esID->realESID() )
-        {
-            bool b_empty;
-            es_out_Control( real_es_out, ES_OUT_GET_EMPTY, &b_empty );
-            b_drained &= b_empty;
-        }
-    }
-    vlc_mutex_unlock(&lock);
-    return b_drained;
+    bool b_empty = true;
+    es_out_Control( real_es_out, ES_OUT_GET_EMPTY, &b_empty );
+    return b_empty;
 }
 
 bool FakeESOut::restarting() const
@@ -376,10 +362,11 @@ int FakeESOut::esOutControl_Callback(es_out_t *fakees, int i_query, va_list args
         {
             int i_group;
             if( i_query == ES_OUT_SET_GROUP_PCR )
-                i_group = static_cast<int>(va_arg( args, int ));
+                i_group = va_arg( args, int );
             else
                 i_group = 0;
-            int64_t  pcr = static_cast<int64_t>(va_arg( args, int64_t ));
+            int64_t  pcr = va_arg( args, int64_t );
+            me->checkTimestampsStart( pcr );
             pcr += me->getTimestampOffset();
             AbstractCommand *command = me->commandsqueue->factory()->createEsOutControlPCRCommand( i_group, pcr );
             if( likely(command) )
@@ -393,7 +380,7 @@ int FakeESOut::esOutControl_Callback(es_out_t *fakees, int i_query, va_list args
         case ES_OUT_SET_GROUP_META:
         {
             static_cast<void>(va_arg( args, int )); /* ignore group */
-            const vlc_meta_t *p_meta = static_cast<const vlc_meta_t *>(va_arg( args, const vlc_meta_t * ));
+            const vlc_meta_t *p_meta = va_arg( args, const vlc_meta_t * );
             AbstractCommand *command = me->commandsqueue->factory()->createEsOutMetaCommand( -1, p_meta );
             if( likely(command) )
             {
@@ -406,16 +393,16 @@ int FakeESOut::esOutControl_Callback(es_out_t *fakees, int i_query, va_list args
         /* For others, we don't have the delorean, so always lie */
         case ES_OUT_GET_ES_STATE:
         {
-            static_cast<void*>(va_arg( args, es_out_id_t * ));
-            bool *pb = static_cast<bool *>(va_arg( args, bool * ));
+            static_cast<void>(va_arg( args, es_out_id_t * ));
+            bool *pb = va_arg( args, bool * );
             *pb = true;
-            // ft
+            return VLC_SUCCESS;
         }
+
         case ES_OUT_SET_ES:
         case ES_OUT_SET_ES_DEFAULT:
         case ES_OUT_SET_ES_STATE:
             return VLC_SUCCESS;
-
     }
 
     return VLC_EGENERIC;

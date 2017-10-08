@@ -150,7 +150,10 @@ static void *Thread (void *data)
                 j = write (fd, buf + i, len - i);
             else
             {
-                struct iovec iov = { buf + i, (len - i) & ~page_mask, };
+                struct iovec iov = {
+                    .iov_base = buf + i,
+                    .iov_len = (len - i) & ~page_mask };
+
                 j = vmsplice (fd, &iov, 1, SPLICE_F_GIFT);
             }
             if (j == -1 && errno == ENOSYS) /* vmsplice() not supported */
@@ -307,7 +310,7 @@ static int Open (stream_t *stream, const char *path)
                 case 0:
                     dup2 (comp[0], 0);
                     dup2 (uncomp[1], 1);
-                    execlp (path, path, (char *)NULL);
+                    execlp (path, path, (const char *)NULL);
                     exit (1); /* if we get, execlp() failed! */
                 default:
                     if (vlc_clone (&p_sys->thread, Thread, stream,

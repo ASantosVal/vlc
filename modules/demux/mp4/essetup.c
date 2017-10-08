@@ -59,6 +59,7 @@ static void SetupESDS( demux_t *p_demux, mp4_track_t *p_track, const MP4_descrip
         p_track->fmt.i_codec = VLC_CODEC_H264;
         break;
     case( 0x40):
+    case( 0x41):
         p_track->fmt.i_codec = VLC_CODEC_MP4A;
         if( p_decconfig->i_decoder_specific_info_len >= 2 &&
                 p_decconfig->p_decoder_specific_info[0]       == 0xF8 &&
@@ -166,7 +167,7 @@ static void SetupESDS( demux_t *p_demux, mp4_track_t *p_track, const MP4_descrip
             p_track->fmt.subs.spu.palette[1 + i] =
                     GetDWBE((char*)p_track->fmt.p_extra + i * 4);
         }
-        p_track->fmt.subs.spu.palette[0] = 0xBeef;
+        p_track->fmt.subs.spu.palette[0] = SPU_PALETTE_DEFINED;
     }
 }
 
@@ -355,7 +356,21 @@ int SetupVideoES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
         if( p_uuid->i_type == ATOM_uuid
             && !CmpUUID( &p_uuid->i_uuid, &XML360BoxUUID )
             && p_uuid->data.p_360 )
+        {
             p_track->fmt.video.projection_mode = p_uuid->data.p_360->i_projection_mode;
+            switch (p_uuid->data.p_360->e_stereo_mode)
+            {
+            case XML360_STEREOSCOPIC_TOP_BOTTOM:
+                p_track->fmt.video.multiview_mode = MULTIVIEW_STEREO_TB;
+                break;
+            case XML360_STEREOSCOPIC_LEFT_RIGHT:
+                p_track->fmt.video.multiview_mode = MULTIVIEW_STEREO_SBS;
+                break;
+            default:
+                p_track->fmt.video.multiview_mode = MULTIVIEW_2D;
+                break;
+            }
+        }
     }
 
     const MP4_Box_t *p_st3d = MP4_BoxGet( p_sample, "st3d" );
@@ -377,16 +392,29 @@ int SetupVideoES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
             break;
         }
     }
+    else
+    {
+        for( p_uuid = MP4_BoxGet( p_sample, "uuid" ); p_uuid;
+             p_uuid = p_uuid->p_next )
+        {
+            if( p_uuid->i_type == ATOM_uuid &&
+               !CmpUUID( &p_uuid->i_uuid, &PS3DDSBoxUUID ) &&
+                p_uuid->data.p_binary &&
+                p_uuid->data.p_binary->i_blob == 4 &&
+                !memcmp( p_uuid->data.p_binary->p_blob, "\x82\x81\x10\x02", 4 ) )
+            {
+                p_track->fmt.video.multiview_mode = MULTIVIEW_STEREO_FRAME;
+                break;
+            }
+        }
+    }
 
     const MP4_Box_t *p_prhd = MP4_BoxGet( p_sample, "sv3d/proj/prhd" );
     if (p_prhd && BOXDATA(p_prhd))
     {
-        p_track->fmt.video.pose.f_yaw_degrees
-                = BOXDATA(p_prhd)->f_pose_yaw_degrees;
-        p_track->fmt.video.pose.f_pitch_degrees
-                = BOXDATA(p_prhd)->f_pose_pitch_degrees;
-        p_track->fmt.video.pose.f_roll_degrees
-                = BOXDATA(p_prhd)->f_pose_roll_degrees;
+        p_track->fmt.video.pose.yaw = BOXDATA(p_prhd)->f_pose_yaw_degrees;
+        p_track->fmt.video.pose.pitch = BOXDATA(p_prhd)->f_pose_pitch_degrees;
+        p_track->fmt.video.pose.roll = BOXDATA(p_prhd)->f_pose_roll_degrees;
     }
 
     const MP4_Box_t *p_equi = MP4_BoxGet( p_sample, "sv3d/proj/equi" );
@@ -573,6 +601,8 @@ int SetupVideoES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
         /* avc1: send avcC (h264 without annexe B, ie without start code)*/
         case VLC_FOURCC( 'a', 'v', 'c', '3' ):
         case VLC_FOURCC( 'a', 'v', 'c', '1' ):
+        case VLC_FOURCC( 'd', 'v', 'a', '1' ): /* DolbyVision */
+        case VLC_FOURCC( 'd', 'v', 'a', 'v' ): /* DolbyVision */
         {
             MP4_Box_t *p_avcC = MP4_BoxGet( p_sample, "avcC" );
 
@@ -594,8 +624,14 @@ int SetupVideoES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
         }
         case VLC_FOURCC( 'h', 'v', 'c', '1' ):
         case VLC_FOURCC( 'h', 'e', 'v', '1' ):
+        case VLC_FOURCC( 'd', 'v', 'h', 'e' ): /* DolbyVision */
+        case VLC_FOURCC( 'd', 'v', 'h', '1' ): /* DolbyVision */
         {
             MP4_Box_t *p_hvcC = MP4_BoxGet( p_sample, "hvcC" );
+
+            /* Handle DV fourcc collision at demux level */
+            if( p_sample->i_type == VLC_FOURCC( 'd', 'v', 'h', '1' ) )
+                p_track->fmt.i_codec = VLC_FOURCC( 'd', 'v', 'h', 'e' );
 
             if( p_hvcC && p_hvcC->data.p_binary && p_hvcC->data.p_binary->i_blob )
             {
@@ -606,7 +642,6 @@ int SetupVideoES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
                     memcpy( p_track->fmt.p_extra, p_hvcC->data.p_binary->p_blob,
                             p_hvcC->data.p_binary->i_blob );
                 }
-                p_track->fmt.i_codec = VLC_CODEC_HEVC;
             }
             else
             {
@@ -904,24 +939,49 @@ int SetupAudioES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
             }
             break;
         }
+        case ATOM_fLaC:
+        {
+            const MP4_Box_t *p_dfLa = MP4_BoxGet(  p_sample, "dfLa", 0 );
+            if( p_dfLa && p_dfLa->data.p_binary->i_blob > 4 &&
+                GetDWBE(p_dfLa->data.p_binary->p_blob) == 0 ) /* fullbox header, avoids creating dedicated parser */
+            {
+                size_t i_extra = p_dfLa->data.p_binary->i_blob;
+                uint8_t *p_extra = malloc(i_extra);
+                if( likely( p_extra ) )
+                {
+                    p_track->fmt.i_extra = i_extra;
+                    p_track->fmt.p_extra = p_extra;
+                    memcpy( p_extra, p_dfLa->data.p_binary->p_blob, p_dfLa->data.p_binary->i_blob);
+                    memcpy( p_extra, "fLaC", 4 );
+                    p_track->fmt.i_codec = VLC_CODEC_FLAC;
+                }
+            }
+            break;
+        }
         case( ATOM_eac3 ):
         {
-            const MP4_Box_t *p_dec3 = MP4_BoxGet(  p_sample, "dec3", 0 );
-
             p_track->fmt.i_codec = VLC_CODEC_EAC3;
+            /* TS 102.366. F6 The values of the ChannelCount and SampleSize fields
+             *             within the EC3SampleEntry Box shall be ignored. */
+            p_track->fmt.audio.i_channels = 0;
+            p_track->fmt.audio.i_bitspersample = 0;
+
+            const MP4_Box_t *p_dec3 = MP4_BoxGet(  p_sample, "dec3", 0 );
             if( p_dec3 && BOXDATA(p_dec3) )
             {
-                p_track->fmt.audio.i_channels = 0;
                 p_track->fmt.i_bitrate = BOXDATA(p_dec3)->i_data_rate * 1000;
-                p_track->fmt.audio.i_bitspersample = 0;
             }
             break;
         }
         case( ATOM_ac3 ):
         {
-            MP4_Box_t *p_dac3 = MP4_BoxGet(  p_sample, "dac3", 0 );
-
             p_track->fmt.i_codec = VLC_CODEC_A52;
+            /* TS 102.366. F3 The values of the ChannelCount and SampleSize fields
+             *             within the AC3SampleEntry Box shall be ignored */
+            p_track->fmt.audio.i_channels = 0;
+            p_track->fmt.audio.i_bitspersample = 0;
+
+            MP4_Box_t *p_dac3 = MP4_BoxGet(  p_sample, "dac3", 0 );
             if( p_dac3 && BOXDATA(p_dac3) )
             {
                 static const int pi_bitrate[] = {
@@ -931,11 +991,9 @@ int SetupAudioES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
                     256, 320, 384, 448,
                     512, 576, 640,
                 };
-                p_track->fmt.audio.i_channels = 0;
                 p_track->fmt.i_bitrate = 0;
                 if( BOXDATA(p_dac3)->i_bitrate_code < sizeof(pi_bitrate)/sizeof(*pi_bitrate) )
                     p_track->fmt.i_bitrate = pi_bitrate[BOXDATA(p_dac3)->i_bitrate_code] * 1000;
-                p_track->fmt.audio.i_bitspersample = 0;
             }
             break;
         }
@@ -1081,8 +1139,7 @@ int SetupAudioES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
             {
                 p_track->b_chans_reorder = true;
                 p_track->fmt.audio.i_channels = i_channels;
-                p_track->fmt.audio.i_physical_channels =
-                p_track->fmt.audio.i_original_channels = i_vlc_mapping;
+                p_track->fmt.audio.i_physical_channels = i_vlc_mapping;
             }
 
         }
@@ -1160,6 +1217,11 @@ int SetupAudioES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
             break;
     }
 
+    /* Ambisonics */
+    const MP4_Box_t *p_SA3D = MP4_BoxGet(p_sample, "SA3D");
+    if (p_SA3D && BOXDATA(p_SA3D))
+        p_track->fmt.audio.channel_type = AUDIO_CHANNEL_TYPE_AMBISONICS;
+
     /* Late fixes */
     if ( p_soun->i_qt_version == 0 && p_track->fmt.i_codec == VLC_CODEC_QCELP )
     {
@@ -1185,7 +1247,8 @@ int SetupSpuES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
             break;
         case ATOM_c608: /* EIA608 closed captions */
         //case ATOM_c708: /* EIA708 closed captions */
-            p_track->fmt.i_codec = VLC_CODEC_EIA608_1;
+            p_track->fmt.i_codec = VLC_CODEC_CEA608;
+            p_track->fmt.subs.cc.i_reorder_depth = -1;
             break;
 
         case( VLC_FOURCC( 't', 'e', 'x', 't' ) ):
@@ -1225,6 +1288,7 @@ int SetupSpuES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
                     p_style->i_features |= (STYLE_HAS_BACKGROUND_ALPHA | STYLE_HAS_BACKGROUND_COLOR);
                 }
             }
+            assert(p_track->fmt.i_cat == SPU_ES);
             p_track->fmt.subs.p_style = p_style;
 
             /* FIXME UTF-8 doesn't work here ? */

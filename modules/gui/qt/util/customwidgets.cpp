@@ -37,7 +37,7 @@
 #include <QWheelEvent>
 #include <QPixmap>
 #include <QApplication>
-#include <vlc_keys.h>
+#include <vlc_actions.h>
 
 QFramelessButton::QFramelessButton( QWidget *parent )
                     : QPushButton( parent )
@@ -405,7 +405,7 @@ YesNoCheckBox::YesNoCheckBox( QWidget *parent ) : QCheckBox( parent )
     setStyleSheet("\
                   QCheckBox::indicator:unchecked:hover,\
                   QCheckBox::indicator:unchecked {\
-                      image: url(:/menu/quit);\
+                      image: url(:/pixmaps/clear);\
                   }\
                   QCheckBox::indicator:checked:hover,\
                   QCheckBox::indicator:checked {\

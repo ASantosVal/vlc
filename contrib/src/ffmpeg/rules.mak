@@ -5,11 +5,11 @@
 #USE_FFMPEG ?= 1
 
 ifdef USE_FFMPEG
-FFMPEG_HASH=HEAD
+FFMPEG_HASH=a82468514048fb87d9bf38689866bc3b9aaccd02
 FFMPEG_SNAPURL := http://git.videolan.org/?p=ffmpeg.git;a=snapshot;h=$(FFMPEG_HASH);sf=tgz
 FFMPEG_GITURL := http://git.videolan.org/git/ffmpeg.git
 else
-FFMPEG_HASH=HEAD
+FFMPEG_HASH=825e463a170c7004c63030dc484b2b2de869227b
 FFMPEG_SNAPURL := http://git.libav.org/?p=libav.git;a=snapshot;h=$(FFMPEG_HASH);sf=tgz
 FFMPEG_GITURL := git://git.libav.org/libav.git
 endif
@@ -37,7 +37,9 @@ FFMPEGCONF = \
 ifdef USE_FFMPEG
 FFMPEGCONF += \
 	--disable-swresample \
-	--disable-iconv
+	--disable-iconv \
+	--disable-avisynth \
+	--disable-nvenc
 ifdef HAVE_DARWIN_OS
 FFMPEGCONF += \
 	--disable-videotoolbox
@@ -179,10 +181,6 @@ else
 FFMPEGCONF += --disable-dxva2
 endif
 
-ifdef USE_FFMPEG
-FFMPEGCONF += --enable-memalign-hack
-endif
-
 ifdef HAVE_WIN64
 FFMPEGCONF += --cpu=athlon64 --arch=x86_64
 else
@@ -219,13 +217,16 @@ $(TARBALLS)/ffmpeg-$(FFMPEG_BASENAME).tar.xz:
 	$(call download_git,$(FFMPEG_GITURL),,$(FFMPEG_HASH))
 
 .sum-ffmpeg: $(TARBALLS)/ffmpeg-$(FFMPEG_BASENAME).tar.xz
-	$(warning Not implemented.)
+	$(call check_githash,$(FFMPEG_HASH))
 	touch $@
 
 ffmpeg: ffmpeg-$(FFMPEG_BASENAME).tar.xz .sum-ffmpeg
 	rm -Rf $@ $@-$(FFMPEG_BASENAME)
 	mkdir -p $@-$(FFMPEG_BASENAME)
-	$(XZCAT) "$<" | (cd $@-$(FFMPEG_BASENAME) && tar xv --strip-components=1)
+	tar xvJf "$<" --strip-components=1 -C $@-$(FFMPEG_BASENAME)
+ifdef USE_FFMPEG
+	$(APPLY) $(SRC)/ffmpeg/force-unicode.patch
+endif
 	$(MOVE)
 
 .ffmpeg: ffmpeg

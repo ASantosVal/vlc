@@ -8,7 +8,7 @@ ifndef HAVE_DARWIN_OS
 PKGS += gnutls
 endif
 endif
-ifeq ($(call need_pkg,"gnutls >= 3.2.0"),)
+ifeq ($(call need_pkg,"gnutls >= 3.3.6"),)
 PKGS_FOUND += gnutls
 endif
 
@@ -37,6 +37,7 @@ endif
 	$(APPLY) $(SRC)/gnutls/mac-keychain-lookup.patch
 ifdef HAVE_MACOSX
 	$(APPLY) $(SRC)/gnutls/gnutls-pkgconfig-osx.patch
+	$(APPLY) $(SRC)/gnutls/gnutls-disable-getentropy-osx.patch
 endif
 	$(APPLY) $(SRC)/gnutls/gnutls-libidn.patch
 	$(call pkg_static,"lib/gnutls.pc.in")

@@ -24,6 +24,8 @@
 # include "config.h"
 #endif
 
+#include <assert.h>
+
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_vout_display.h>
@@ -55,6 +57,7 @@ vlc_module_begin()
     set_capability("vout display", 220)
     add_shortcut("glwin32", "opengl")
     set_callbacks(Open, Close)
+    add_glconv()
 vlc_module_end()
 
 /*****************************************************************************
@@ -244,7 +247,6 @@ static int Open(vlc_object_t *object)
 
     vout_display_info_t info = vd->info;
     info.has_double_click = true;
-    info.has_hide_mouse = false;
     info.subpicture_chromas = subpicture_chromas;
 
    /* Setup vout_display now that everything is fine */

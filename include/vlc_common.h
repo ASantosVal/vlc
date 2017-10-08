@@ -83,24 +83,24 @@
 /* Function attributes for compiler warnings */
 #ifdef __GNUC__
 # define VLC_DEPRECATED __attribute__((deprecated))
+# if VLC_GCC_VERSION(6,0)
+#  define VLC_DEPRECATED_ENUM __attribute__((deprecated))
+# else
+#  define VLC_DEPRECATED_ENUM
+# endif
 
-# if defined( _WIN32 ) && VLC_GCC_VERSION(4,4)
+# if defined( _WIN32 )
 #  define VLC_FORMAT(x,y) __attribute__ ((format(gnu_printf,x,y)))
 # else
 #  define VLC_FORMAT(x,y) __attribute__ ((format(printf,x,y)))
 # endif
 # define VLC_FORMAT_ARG(x) __attribute__ ((format_arg(x)))
-
 # define VLC_MALLOC __attribute__ ((malloc))
-
-# if VLC_GCC_VERSION(3,4)
-#  define VLC_USED __attribute__ ((warn_unused_result))
-# else
-#  define VLC_USED
-# endif
+# define VLC_USED __attribute__ ((warn_unused_result))
 
 #else
 # define VLC_DEPRECATED
+# define VLC_DEPRECATED_ENUM
 # define VLC_FORMAT(x,y)
 # define VLC_FORMAT_ARG(x)
 # define VLC_MALLOC
@@ -130,7 +130,7 @@
 
 #if defined (_WIN32) && defined (DLL_EXPORT)
 # define VLC_EXPORT __declspec(dllexport)
-#elif VLC_GCC_VERSION(4,0)
+#elif defined (__GNUC__)
 # define VLC_EXPORT __attribute__((visibility("default")))
 #else
 # define VLC_EXPORT
@@ -218,7 +218,6 @@ typedef struct config_category_t config_category_t;
 typedef struct input_thread_t input_thread_t;
 typedef struct input_item_t input_item_t;
 typedef struct input_item_node_t input_item_node_t;
-typedef struct stream_t access_t;
 typedef struct access_sys_t access_sys_t;
 typedef struct stream_t     stream_t;
 typedef struct stream_sys_t stream_sys_t;
@@ -477,7 +476,7 @@ struct vlc_common_members
         struct vlc_common_members: (vlc_object_t *)(&(x)->obj), \
         const struct vlc_common_members: (const vlc_object_t *)(&(x)->obj) \
     )
-#elif VLC_GCC_VERSION(4,0)
+#elif defined (__GNUC__)
 # ifndef __cplusplus
 #  define VLC_OBJECT( x ) \
     __builtin_choose_expr( \
@@ -537,7 +536,7 @@ static inline uint8_t clip_uint8_vlc( int32_t a )
 VLC_USED
 static inline unsigned (clz)(unsigned x)
 {
-#if VLC_GCC_VERSION(3,4)
+#ifdef __GNUC__
     return __builtin_clz (x);
 #else
     unsigned i = sizeof (x) * 8;
@@ -560,7 +559,7 @@ static inline unsigned (clz)(unsigned x)
 VLC_USED
 static inline unsigned (ctz)(unsigned x)
 {
-#if VLC_GCC_VERSION(3,4)
+#ifdef __GNUC__
     return __builtin_ctz (x);
 #else
     unsigned i = sizeof (x) * 8;
@@ -578,7 +577,7 @@ static inline unsigned (ctz)(unsigned x)
 VLC_USED
 static inline unsigned (popcount)(unsigned x)
 {
-#if VLC_GCC_VERSION(3,4)
+#ifdef __GNUC__
     return __builtin_popcount (x);
 #else
     unsigned count = 0;
@@ -595,7 +594,7 @@ static inline unsigned (popcount)(unsigned x)
 VLC_USED
 static inline int (popcountll)(unsigned long long x)
 {
-#if VLC_GCC_VERSION(3,4)
+#ifdef __GNUC__
     return __builtin_popcountll(x);
 #else
     int count = 0;
@@ -611,7 +610,7 @@ static inline int (popcountll)(unsigned long long x)
 VLC_USED
 static inline unsigned (parity)(unsigned x)
 {
-#if VLC_GCC_VERSION(3,4)
+#ifdef __GNUC__
     return __builtin_parity (x);
 #else
     for (unsigned i = 4 * sizeof (x); i > 0; i /= 2)
@@ -631,7 +630,7 @@ static inline uint16_t (bswap16)(uint16_t x)
 VLC_USED
 static inline uint32_t (bswap32)(uint32_t x)
 {
-#if VLC_GCC_VERSION(4,3) || defined(__clang__)
+#if defined (__GNUC__) || defined(__clang__)
     return __builtin_bswap32 (x);
 #else
     return ((x & 0x000000FF) << 24)
@@ -645,7 +644,7 @@ static inline uint32_t (bswap32)(uint32_t x)
 VLC_USED
 static inline uint64_t (bswap64)(uint64_t x)
 {
-#if VLC_GCC_VERSION(4,3) || defined(__clang__)
+#if defined (__GNUC__) || defined(__clang__)
     return __builtin_bswap64 (x);
 #elif !defined (__cplusplus)
     return ((x & 0x00000000000000FF) << 56)
@@ -842,26 +841,14 @@ static inline void SetQWLE (void *p, uint64_t qw)
 #   include <tchar.h>
 #endif /* _WIN32 */
 
+typedef struct {
+    unsigned num, den;
+} vlc_rational_t;
+
 VLC_API bool vlc_ureduce( unsigned *, unsigned *, uint64_t, uint64_t, uint64_t );
 
-/* Aligned memory allocator */
-
-#ifdef __MINGW32__
-# define vlc_memalign(align, size) (__mingw_aligned_malloc(size, align))
-# define vlc_free(base)            (__mingw_aligned_free(base))
-#elif defined(_MSC_VER)
-# define vlc_memalign(align, size) (_aligned_malloc(size, align))
-# define vlc_free(base)            (_aligned_free(base))
-#else
-static inline void *vlc_memalign(size_t align, size_t size)
-{
-    void *base;
-    if (unlikely(posix_memalign(&base, align, size)))
-        base = NULL;
-    return base;
-}
-# define vlc_free(base) free(base)
-#endif
+#define container_of(ptr, type, member) \
+    ((type *)(((char *)(ptr)) - offsetof(type, member)))
 
 /*****************************************************************************
  * I18n stuff

@@ -48,7 +48,7 @@ vlc_module_begin ()
     set_shortname( N_("SVCD subtitles") )
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_SCODEC )
-    set_capability( "decoder", 50 )
+    set_capability( "spu decoder", 50 )
     set_callbacks( DecoderOpen, DecoderClose )
 
     add_obsolete_integer ( MODULE_STRING "-debug" )
@@ -130,7 +130,7 @@ static int DecoderOpen( vlc_object_t *p_this )
     p_sys->i_state = SUBTITLE_BLOCK_EMPTY;
     p_sys->p_spu   = NULL;
 
-    es_format_Init( &p_dec->fmt_out, SPU_ES, VLC_CODEC_OGT );
+    p_dec->fmt_out.i_codec = VLC_CODEC_OGT;
 
     p_dec->pf_decode    = Decode;
     p_dec->pf_packetize = Packetize;
@@ -303,6 +303,16 @@ static block_t *Reassemble( decoder_t *p_dec, block_t *p_block )
     {
         block_t *p_spu = block_ChainGather( p_sys->p_spu );
 
+        if( unlikely( !p_spu ) )
+        {
+            block_ChainRelease( p_sys->p_spu );
+            p_sys->i_state = SUBTITLE_BLOCK_EMPTY;
+            p_sys->p_spu = NULL;
+
+            msg_Warn( p_dec, "unable to assemble blocks, discarding" );
+            return NULL;
+        }
+
         if( p_spu->i_buffer != p_sys->i_spu_size )
         {
             msg_Warn( p_dec, "subtitle packets size=%zu should be %zu",
@@ -312,7 +322,7 @@ static block_t *Reassemble( decoder_t *p_dec, block_t *p_block )
         msg_Dbg( p_dec, "subtitle packet complete, size=%zu", p_spu->i_buffer );
 
         p_sys->i_state = SUBTITLE_BLOCK_EMPTY;
-        p_sys->p_spu = 0;
+        p_sys->p_spu = NULL;
         return p_spu;
     }
 

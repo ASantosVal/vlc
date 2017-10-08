@@ -30,6 +30,7 @@
 #include <vlc_vout.h>
 
 #include "interlacing.h"
+#include "vout_internal.h"
 
 /*****************************************************************************
  * Deinterlacing
@@ -39,7 +40,7 @@
  * same (width/height/chroma/fps), at least for now.
  */
 static const char deinterlace_modes[][9]= {
-    ""
+    "auto",
     "discard",
     "blend",
     "mean",
@@ -61,79 +62,6 @@ static bool DeinterlaceIsModeValid(const char *mode)
     return false;
 }
 
-static char *FilterFind(char *filter_base, const char *module_name)
-{
-    const size_t module_length = strlen(module_name);
-    const char *filter = filter_base;
-
-    if (!filter || module_length <= 0)
-        return NULL;
-
-    for (;;) {
-        char *start = strstr(filter, module_name);
-        if (!start)
-            return NULL;
-        if (start[module_length] == '\0' || start[module_length] == ':')
-            return start;
-        filter = &start[module_length];
-    }
-}
-
-static bool DeinterlaceIsPresent(vout_thread_t *vout)
-{
-    char *filter = var_GetNonEmptyString(vout, "video-filter");
-
-    bool is_found = FilterFind(filter, "deinterlace") != NULL;
-
-    free(filter);
-
-    return is_found;
-}
-
-static void DeinterlaceRemove(vout_thread_t *vout)
-{
-    char *filter = var_GetNonEmptyString(vout, "video-filter");
-
-    char *start = FilterFind(filter, "deinterlace");
-    if (!start) {
-        free(filter);
-        return;
-    }
-
-    /* */
-    strcpy(&start[0], &start[strlen("deinterlace")]);
-    if (*start == ':')
-        memmove(start, start + 1, strlen(start) /* + 1 - 1 */);
-
-    var_SetString(vout, "video-filter", filter);
-    free(filter);
-}
-static void DeinterlaceAdd(vout_thread_t *vout)
-{
-    char *filter = var_GetNonEmptyString(vout, "video-filter");
-
-    if (FilterFind(filter, "deinterlace")) {
-        free(filter);
-        return;
-    }
-
-    /* */
-    if (filter) {
-        char *tmp = filter;
-        if (asprintf(&filter, "%s:%s", tmp, "deinterlace") < 0)
-            filter = tmp;
-        else
-            free(tmp);
-    } else {
-        filter = strdup("deinterlace");
-    }
-
-    if (filter) {
-        var_SetString(vout, "video-filter", filter);
-        free(filter);
-    }
-}
-
 static int DeinterlaceCallback(vlc_object_t *object, char const *cmd,
                                vlc_value_t oldval, vlc_value_t newval, void *data)
 {
@@ -145,7 +73,10 @@ static int DeinterlaceCallback(vlc_object_t *object, char const *cmd,
     char       *mode             = var_GetString(vout,  "deinterlace-mode");
     const bool is_needed         = var_GetBool(vout,    "deinterlace-needed");
     if (!mode || !DeinterlaceIsModeValid(mode))
+    {
+        free(mode);
         return VLC_EGENERIC;
+    }
 
     /* */
     char *old = var_CreateGetString(vout, "sout-deinterlace-mode");
@@ -153,11 +84,11 @@ static int DeinterlaceCallback(vlc_object_t *object, char const *cmd,
 
     msg_Dbg(vout, "deinterlace %d, mode %s, is_needed %d", deinterlace_state, mode, is_needed);
     if (deinterlace_state == 0 || (deinterlace_state < 0 && !is_needed))
-        DeinterlaceRemove(vout);
-    else if (!DeinterlaceIsPresent(vout))
-        DeinterlaceAdd(vout);
-    else if (old && strcmp(old, mode))
-        var_TriggerCallback(vout, "video-filter");
+        vout_control_PushBool(&vout->p->control,
+                              VOUT_CONTROL_CHANGE_INTERLACE, false);
+    else
+        vout_control_PushBool(&vout->p->control,
+                              VOUT_CONTROL_CHANGE_INTERLACE, true);
 
     /* */
     free(old);
@@ -171,6 +102,8 @@ void vout_InitInterlacingSupport(vout_thread_t *vout, bool is_interlaced)
 
     msg_Dbg(vout, "Deinterlacing available");
 
+    vout->p->filter.has_deint = false;
+
     /* Create the configuration variables */
     /* */
     var_Create(vout, "deinterlace", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT );
@@ -179,7 +112,7 @@ void vout_InitInterlacingSupport(vout_thread_t *vout, bool is_interlaced)
     text.psz_string = _("Deinterlace");
     var_Change(vout, "deinterlace", VLC_VAR_SETTEXT, &text, NULL);
 
-    const module_config_t *optd = config_FindConfig(VLC_OBJECT(vout), "deinterlace");
+    const module_config_t *optd = config_FindConfig("deinterlace");
     var_Change(vout, "deinterlace", VLC_VAR_CLEARCHOICES, NULL, NULL);
     if (likely(optd != NULL))
         for (unsigned i = 0; i < optd->list_count; i++) {
@@ -195,7 +128,7 @@ void vout_InitInterlacingSupport(vout_thread_t *vout, bool is_interlaced)
     text.psz_string = _("Deinterlace mode");
     var_Change(vout, "deinterlace-mode", VLC_VAR_SETTEXT, &text, NULL);
 
-    const module_config_t *optm = config_FindConfig(VLC_OBJECT(vout), "deinterlace-mode");
+    const module_config_t *optm = config_FindConfig("deinterlace-mode");
     var_Change(vout, "deinterlace-mode", VLC_VAR_CLEARCHOICES, NULL, NULL);
     if (likely(optm != NULL))
         for (unsigned i = 0; i < optm->list_count; i++) {
@@ -214,7 +147,7 @@ void vout_InitInterlacingSupport(vout_thread_t *vout, bool is_interlaced)
 
     /* Override the initial value from filters if present */
     char *filter_mode = NULL;
-    if (DeinterlaceIsPresent(vout))
+    if (vout->p->filter.has_deint)
         filter_mode = var_CreateGetNonEmptyString(vout, "sout-deinterlace-mode");
     if (filter_mode) {
         deinterlace_state = 1;
@@ -230,22 +163,32 @@ void vout_InitInterlacingSupport(vout_thread_t *vout, bool is_interlaced)
 
     var_SetInteger(vout, "deinterlace", deinterlace_state);
     free(deinterlace_mode);
+
+    vout->p->interlacing.is_interlaced = is_interlaced;
+    if (is_interlaced)
+        vout->p->interlacing.date = mdate();
 }
 
-void vout_SetInterlacingState(vout_thread_t *vout, vout_interlacing_support_t *state, bool is_interlaced)
+void vout_ReinitInterlacingSupport(vout_thread_t *vout)
+{
+    vout->p->interlacing.is_interlaced = false;
+    var_SetBool(vout, "deinterlace-needed", false);
+}
+
+void vout_SetInterlacingState(vout_thread_t *vout, bool is_interlaced)
 {
      /* Wait 30s before quiting interlacing mode */
-    const int interlacing_change = (!!is_interlaced) - (!!state->is_interlaced);
-    if ((interlacing_change == 1) ||
-        (interlacing_change == -1 && state->date + 30000000 < mdate())) {
+    const int interlacing_change = (!!is_interlaced)
+                                 - (!!vout->p->interlacing.is_interlaced);
+    if (interlacing_change == 1 ||
+        (interlacing_change == -1 &&
+        vout->p->interlacing.date + 30000000 < mdate()))
+    {
         msg_Dbg(vout, "Detected %s video",
                  is_interlaced ? "interlaced" : "progressive");
         var_SetBool(vout, "deinterlace-needed", is_interlaced);
-
-        state->is_interlaced = is_interlaced;
+        vout->p->interlacing.is_interlaced = is_interlaced;
     }
     if (is_interlaced)
-        state->date = mdate();
+        vout->p->interlacing.date = mdate();
 }
-
-

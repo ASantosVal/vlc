@@ -65,7 +65,7 @@ vlc_module_begin ()
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_ACODEC )
     set_description( N_("MPEG audio decoder using mpg123") )
-    set_capability( "decoder", 100 )
+    set_capability( "audio decoder", 100 )
     set_shortname( "mpg123" )
     set_callbacks( OpenDecoder, CloseDecoder )
 vlc_module_end ()
@@ -77,10 +77,18 @@ static int MPG123Open( decoder_t *p_dec )
 {
     decoder_sys_t *p_sys = p_dec->p_sys;
 
+    /* Create our mpg123 handle */
+    if( ( p_sys->p_handle = mpg123_new( NULL, NULL ) ) == NULL )
+    {
+        msg_Err( p_dec, "mpg123 error: can't create handle" );
+        return VLC_EGENERIC;
+    }
+
     /* Open a new bitstream */
     if( mpg123_open_feed( p_sys->p_handle ) != MPG123_OK )
     {
         msg_Err( p_dec, "mpg123 error: can't open feed" );
+        mpg123_delete( p_sys->p_handle );
         return VLC_EGENERIC;
     }
 
@@ -118,6 +126,7 @@ static int MPG123Open( decoder_t *p_dec )
         msg_Err( p_dec, "mpg123 error: %s",
                  mpg123_strerror( p_sys->p_handle ) );
         mpg123_close( p_sys->p_handle );
+        mpg123_delete( p_sys->p_handle );
         return VLC_EGENERIC;
     }
 
@@ -135,6 +144,7 @@ static void Flush( decoder_t *p_dec )
     date_Set( &p_sys->end_date, 0 );
 
     mpg123_close( p_sys->p_handle );
+    mpg123_delete( p_sys->p_handle );
     p_sys->b_opened = false;
     MPG123Open( p_dec );
 }
@@ -158,30 +168,27 @@ static int UpdateAudioFormat( decoder_t *p_dec )
 
     switch( frame_info.mode )
     {
+        case MPG123_M_DUAL:
+            p_dec->fmt_out.audio.i_chan_mode = AOUT_CHANMODE_DUALMONO;
+            /* fall through */
         case MPG123_M_STEREO:
         case MPG123_M_JOINT:
-            p_dec->fmt_out.audio.i_original_channels =
+            p_dec->fmt_out.audio.i_physical_channels =
                 AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT;
             break;
-        case MPG123_M_DUAL:
-            p_dec->fmt_out.audio.i_original_channels =
-                AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT | AOUT_CHAN_DUALMONO;
-            break;
         case MPG123_M_MONO:
-            p_dec->fmt_out.audio.i_original_channels = AOUT_CHAN_CENTER;
+            p_dec->fmt_out.audio.i_physical_channels = AOUT_CHAN_CENTER;
             break;
         default:
             return VLC_EGENERIC;
     }
 
-    p_dec->fmt_out.audio.i_physical_channels =
-        p_dec->fmt_out.audio.i_original_channels & AOUT_CHAN_PHYSMASK;
     aout_FormatPrepare( &p_dec->fmt_out.audio );
 
     /* Date management */
-    if( p_dec->fmt_out.audio.i_rate != frame_info.rate )
+    if( p_dec->fmt_out.audio.i_rate != (unsigned int)frame_info.rate )
     {
-        p_dec->fmt_out.audio.i_rate = frame_info.rate;
+        p_dec->fmt_out.audio.i_rate = (unsigned int)frame_info.rate;
         date_Init( &p_sys->end_date, p_dec->fmt_out.audio.i_rate, 1 );
         date_Set( &p_sys->end_date, 0 );
     }
@@ -362,9 +369,6 @@ static int OpenDecoder( vlc_object_t *p_this )
         p_dec->fmt_in.i_codec != VLC_CODEC_MP3 )
         return VLC_EGENERIC;
 
-    p_dec->fmt_out.i_cat = AUDIO_ES;
-    p_dec->fmt_out.i_codec = VLC_CODEC_FL32;
-
     /* Initialize libmpg123 */
     if( InitMPG123() != MPG123_OK )
         return VLC_EGENERIC;
@@ -377,13 +381,10 @@ static int OpenDecoder( vlc_object_t *p_this )
     p_sys->p_out = NULL;
     date_Set( &p_sys->end_date, VLC_TS_INVALID );
 
-    /* Create our mpg123 handle */
-    if( ( p_sys->p_handle = mpg123_new( NULL, NULL ) ) == NULL )
-        goto error;
-
     if( MPG123Open( p_dec ) )
         goto error;
 
+    p_dec->fmt_out.i_codec = VLC_CODEC_FL32;
     p_dec->fmt_out.audio.i_rate = 0; /* So end_date gets initialized */
     p_dec->fmt_out.audio.i_format = p_dec->fmt_out.i_codec;
     p_dec->pf_decode = DecodeBlock;
@@ -396,7 +397,6 @@ static int OpenDecoder( vlc_object_t *p_this )
 
     return VLC_SUCCESS;
 error:
-    mpg123_delete( p_sys->p_handle );
     ExitMPG123();
     free( p_sys );
     return VLC_EGENERIC;

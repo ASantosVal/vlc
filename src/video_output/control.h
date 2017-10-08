@@ -25,6 +25,7 @@
 #define LIBVLC_VOUT_INTERNAL_CONTROL_H
 
 #include <vlc_vout_window.h>
+#include <vlc_viewpoint.h>
 
 /* */
 enum {
@@ -42,6 +43,7 @@ enum {
     VOUT_CONTROL_FLUSH_SUBPICTURE,      /* integer */
     VOUT_CONTROL_OSD_TITLE,             /* string */
     VOUT_CONTROL_CHANGE_FILTERS,        /* string */
+    VOUT_CONTROL_CHANGE_INTERLACE,      /* boolean */
     VOUT_CONTROL_CHANGE_SUB_SOURCES,    /* string */
     VOUT_CONTROL_CHANGE_SUB_FILTERS,    /* string */
     VOUT_CONTROL_CHANGE_SUB_MARGIN,     /* integer */

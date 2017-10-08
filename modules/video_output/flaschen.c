@@ -33,6 +33,9 @@
 #endif
 
 #include <errno.h>
+#ifdef HAVE_SYS_UIO_H
+# include <sys/uio.h>
+#endif
 
 #include <vlc_common.h>
 #include <vlc_fs.h>
@@ -143,7 +146,6 @@ static int Open(vlc_object_t *object)
     vd->prepare = NULL;
     vd->display = Display;
     vd->control = Control;
-    vd->manage  = NULL;
 
     vout_display_DeleteWindow(vd, NULL);
 
@@ -204,14 +206,14 @@ static void Display(vout_display_t *vd, picture_t *picture, subpicture_t *subpic
         src += picture->p->i_pitch;
     }
 
-    struct msghdr hdr;
-    hdr.msg_name = NULL;
-    hdr.msg_namelen = 0;
-    hdr.msg_iov = iov;
-    hdr.msg_iovlen = iovcnt;
-    hdr.msg_control = NULL;
-    hdr.msg_controllen = 0;
-    hdr.msg_flags = 0;
+    struct msghdr hdr = {
+        .msg_name = NULL,
+        .msg_namelen = 0,
+        .msg_iov = iov,
+        .msg_iovlen = iovcnt,
+        .msg_control = NULL,
+        .msg_controllen = 0,
+        .msg_flags = 0 };
 
     result = sendmsg(sys->fd, &hdr, 0);
     if (result < 0)
@@ -235,12 +237,7 @@ static int Control(vout_display_t *vd, int query, va_list args)
     case VOUT_DISPLAY_CHANGE_ZOOM:
     case VOUT_DISPLAY_CHANGE_DISPLAY_FILLED:
     case VOUT_DISPLAY_CHANGE_SOURCE_ASPECT:
-    case VOUT_DISPLAY_CHANGE_FULLSCREEN:
         return VLC_EGENERIC;
-
-    case VOUT_DISPLAY_HIDE_MOUSE:
-        /* not really working */
-        return VLC_SUCCESS;
 
     default:
         msg_Err(vd, "Unsupported query in vout display flaschen");

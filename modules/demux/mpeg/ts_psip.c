@@ -436,7 +436,7 @@ static void ATSC_EIT_Callback( void *p_pid, dvbpsi_atsc_eit_t* p_eit )
     uint16_t i_program_number;
     if ( !ATSC_TranslateVChannelToProgram( p_basectx->p_vct, p_eit->i_source_id, &i_program_number ) )
     {
-        msg_Warn( p_demux, "Received EIT for unkown channel %d", p_eit->i_source_id );
+        msg_Warn( p_demux, "Received EIT for unknown channel %d", p_eit->i_source_id );
         dvbpsi_atsc_DeleteEIT( p_eit );
         return;
     }
@@ -533,7 +533,7 @@ static void ATSC_ETT_Callback( void *p_pid, dvbpsi_atsc_ett_t *p_ett )
         uint16_t i_program_number;
         if ( !ATSC_TranslateVChannelToProgram( p_basectx->p_vct, i_vchannel_id, &i_program_number ) )
         {
-            msg_Warn( p_demux, "Received EIT for unkown channel %d", i_vchannel_id );
+            msg_Warn( p_demux, "Received EIT for unknown channel %d", i_vchannel_id );
             dvbpsi_atsc_DeleteETT( p_ett );
             return;
         }
@@ -577,9 +577,12 @@ static void ATSC_ETT_RawCallback( dvbpsi_t *p_handle, const dvbpsi_psi_section_t
                                   void *p_base_pid )
 {
     VLC_UNUSED( p_handle );
-    dvbpsi_atsc_ett_t *p_ett = DVBPlague_ETT_Decode( p_section );
-    if( p_ett ) /* Send to real callback */
-        ATSC_ETT_Callback( p_base_pid, p_ett );
+    for( ; p_section; p_section = p_section->p_next )
+    {
+        dvbpsi_atsc_ett_t *p_ett = DVBPlague_ETT_Decode( p_section );
+        if( p_ett ) /* Send to real callback */
+            ATSC_ETT_Callback( p_base_pid, p_ett );
+    }
 }
 
 static void ATSC_VCT_Callback( void *p_cb_basepid, dvbpsi_atsc_vct_t* p_vct )
@@ -812,9 +815,12 @@ static void ATSC_STT_RawCallback( dvbpsi_t *p_handle, const dvbpsi_psi_section_t
                                   void *p_base_pid )
 {
     VLC_UNUSED( p_handle );
-    dvbpsi_atsc_stt_t *p_stt = DVBPlague_STT_Decode( p_section );
-    if( p_stt ) /* Send to real callback */
-        ATSC_STT_Callback( p_base_pid, p_stt );
+    for( ; p_section ; p_section = p_section->p_next )
+    {
+        dvbpsi_atsc_stt_t *p_stt = DVBPlague_STT_Decode( p_section );
+        if( p_stt ) /* Send to real callback */
+            ATSC_STT_Callback( p_base_pid, p_stt );
+    }
 }
 
 bool ATSC_Attach_Dvbpsi_Base_Decoders( dvbpsi_t *p_handle, void *p_base_pid )

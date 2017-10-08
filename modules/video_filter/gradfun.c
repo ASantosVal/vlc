@@ -96,6 +96,7 @@ vlc_module_end()
 #   define HAVE_6REGS 0
 #endif
 #define av_clip_uint8 clip_uint8_vlc
+#include <stdalign.h>
 #include "gradfun.h"
 
 static picture_t *Filter(filter_t *, picture_t *);
@@ -167,7 +168,7 @@ static void Close(vlc_object_t *object)
 
     var_DelCallback(filter, CFG_PREFIX "radius",   Callback, NULL);
     var_DelCallback(filter, CFG_PREFIX "strength", Callback, NULL);
-    vlc_free(sys->cfg.buf);
+    aligned_free(sys->cfg.buf);
     vlc_mutex_destroy(&sys->lock);
     free(sys);
 }
@@ -193,7 +194,7 @@ static picture_t *Filter(filter_t *filter, picture_t *src)
     cfg->thresh = (1 << 15) / strength;
     if (cfg->radius != radius) {
         cfg->radius = radius;
-        cfg->buf    = vlc_memalign(16,
+        cfg->buf    = aligned_alloc(16,
                                    (((fmt->i_width + 15) & ~15) * (cfg->radius + 1) / 2 + 32) * sizeof(*cfg->buf));
     }
 

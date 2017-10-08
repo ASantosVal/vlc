@@ -56,10 +56,10 @@
 #import "CompatibilityFixes.h"
 #import "VLCMain.h"
 #import "prefs.h"
-#import "simple_prefs.h"
+#import "VLCSimplePrefsController.h"
 #import "prefs_widgets.h"
 #import "VLCCoreInteraction.h"
-#import <vlc_keys.h>
+#import <vlc_actions.h>
 #import <vlc_modules.h>
 #import <vlc_plugin.h>
 
@@ -87,7 +87,7 @@
     NSMutableArray *_options;
     NSMutableArray *_subviews;
 }
-@property (readwrite, weak) VLCPrefs *prefsViewController;
+@property (readwrite, unsafe_unretained) VLCPrefs *prefsViewController;
 
 - (id)initWithName:(NSString*)name;
 
@@ -214,7 +214,7 @@
 {
     /* TODO: call savePrefs on Root item */
     [_rootTreeItem applyChanges];
-    [[VLCCoreInteraction sharedInstance] fixPreferences];
+    [[VLCCoreInteraction sharedInstance] fixIntfSettings];
     config_SaveConfigFile(getIntf());
     [self.window orderOut:self];
 }
@@ -232,7 +232,7 @@
 
 - (IBAction)resetPrefs:(id)sender
 {
-#warning implement me
+    [[[VLCMain sharedInstance] simplePreferences] resetPreferences:sender];
 }
 
 - (void)loadConfigTree

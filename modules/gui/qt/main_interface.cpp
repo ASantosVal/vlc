@@ -64,7 +64,7 @@
 
 #include <QTimer>
 
-#include <vlc_keys.h>                       /* Wheel event */
+#include <vlc_actions.h>                    /* Wheel event */
 #include <vlc_vout_display.h>               /* vout_thread_t and VOUT_ events */
 
 // #define DEBUG_INTF
@@ -733,8 +733,16 @@ void MainInterface::getVideoSlot( struct vout_window_t *p_wnd,
         showVideo();
 
         /* Ask videoWidget to resize correctly, if we are in normal mode */
-        if( b_autoresize )
+        if( b_autoresize ) {
+#if HAS_QT56
+            qreal factor = videoWidget->devicePixelRatioF();
+
+            i_width = qRound( (qreal) i_width / factor );
+            i_height = qRound( (qreal) i_height / factor );
+#endif
+
             videoWidget->setSize( i_width, i_height );
+        }
     }
 }
 
@@ -769,6 +777,7 @@ void MainInterface::releaseVideoSlot( void )
     stackCentralOldWidget = bgWidget;
 }
 
+// The provided size is in physical pixels, coming from the core.
 void MainInterface::setVideoSize( unsigned int w, unsigned int h )
 {
     if (!isFullScreen() && !isMaximized() )
@@ -782,7 +791,12 @@ void MainInterface::setVideoSize( unsigned int w, unsigned int h )
         if (b_autoresize)
         {
             QRect screen = QApplication::desktop()->availableGeometry();
-            if( h > screen.height() )
+#if HAS_QT56
+            float factor = videoWidget->devicePixelRatioF();
+#else
+            float factor = 1.0f;
+#endif
+            if( (float)h / factor > screen.height() )
             {
                 w = screen.width();
                 h = screen.height();
@@ -800,6 +814,13 @@ void MainInterface::setVideoSize( unsigned int w, unsigned int h )
                 h -= style()->pixelMetric(QStyle::PM_TitleBarHeight);
                 h -= style()->pixelMetric(QStyle::PM_LayoutBottomMargin);
                 h -= 2 * style()->pixelMetric(QStyle::PM_DefaultFrameWidth);
+            }
+            else
+            {
+                // Convert the size in logical pixels
+                w = qRound( (float)w / factor );
+                h = qRound( (float)h / factor );
+                msg_Dbg( p_intf, "Logical video size: %ux%u", w, h );
             }
             videoWidget->setSize( w, h );
         }
@@ -1148,27 +1169,6 @@ void MainInterface::setPlaylistVisibility( bool b_visible )
     playlistVisible = b_visible;
 }
 
-#if 0
-void MainInterface::visual()
-{
-    if( !VISIBLE( visualSelector) )
-    {
-        visualSelector->show();
-        if( !THEMIM->getIM()->hasVideo() )
-        {
-            /* Show the background widget */
-        }
-        visualSelectorEnabled = true;
-    }
-    else
-    {
-        /* Stop any currently running visualization */
-        visualSelector->hide();
-        visualSelectorEnabled = false;
-    }
-}
-#endif
-
 /************************************************************************
  * Other stuff
  ************************************************************************/
@@ -1452,9 +1452,8 @@ void MainInterface::dropEventPlay( QDropEvent *event, bool b_play, bool b_playli
     /* D&D of a subtitles file, add it on the fly */
     if( mimeData->urls().count() == 1 && THEMIM->getIM()->hasInput() )
     {
-        if( !input_AddSubtitleOSD( THEMIM->getInput(),
-                 qtu( toNativeSeparators( mimeData->urls()[0].toLocalFile() ) ),
-                 true, true ) )
+        if( !input_AddSlave( THEMIM->getInput(), SLAVE_TYPE_SPU,
+                 qtu( mimeData->urls()[0].toString() ), true, true, true ) )
         {
             event->accept();
             return;

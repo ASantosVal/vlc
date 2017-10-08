@@ -286,8 +286,7 @@ void PLModel::activateItem( playlist_item_t *p_item )
         p_parent = p_parent->p_parent;
     }
     if( p_parent )
-        playlist_Control( p_playlist, PLAYLIST_VIEWPLAY, pl_Locked,
-                p_parent, p_item );
+        playlist_ViewPlay( p_playlist, p_parent, p_item );
 }
 
 /****************** Base model mandatory implementations *****************/
@@ -347,7 +346,10 @@ QVariant PLModel::data( const QModelIndex &index, const int role ) const
                 {
                     PLItem *item = getItem( index );
                     /* Used to segfault here because i_type wasn't always initialized */
-                    return QVariant( icons[item->inputItem()->i_type] );
+                    int idx = item->inputItem()->i_type;
+                    if( item->inputItem()->b_net && item->inputItem()->i_type == ITEM_TYPE_FILE )
+                        idx = ITEM_TYPE_STREAM;
+                    return QVariant( icons[idx] );
                 }
                 case COLUMN_COVER:
                     /* !warn: changes tree item line height. Otherwise, override
@@ -770,7 +772,7 @@ void PLModel::doDelete( QModelIndexList selected )
         playlist_item_t *p_root = playlist_ItemGetById( p_playlist,
                                                         item->id() );
         if( p_root != NULL )
-            playlist_NodeDelete( p_playlist, p_root, false );
+            playlist_NodeDelete( p_playlist, p_root );
         PL_UNLOCK;
 
         if( p_root != NULL )
@@ -1084,12 +1086,12 @@ bool PLModel::isSupportedAction( actions action, const QModelIndex &index ) cons
 PlMimeData::~PlMimeData()
 {
     foreach( input_item_t *p_item, _inputItems )
-        vlc_gc_decref( p_item );
+        input_item_Release( p_item );
 }
 
 void PlMimeData::appendItem( input_item_t *p_item )
 {
-    vlc_gc_incref( p_item );
+    input_item_Hold( p_item );
     _inputItems.append( p_item );
 }
 

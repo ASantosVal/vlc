@@ -1,5 +1,5 @@
 /*****************************************************************************
- * VLCPlaylistInfo.m: MacOS X interface module
+ * VLCPlaylistInfo.m: Controller for the codec info panel
  *****************************************************************************
  * Copyright (C) 2002-2015 VLC authors and VideoLAN
  * $Id$
@@ -123,7 +123,7 @@
 - (void)dealloc
 {
     if (p_item)
-        vlc_gc_decref(p_item);
+        input_item_Release(p_item);
 }
 
 - (void)updateCocoaWindowLevel:(NSInteger)i_level
@@ -178,10 +178,10 @@
 {
     if (_p_item != p_item) {
         if (p_item)
-            vlc_gc_decref(p_item);
+            input_item_Release(p_item);
         [_saveMetaDataButton setEnabled: NO];
         if (_p_item)
-            vlc_gc_incref(_p_item);
+            input_item_Hold(_p_item);
         p_item = _p_item;
     }
 
@@ -358,6 +358,7 @@ FREENULL( psz_##foo );
         [alert setInformativeText:_NS("VLC was unable to save the meta data.")];
         [alert addButtonWithTitle:_NS("OK")];
         [alert runModal];
+        return;
     }
 
     #define utf8( _blub ) \

@@ -67,6 +67,7 @@ vlc_module_begin()
     add_submodule ()
         set_description("Android opaque video output")
         set_capability("vout display", 280)
+        add_shortcut("android-opaque")
         set_callbacks(OpenOpaque, Close)
 vlc_module_end()
 
@@ -127,6 +128,7 @@ struct vout_display_sys_t
     android_window *p_window;
     android_window *p_sub_window;
 
+    bool b_displayed;
     bool b_sub_invalid;
     filter_t *p_spu_blend;
     picture_t *p_sub_pic;
@@ -745,7 +747,7 @@ static int OpenCommon(vout_display_t *vd)
         /* Export the subpicture capability of this vout. */
         vd->info.subpicture_chromas = subpicture_chromas;
     }
-    else if (sys->p_window->b_opaque)
+    else if (!vd->obj.force && sys->p_window->b_opaque)
     {
         msg_Warn(vd, "cannot blend subtitles with an opaque surface, "
                      "trying next vout");
@@ -757,7 +759,6 @@ static int OpenCommon(vout_display_t *vd)
     vd->prepare = Prepare;
     vd->display = Display;
     vd->control = Control;
-    vd->manage  = NULL;
     vd->info.is_slow = !sys->p_window->b_opaque;
 
     return VLC_SUCCESS;
@@ -816,7 +817,7 @@ static void ClearSurface(vout_display_t *vd)
         vlc_gl_ReleaseCurrent(gl);
 
 end:
-        vlc_gl_Destroy(gl);
+        vlc_gl_Release(gl);
     }
     else
     {
@@ -857,7 +858,8 @@ static void Close(vlc_object_t *p_this)
 
     if (sys->p_window)
     {
-        ClearSurface(vd);
+        if (sys->b_displayed)
+            ClearSurface(vd);
         AndroidWindow_Destroy(vd, sys->p_window);
     }
 
@@ -1159,6 +1161,8 @@ static void Display(vout_display_t *vd, picture_t *picture,
 
     if (subpicture)
         subpicture_Delete(subpicture);
+
+    sys->b_displayed = true;
 }
 
 static void CopySourceAspect(video_format_t *p_dest,
@@ -1173,20 +1177,16 @@ static int Control(vout_display_t *vd, int query, va_list args)
     vout_display_sys_t *sys = vd->sys;
 
     switch (query) {
-    case VOUT_DISPLAY_HIDE_MOUSE:
-    case VOUT_DISPLAY_CHANGE_FULLSCREEN:
-        return VLC_SUCCESS;
     case VOUT_DISPLAY_CHANGE_SOURCE_CROP:
     case VOUT_DISPLAY_CHANGE_SOURCE_ASPECT:
     {
         msg_Dbg(vd, "change source crop/aspect");
-        const video_format_t *source = va_arg(args, const video_format_t *);
 
         if (query == VOUT_DISPLAY_CHANGE_SOURCE_CROP) {
-            video_format_CopyCrop(&sys->p_window->fmt, source);
+            video_format_CopyCrop(&sys->p_window->fmt, &vd->source);
             AndroidWindow_UpdateCrop(sys, sys->p_window);
         } else
-            CopySourceAspect(&sys->p_window->fmt, source);
+            CopySourceAspect(&sys->p_window->fmt, &vd->source);
 
         UpdateVideoSize(sys, &sys->p_window->fmt, sys->p_window->b_use_priv);
         FixSubtitleFormat(sys);

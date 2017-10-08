@@ -248,12 +248,16 @@ int main(int i_argc, const char *ppsz_argv[])
             if (length > 0) {
                 CFIndex maxSize = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8);
                 lang = (char *)malloc(maxSize);
-                CFStringGetCString(language, lang, maxSize - 1, kCFStringEncodingUTF8);
-            }
-            if (strncmp( lang, "auto", 4 )) {
-                char tmp[11];
-                snprintf(tmp, 11, "LANG=%s", lang);
-                putenv(tmp);
+                if(lang) {
+                    CFStringGetCString(language, lang, maxSize - 1, kCFStringEncodingUTF8);
+                    if (strncmp( lang, "auto", 4 )) {
+                        char tmp[11];
+                        snprintf(tmp, 11, "LANG=%s", lang);
+                        putenv(tmp);
+
+                    }
+                }
+                free(lang);
             }
             CFRelease(language);
         }
@@ -261,7 +265,7 @@ int main(int i_argc, const char *ppsz_argv[])
 
     ppsz_argv++; i_argc--; /* skip executable path */
 
-    /* When VLC.app is run by double clicking in Mac OS X, the 2nd arg
+    /* When VLC.app is run by double clicking in Mac OS X < 10.9, the 2nd arg
      * is the PSN - process serial number (a unique PID-ish thingie)
      * still ok for real Darwin & when run from command line
      * for example -psn_0_9306113 */

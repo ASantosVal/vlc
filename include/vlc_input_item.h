@@ -104,8 +104,6 @@ struct input_item_t
                                           preparsing.*/
 };
 
-TYPEDEF_ARRAY(input_item_t*, input_item_array_t)
-
 enum input_item_type_e
 {
     ITEM_TYPE_UNKNOWN,
@@ -151,7 +149,8 @@ enum slave_priority
     "usf", "jss",  "cdg", \
     "psb", "mpsub","mpl2", \
     "pjs", "dks", "stl", \
-    "vtt", "sbv", "ttml"
+    "vtt", "sbv", "ttml" \
+    "scc"
 #define SLAVE_AUDIO_EXTENSIONS \
     "ac3", "m4a", "aac", \
     "eac3",  "dtshd", "flac", \
@@ -170,23 +169,10 @@ struct input_item_node_t
     input_item_t *         p_item;
     int                    i_children;
     input_item_node_t      **pp_children;
-    input_item_node_t      *p_parent;
 };
 
 VLC_API void input_item_CopyOptions( input_item_t *p_child, input_item_t *p_parent );
 VLC_API void input_item_SetName( input_item_t *p_item, const char *psz_name );
-
-/**
- * Add one subitem to this item
- *
- * This won't hold the item, but can tell to interested third parties
- * Like the playlist, that there is a new sub item. With this design
- * It is not the input item's responsibility to keep all the ref of
- * the input item children.
- *
- * Sends a vlc_InputItemSubItemTreeAdded and a vlc_InputItemSubItemAdded event
- */
-VLC_API void input_item_PostSubItem( input_item_t *p_parent, input_item_t *p_child );
 
 /**
  * Start adding multiple subitems.
@@ -206,23 +192,15 @@ VLC_API input_item_node_t * input_item_node_AppendItem( input_item_node_t *p_nod
 VLC_API void input_item_node_AppendNode( input_item_node_t *p_parent, input_item_node_t *p_child );
 
 /**
+ * Remove a node from its parent.
+ */
+void input_item_node_RemoveNode( input_item_node_t *parent,
+                                 input_item_node_t *child );
+
+/**
  * Delete a node created with input_item_node_Create() and all its children.
  */
 VLC_API void input_item_node_Delete( input_item_node_t *p_node );
-
-/**
- * End adding multiple subitems.
- *
- * Sends a vlc_InputItemSubItemTreeAdded event to notify that the item pointed to
- * by the given root node has created new subitems that are pointed to by all the
- * children of the node.
- *
- * Also sends vlc_InputItemSubItemAdded event for every child under the given root node;
- *
- * In the end deletes the node and all its children nodes.
- */
-VLC_API void input_item_node_PostAndDelete( input_item_node_t *p_node );
-
 
 /**
  * Option flags
@@ -368,10 +346,6 @@ VLC_API input_item_t *input_item_Hold(input_item_t *);
 /** Releases an input item, i.e. decrements its reference counter. */
 VLC_API void input_item_Release(input_item_t *);
 
-/* Historical hack... */
-#define vlc_gc_incref(i) input_item_Hold(i)
-#define vlc_gc_decref(i) input_item_Release(i)
-
 typedef enum input_item_meta_request_option_t
 {
     META_REQUEST_OPTION_NONE          = 0x00,
@@ -435,5 +409,61 @@ struct input_stats_t
     int64_t i_played_abuffers;
     int64_t i_lost_abuffers;
 };
+
+/**
+ * Access pf_readdir helper struct
+ * \see vlc_readdir_helper_init()
+ * \see vlc_readdir_helper_additem()
+ * \see vlc_readdir_helper_finish()
+ */
+struct vlc_readdir_helper
+{
+    input_item_node_t *p_node;
+    void **pp_slaves;
+    size_t i_slaves;
+    void **pp_dirs;
+    size_t i_dirs;
+    int i_sub_autodetect_fuzzy;
+    bool b_show_hiddenfiles;
+    char *psz_ignored_exts;
+};
+
+/**
+ * Init a vlc_readdir_helper struct
+ *
+ * \param p_rdh need to be cleaned with vlc_readdir_helper_finish()
+ * \param p_node node that will be used to add items
+ */
+VLC_API void vlc_readdir_helper_init(struct vlc_readdir_helper *p_rdh,
+                                     vlc_object_t *p_obj, input_item_node_t *p_node);
+#define vlc_readdir_helper_init(p_rdh, p_obj, p_node) \
+    vlc_readdir_helper_init(p_rdh, VLC_OBJECT(p_obj), p_node)
+
+/**
+ * Finish adding items to the node
+ *
+ * \param b_success if true, items of the node will be sorted.
+ */
+VLC_API void vlc_readdir_helper_finish(struct vlc_readdir_helper *p_rdh, bool b_success);
+
+/**
+ * Add a new input_item_t entry to the node of the vlc_readdir_helper struct.
+ *
+ * \param p_rdh previously inited vlc_readdir_helper struct
+ * \param psz_uri uri of the new item
+ * \param psz_flatpath flattened path of the new item. If not NULL, this
+ *        function will create an input item for each sub folders (separated
+ *        by '/') of psz_flatpath (so, this will un-flatten the folder
+ *        hierarchy). Either psz_flatpath or psz_filename must be valid.
+ * \param psz_filename file name of the new item. If NULL, the file part of path
+ *        will be used as a filename. Either psz_flatpath or psz_filename must
+ *        be valid.
+ * \param i_type see \ref input_item_type_e
+ * \param i_net see \ref input_item_net_type
+ */
+VLC_API int vlc_readdir_helper_additem(struct vlc_readdir_helper *p_rdh,
+                                       const char *psz_uri, const char *psz_flatpath,
+                                       const char *psz_filename,
+                                       int i_type, int i_net);
 
 #endif

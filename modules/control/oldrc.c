@@ -43,7 +43,7 @@
 #include <vlc_aout.h>
 #include <vlc_vout.h>
 #include <vlc_playlist.h>
-#include <vlc_keys.h>
+#include <vlc_actions.h>
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -715,7 +715,7 @@ static void *Run( void *data )
         else if( !strcmp( psz_cmd, "key" ) || !strcmp( psz_cmd, "hotkey" ) )
         {
             var_SetInteger( p_intf->obj.libvlc, "key-action",
-                            vlc_GetActionId( psz_arg ) );
+                            vlc_actions_get_id( psz_arg ) );
         }
         else switch( psz_cmd[0] )
         {
@@ -1270,8 +1270,7 @@ static int Playlist( vlc_object_t *p_this, char const *psz_cmd,
             p_item = p_parent = p_playlist->items.p_elems[i_pos-1];
             while( p_parent->p_parent )
                 p_parent = p_parent->p_parent;
-            playlist_Control( p_playlist, PLAYLIST_VIEWPLAY, pl_Locked,
-                    p_parent, p_item );
+            playlist_ViewPlay( p_playlist, p_parent, p_item );
         }
         else
             msg_rc( vlc_ngettext("Playlist has only %u element",
@@ -1296,9 +1295,8 @@ static int Playlist( vlc_object_t *p_this, char const *psz_cmd,
         if( p_item )
         {
             msg_rc( "Trying to add %s to playlist.", newval.psz_string );
-            int i_ret = playlist_AddInput( p_playlist, p_item,
-                                           PLAYLIST_GO, true );
-            vlc_gc_decref( p_item );
+            int i_ret = playlist_AddInput( p_playlist, p_item, true, true );
+            input_item_Release( p_item );
             if( i_ret != VLC_SUCCESS )
             {
                 return VLC_EGENERIC;
@@ -1313,8 +1311,9 @@ static int Playlist( vlc_object_t *p_this, char const *psz_cmd,
         if( p_item )
         {
             msg_rc( "trying to enqueue %s to playlist", newval.psz_string );
-            if( playlist_AddInput( p_playlist, p_item,
-                                   0, true ) != VLC_SUCCESS )
+            int ret =  playlist_AddInput( p_playlist, p_item, false, true );
+            input_item_Release( p_item );
+            if( ret != VLC_SUCCESS )
             {
                 return VLC_EGENERIC;
             }
@@ -1323,20 +1322,20 @@ static int Playlist( vlc_object_t *p_this, char const *psz_cmd,
     else if( !strcmp( psz_cmd, "playlist" ) )
     {
         msg_rc( "+----[ Playlist ]" );
-        print_playlist( p_intf, p_playlist->p_root, 0 );
+        print_playlist( p_intf, &p_playlist->root, 0 );
         msg_rc( "+----[ End of playlist ]" );
     }
 
     else if( !strcmp( psz_cmd, "sort" ))
     {
         PL_LOCK;
-        playlist_RecursiveNodeSort( p_playlist, p_playlist->p_root,
+        playlist_RecursiveNodeSort( p_playlist, &p_playlist->root,
                                     SORT_ARTIST, ORDER_NORMAL );
         PL_UNLOCK;
     }
     else if( !strcmp( psz_cmd, "status" ) )
     {
-        input_thread_t * p_input = playlist_CurrentInput( p_playlist );
+        p_input = playlist_CurrentInput( p_playlist );
         if( p_input )
         {
             /* Replay the current state of the system. */
@@ -1854,8 +1853,7 @@ bool ReadCommand( intf_thread_t *p_intf, char *p_buffer, int *pi_size )
         {
             if( read( 0/*STDIN_FILENO*/, p_buffer + *pi_size, 1 ) <= 0 )
             {   /* Standard input closed: exit */
-                vlc_value_t empty;
-                Quit( VLC_OBJECT(p_intf), NULL, empty, empty, NULL );
+                libvlc_Quit( p_intf->obj.libvlc );
                 p_buffer[*pi_size] = 0;
                 return true;
             }

@@ -99,7 +99,6 @@
 @property (readwrite, weak) IBOutlet NSMenu *titleMenu;
 @property (readwrite, weak) IBOutlet NSMenuItem *chapter;
 @property (readwrite, weak) IBOutlet NSMenu *chapterMenu;
-@property (readwrite, weak) IBOutlet NSMenuItem *renderer;
 
 @property (readwrite, weak) IBOutlet NSMenu *audioMenu;
 @property (readwrite, weak) IBOutlet NSMenuItem *vol_up;
@@ -172,6 +171,7 @@
 @property (readwrite, weak) IBOutlet NSMenuItem *bookmarks;
 @property (readwrite, weak) IBOutlet NSMenuItem *playlist;
 @property (readwrite, weak) IBOutlet NSMenuItem *info;
+@property (readwrite, weak) IBOutlet NSMenuItem *errorsAndWarnings;
 @property (readwrite, weak) IBOutlet NSMenuItem *messages;
 @property (readwrite, weak) IBOutlet NSMenuItem *bring_atf;
 
@@ -182,7 +182,6 @@
 @property (readwrite, weak) IBOutlet NSMenuItem *website;
 @property (readwrite, weak) IBOutlet NSMenuItem *donation;
 @property (readwrite, weak) IBOutlet NSMenuItem *forum;
-@property (readwrite, weak) IBOutlet NSMenuItem *errorsAndWarnings;
 
 /* dock menu */
 @property (readwrite, weak) IBOutlet NSMenuItem *dockMenuplay;
@@ -278,6 +277,7 @@
 - (IBAction)openWebsite:(id)sender;
 - (IBAction)openForum:(id)sender;
 - (IBAction)openDonate:(id)sender;
+- (IBAction)showErrorsAndWarnings:(id)sender;
 - (IBAction)showMessagesPanel:(id)showMessagesPanel;
 - (IBAction)showMainWindow:(id)sender;
 - (IBAction)showPlaylist:(id)sender;
