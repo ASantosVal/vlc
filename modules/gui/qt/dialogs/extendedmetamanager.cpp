@@ -556,10 +556,9 @@ void ExtMetaManagerDialog::previewItem(int item_index){
     msg_Dbg( p_intf, "[EMM_Dialog] previewItem" );
     input_item_t *p_item = getItemFromRow(item_index);
 
-    //TODO: implement this
-    // PlayItem(THEPL, p_item);
-    // playlist_AddInput( THEPL, p_item, false, true );
-    // playlist_Control( THEPL, vlc_action_id[CTIONID_PLAY_PAUSE], false );
+    playlist_Clear( THEPL, false ); //Clear playlist
+    playlist_AddInput( THEPL, p_item, true, true ); //Add our item
+    THEMIM->play(); //Start playback
 }
 
 /*----------------------------------------------------------------------------*/
