@@ -81,6 +81,10 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.tableWidget_metadata->setColumnWidth(COL_ARTWORK, 70);
     ui.tableWidget_metadata->setColumnWidth(COL_PATH, 50);
 
+    /* Make table columns able to change order */
+    ui.tableWidget_metadata->horizontalHeader()->setSectionsMovable(true);
+    //TODO: the above only works on Qt5.x (on Qt4.x it's "ui->tableView->horizontalHeader()->setMovable(true);")
+
     /* Add the Artwork label */
     art_cover = new CoverArtLabelExt( this, p_intf );
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
@@ -480,9 +484,27 @@ input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 {
     msg_Dbg( p_intf, "[EMM_Dialog] getItemFromRow" );
 
-    /* Item at row X is stored at workspace postion X */
-    input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workspace, row);
-    return p_item;
+    /* Retrieve URI from the wanted row */
+    const char * wantedUri = ui.tableWidget_metadata->item(row,COL_PATH)->text().toLocal8Bit().constData();
+
+    /* Get size of "workspace" and travel through it */
+    int arraySize = vlc_array_count(workspace);
+    for(int i = 0; i < arraySize; i++)
+    {
+        /* Get item on position "i" */
+        input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
+
+        /* Get uri from that item */
+        char * temp_uri = input_item_GetURI(p_item);
+
+        /* Compare it to "wantedUri". If true, means it's que item we wanted, so return it. */
+        if (strcmp(temp_uri,wantedUri) == 0){
+            return p_item;
+        }
+
+    }
+
+    //TODO: return error
 }
 
 /* Gets an item from an URI and preparses it (gets it's metadata) */
