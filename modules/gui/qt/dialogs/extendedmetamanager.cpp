@@ -387,25 +387,13 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     /* Calculate how much the progress bar will advance each step (progressBar
     goes from 0 to 100). Then progress variable is set to 0 and the widget is
     updated */
-    progress_unit= 100/selectedRowsCount;
-    progress=0;
+    progress_unit = 100 / selectedRowsCount;
+    progress = 100 % selectedRowsCount; //Start with the mod, so it adds 100 at the end
     ui.progressBar_search->setValue(progress);
 
-    /* We dont want the table to mess things while we update it, so que block
-    its signals (this is caused because we edited "multipleItemsChanged"). */
+    /* We don't want the table to mess things while we update it, so que block
+    it's signals (this is caused because we edited "multipleItemsChanged"). */
     ui.tableWidget_metadata->blockSignals(true);
-
-    /* if fast search is activated, initilize custom fingerprinter */
-    if (fast)
-    {
-        t = new (std::nothrow) Chromaprint( p_intf );
-        if ( !t )
-        {
-            return; // Error
-        }
-
-        CONNECT( t, finished(), this, handleResults() );
-    }
 
     /* Iterate the table */
     for(int row = 0; row < rows; row++)
@@ -425,8 +413,47 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     ui.tableWidget_metadata->blockSignals(false);
 }
 
+/* Initiates the fingerprint process just for one item. If "fast" is true, 1st
+entry is applied automatically */
+void ExtMetaManagerDialog::fingerprintItem(input_item_t *p_item, bool fast)
+{
+    msg_Dbg( p_intf, "[EMM_Dialog] fingerprintItem" );
+
+    /* If "fast" activated, create fingerprinter */
+    if (fast)
+    {
+        //TODO: this creates a new fingerprinter each tiem, but may not work ( due to reference to items lost/changed)
+        t = new (std::nothrow) Chromaprint( p_intf );
+        if ( !t )
+        {
+            return; // Error
+        }
+
+        //TODO: need to pass variables
+        CONNECT( t, finished(), this, handleResults() );
+
+        /* Add the item to the finperprinter's queue */
+        if ( t )
+            t->enqueue( p_item );
+    }
+    else
+    {
+        //Create a fingerprint dialog and wait until it's closed
+        FingerprintDialog dialog(this, p_intf, p_item);
+        dialog.exec();
+    }
+}
+
+
+
 void ExtMetaManagerDialog::handleResults()
 {
+    msg_Err( p_intf, "[EMM_Dialog] handleResults" ); //TODO: delete this or change ti to 'debug'
+
+    /* Update the progress bar */
+    progress=progress+progress_unit; // Increase the progress
+    ui.progressBar_search->setValue(progress); // Update the progressBar
+
     p_r = t->fetchResults();
 
     if ( ! p_r )
@@ -444,47 +471,16 @@ void ExtMetaManagerDialog::handleResults()
     /* Apply first option */
     t->apply( p_r, 0 );
 
+    //TODO:fix this
     /* Update the table with the new info */
-    // updateTableEntry(p_item, row); //TODO:fix this
+    // updateTableEntry(p_item, row);
 
-    /* Update the progress bar */
-    progress=progress+progress_unit; // Increase the progress
-    ui.progressBar_search->setValue(progress); // Update the progressBar
-
-    //TODO: if last item do the folllowing
-
-    // /* Lost decimals can cause the progress bar to not reach 100, so here is
-    // the fix */
-    // ui.progressBar_search->setValue(100); //
-    // ui.progressBar_search->setEnabled(false);
-
-    /* If fast search is activated, delete the custom fingerprinter */
-    // if (fast)
-    // {
-    //     if ( t ) delete t;
-    //     if ( p_r ) fingerprint_request_Delete( p_r );
+    //TODO:fix this (when should I delete it? Am I deleting the correct fingerprinter?)
+    // if (last){
+        // /* Delete the fingerprinter */
+        // if ( t ) delete t;
+        // if ( p_r ) fingerprint_request_Delete( p_r );
     // }
-
-}
-
-/* Initiates the fingerprint process just for one item. If "fast" is true, 1st
-entry is applied automatically */
-void ExtMetaManagerDialog::fingerprintItem(input_item_t *p_item, bool fast)
-{
-    msg_Dbg( p_intf, "[EMM_Dialog] fingerprint" );
-
-    if (fast)
-    {
-        /* Add the item to the finperprinter's queue */
-        if ( t )
-            t->enqueue( p_item );
-    }
-    else
-    {
-        //Create a fingerprint dialog and wait until it's closed
-        FingerprintDialog dialog(this, p_intf, p_item);
-        dialog.exec();
-    }
 
 }
 

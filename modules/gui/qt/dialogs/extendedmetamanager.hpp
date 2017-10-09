@@ -40,7 +40,7 @@
 
 #include "ui/extmetamanager.h" // Include the precompiled version of extmetamanager.ui
 
-#include <QSignalMapper> /* for the Help and About popups */
+#include <QSignalMapper>
 
 class CoverArtLabelExt;
 class Chromaprint;
@@ -147,26 +147,34 @@ private slots:
 
     void getFromPlaylist();
     void getFromFolder();
+
     void searchNow();
     void saveAll();
-    void fingerprintTable(bool fast);
-    void handleResults();
-    void fingerprintItem(input_item_t *p_item, bool fast);
     void restoreAll();
-    void cleanUp();
-    void helpDialog();
-    void aboutDialog();
-    void emptyPlaylistDialog();
-    void clearTable();
-    void multipleItemsChanged( QTableWidgetItem *item );
-    void addTableEntry(input_item_t *p_item);
-    void updateTableEntry(input_item_t *p_item, int row);
-    bool rowIsSelected(int row);
-    void updateArtwork(int row, int column);
-    void changeArtwork(int row);
+
+    void fingerprintTable(bool fast);
+    void fingerprintItem(input_item_t *p_item, bool fast);
+    void handleResults(/*bool last*/); //TODO: clean this one
+
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
     bool isAudioFile(const char* uri);
+
+    void helpDialog();
+    void aboutDialog();
+    void emptyPlaylistDialog();
+
+    void clearTable();
+    void cleanUp();
+
+    void addTableEntry(input_item_t *p_item);
+    void updateTableEntry(input_item_t *p_item, int row);
+
+    void multipleItemsChanged( QTableWidgetItem *item );
+    bool rowIsSelected(int row);
+
+    void updateArtwork(int row, int column);
+    void changeArtwork(int row);
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
