@@ -387,8 +387,8 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     /* Calculate how much the progress bar will advance each step (progressBar
     goes from 0 to 100). Then progress variable is set to 0 and the widget is
     updated */
-    int progress_unit= 100/selectedRowsCount;
-    int progress=0;
+    progress_unit= 100/selectedRowsCount;
+    progress=0;
     ui.progressBar_search->setValue(progress);
 
     /* We dont want the table to mess things while we update it, so que block
@@ -403,6 +403,8 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
         {
             return; // Error
         }
+
+        CONNECT( t, finished(), this, handleResults() );
     }
 
     /* Iterate the table */
@@ -415,36 +417,59 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
             p_item = getItemFromRow(row);
 
             /* Fingerprint the item and wait for results */
-            fingerprint(p_item, fast);
-
-            /* Update the table with the new info */
-            updateTableEntry(p_item, row);
-
-            /* Update the progress bar */
-            progress=progress+progress_unit; // Increase the progress
-            ui.progressBar_search->setValue(progress); // Update the progressBar
+            fingerprintItem(p_item, fast);
         }
-    }
-
-    /* Lost decimals can cause the progress bar to not reach 100, so here is
-    the fix */
-    ui.progressBar_search->setValue(100); //
-    ui.progressBar_search->setEnabled(false);
-
-    /* If fast search is activated, delete the custom fingerprinter */
-    if (fast)
-    {
-        if ( t ) delete t;
-        if ( p_r ) fingerprint_request_Delete( p_r );
     }
 
     /* We have finished, so we unlock all the table's signals. */
     ui.tableWidget_metadata->blockSignals(false);
 }
 
+void ExtMetaManagerDialog::handleResults()
+{
+    p_r = t->fetchResults();
+
+    if ( ! p_r )
+    {
+        return;
+    }
+
+    if ( vlc_array_count( & p_r->results.metas_array ) == 0 )
+    {
+        fingerprint_request_Delete( p_r );
+        p_r = NULL;
+        return;
+    }
+
+    /* Apply first option */
+    t->apply( p_r, 0 );
+
+    /* Update the table with the new info */
+    // updateTableEntry(p_item, row); //TODO:fix this
+
+    /* Update the progress bar */
+    progress=progress+progress_unit; // Increase the progress
+    ui.progressBar_search->setValue(progress); // Update the progressBar
+
+    //TODO: if last item do the folllowing
+
+    // /* Lost decimals can cause the progress bar to not reach 100, so here is
+    // the fix */
+    // ui.progressBar_search->setValue(100); //
+    // ui.progressBar_search->setEnabled(false);
+
+    /* If fast search is activated, delete the custom fingerprinter */
+    // if (fast)
+    // {
+    //     if ( t ) delete t;
+    //     if ( p_r ) fingerprint_request_Delete( p_r );
+    // }
+
+}
+
 /* Initiates the fingerprint process just for one item. If "fast" is true, 1st
 entry is applied automatically */
-void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
+void ExtMetaManagerDialog::fingerprintItem(input_item_t *p_item, bool fast)
 {
     msg_Dbg( p_intf, "[EMM_Dialog] fingerprint" );
 
@@ -453,18 +478,6 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
         /* Add the item to the finperprinter's queue */
         if ( t )
             t->enqueue( p_item );
-
-        /* Wait for results */
-        p_r = t->fetchResults();
-        while (!p_r)
-            p_r = t->fetchResults();
-
-        /* Check if metadata was found and if not, exit */
-        if ( vlc_array_count( & p_r->results.metas_array ) == 0 )
-            return;
-
-        /* Apply first option */
-        t->apply( p_r, 0 );
     }
     else
     {
@@ -501,7 +514,6 @@ input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
         if (strcmp(temp_uri,wantedUri) == 0){
             return p_item;
         }
-
     }
 
     //TODO: return error

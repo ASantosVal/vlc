@@ -133,6 +133,10 @@ private:
     /* The User interface (UI) made in QT */
     Ui::ExtMetaManagerWidget ui;
 
+    /* Integers used for the progress bar */
+    int progress_unit;
+    int progress;
+
     /* Mapper used on the buttons on the table to know from which row is the
     call being made */
     QSignalMapper ButtonSignalMapper;
@@ -146,7 +150,8 @@ private slots:
     void searchNow();
     void saveAll();
     void fingerprintTable(bool fast);
-    void fingerprint(input_item_t *p_item, bool fast);
+    void handleResults();
+    void fingerprintItem(input_item_t *p_item, bool fast);
     void restoreAll();
     void cleanUp();
     void helpDialog();
