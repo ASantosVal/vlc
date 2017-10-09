@@ -335,15 +335,21 @@ void ExtMetaManagerDialog::restoreAll()
 
     clearTable();
 
-    input_item_t *p_item; // This is where the current working item will be
+    // input_item_t *p_item; // This is where the current working item will be
 
     /* Iterate over all the items in the workspace */
     int arraySize = vlc_array_count(workspace);
     for(int i = 0; i < arraySize; i++)
     {
-        /* Get one item form the list and add it to the table */
-        p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
-        addTableEntry(p_item);
+        /* Get one item from the "workspace", get it's URI, create a new
+        input_item_t and add it to the table (we do this because we want to
+        fetch the original metadata again)*/
+
+        input_item_t *p_item_old = (input_item_t*)vlc_array_item_at_index(workspace, i);
+        char *uri_text = input_item_GetURI(p_item_old);
+        input_item_t *p_item_new = getItemFromURI(uri_text);
+
+        addTableEntry(p_item_new);
     }
 }
 
