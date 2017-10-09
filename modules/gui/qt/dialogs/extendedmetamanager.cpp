@@ -162,6 +162,10 @@ void ExtMetaManagerDialog::getFromPlaylist()
         cleanUp();
     }
 
+    /* We dont want the table to mess things while we update it, so que block
+    its signals (this is caused because we edited "multipleItemsChanged"). */
+    ui.tableWidget_metadata->blockSignals(true);
+
     /* Lock the playlist so we can work with it */
     playlist_Lock(THEPL);
 
@@ -209,6 +213,9 @@ void ExtMetaManagerDialog::getFromPlaylist()
         emptyPlaylistDialog();
     }
 
+    /* We have finished, so we unlock all the table's signals. */
+    ui.tableWidget_metadata->blockSignals(false);
+
     /* Always unlock the playlist */
     playlist_Unlock(THEPL);
 }
@@ -221,7 +228,7 @@ void ExtMetaManagerDialog::getFromFolder()
     /* Hide */
     toggleVisible();
 
-    /* Open a file explorer just with audio files (if it's not an append operation) */
+    /* Open a file explorer just with audio files */
     QStringList uris = THEDP->showSimpleOpen(
         qtr("Open audio files to manage"),
         EXT_FILTER_AUDIO,
@@ -237,6 +244,10 @@ void ExtMetaManagerDialog::getFromFolder()
     if (isClearSelected()){
         cleanUp();
     }
+
+    /* We dont want the table to mess things while we update it, so que block
+    its signals (this is caused because we edited "multipleItemsChanged"). */
+    ui.tableWidget_metadata->blockSignals(true);
 
     int row; //This is where each item's position will be stored
 
@@ -256,6 +267,7 @@ void ExtMetaManagerDialog::getFromFolder()
             vlc_array_insert(workspace, p_item, row-1);
         }
     }
+
     /* If table is not empty, prepare it */
     if (ui.tableWidget_metadata->rowCount()>0)
     {
@@ -263,6 +275,9 @@ void ExtMetaManagerDialog::getFromFolder()
         ui.tableWidget_metadata->setCurrentCell(0,1);
         updateArtwork(0,0);
     }
+
+    /* We have finished, so we unlock all the table's signals. */
+    ui.tableWidget_metadata->blockSignals(false);
 }
 
 /* Initiates the metadata search and analysis based on choosed options. It just
