@@ -163,7 +163,12 @@ void ExtMetaManagerDialog::getFromPlaylist()
     playlist_Lock(THEPL);
 
     /* Get the size of the playlist and if no files selected, finish */
-    int size = THEPL->items.i_size;
+    int size = playlist_CurrentSize(THEPL);
+    // int size = THEPL->items.i_size;
+    char str[12];
+    sprintf(str, "%d", size);
+    msg_Dbg( p_intf, str );
+    // printf("%d", size);
 
     /* If the playlist is NOT empty, load it's info */
     if( size !=0 )
@@ -173,11 +178,14 @@ void ExtMetaManagerDialog::getFromPlaylist()
 
         for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
         {
+            msg_Dbg( p_intf, "[EMM_Dialog] ITEM" );
             p_item = playlist_ItemGetById(THEPL, i)->p_input; // Get the playlist_item's input_item_t
+            msg_Dbg( p_intf, "[EMM_Dialog] p_item" );
 
             if (isAudioFile(input_item_GetURI(p_item)))
             {
-                addTableEntry(p_item); //add item to the table
+                addTableEntry(p_item); //Add item to the table
+                msg_Dbg( p_intf, "[EMM_Dialog] addTableEntry" );
 
                 /*Now we get the size of the table and store the item on that position
                 on the workspace array, so item at row X on the table is also stored at
