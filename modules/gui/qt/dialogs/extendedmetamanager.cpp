@@ -107,6 +107,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     to know from which row the button (added later on each row) it's being
     clicked */
     connect(&ButtonSignalMapper, SIGNAL(mapped(int)), this, SLOT(changeArtwork(int)));
+    connect(&fingreprinterMapper, SIGNAL(mapped(int, bool, input_item_t)), this, SLOT(handleResults(int, bool, input_item_t))); //TODO:This may not be needed
 
     /* Initilize the array for the currently working items */
     workspace = new vlc_array_t();
@@ -124,7 +125,7 @@ ExtMetaManagerDialog::~ExtMetaManagerDialog()
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
 
-/* Override the closing (click X) event*/
+/* Override the closing (click X) event */
 void ExtMetaManagerDialog::closeEvent(QCloseEvent *event)
 {
     msg_Dbg( p_intf, "[EMM_Dialog] Close event" );
@@ -281,7 +282,7 @@ void ExtMetaManagerDialog::searchNow()
     // }
 }
 
-/* Saves changes permanently*/
+/* Saves changes permanently */
 void ExtMetaManagerDialog::saveAll()
 {
     msg_Dbg( p_intf, "[EMM_Dialog] saveAll" );
@@ -422,15 +423,22 @@ void ExtMetaManagerDialog::fingerprintItem(input_item_t *p_item, bool fast)
     /* If "fast" activated, create fingerprinter */
     if (fast)
     {
-        //TODO: this creates a new fingerprinter each tiem, but may not work ( due to reference to items lost/changed)
+        //TODO: this creates a new fingerprinter each time, but may not work ( due to reference to items lost/changed)
         t = new (std::nothrow) Chromaprint( p_intf );
         if ( !t )
         {
             return; // Error
         }
 
-        //TODO: need to pass variables
-        CONNECT( t, finished(), this, handleResults() );
+        //TODO: this doesn't work
+        // /* Prepare the mapping with the row and connect teh button to it.
+        // The mapper is used to be able to know from which row is the button is
+        // being clicked */
+        // fingreprinterMapper.setMapping(t, 1); //TODO: give real values
+        // fingreprinterMapper.setMapping(t, "p_item"); //TODO: give real values
+        // fingreprinterMapper.setMapping(t, false);  //TODO: give real values
+        // CONNECT(t, finished(), this, fingreprinterMapper.map(int, bool, input_item_t *));
+        CONNECT(t, finished(), this, handleResults());
 
         /* Add the item to the finperprinter's queue */
         if ( t )
@@ -444,42 +452,43 @@ void ExtMetaManagerDialog::fingerprintItem(input_item_t *p_item, bool fast)
     }
 }
 
-
-
-void ExtMetaManagerDialog::handleResults()
+/* When fingerprinter has finished, this method is triggered. It applies the
+found metadata and updates the entry on the table */
+void ExtMetaManagerDialog::handleResults(/*int row, bool isLast, input_item_t *p_item*/)
 {
-    msg_Err( p_intf, "[EMM_Dialog] handleResults" ); //TODO: delete this or change ti to 'debug'
+    msg_Err( p_intf, "[EMM_Dialog] handleResults" ); //TODO: delete this or change it to 'debug'
 
     /* Update the progress bar */
     progress=progress+progress_unit; // Increase the progress
     ui.progressBar_search->setValue(progress); // Update the progressBar
 
-    p_r = t->fetchResults();
+    //TODO: Due to reference loss, the following will give segmentation fault
+    // p_r = t->fetchResults();
+    //
+    // if ( ! p_r )
+    // {
+    //     return;
+    // }
+    //
+    // if ( vlc_array_count( & p_r->results.metas_array ) == 0 )
+    // {
+    //     fingerprint_request_Delete( p_r );
+    //     p_r = NULL;
+    //     return;
+    // }
 
-    if ( ! p_r )
-    {
-        return;
-    }
-
-    if ( vlc_array_count( & p_r->results.metas_array ) == 0 )
-    {
-        fingerprint_request_Delete( p_r );
-        p_r = NULL;
-        return;
-    }
-
-    /* Apply first option */
-    t->apply( p_r, 0 );
+    // /* Apply first option */
+    // t->apply( p_r, 0 );
 
     //TODO:fix this
     /* Update the table with the new info */
     // updateTableEntry(p_item, row);
 
     //TODO:fix this (when should I delete it? Am I deleting the correct fingerprinter?)
-    // if (last){
-        // /* Delete the fingerprinter */
-        // if ( t ) delete t;
-        // if ( p_r ) fingerprint_request_Delete( p_r );
+    // if (isLast){
+    //     /* Delete the fingerprinter */
+    //     if ( t ) delete t;
+    //     if ( p_r ) fingerprint_request_Delete( p_r );
     // }
 
 }
@@ -590,7 +599,7 @@ bool ExtMetaManagerDialog::isAudioFile(const char* uri)
 /*----------------------------------------------------------------------------*/
 
 /* Modify the table's behavior so multiple items can be edited at the same time
-when more than one cell is selected. */
+when more than one cell is selected */
 void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item )
 {
     // msg_Dbg( p_intf, "[EMM_Dialog] multipleItemsChanged" ); //Too many messages on the console

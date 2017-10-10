@@ -137,9 +137,10 @@ private:
     int progress_unit;
     int progress;
 
-    /* Mapper used on the buttons on the table to know from which row is the
-    call being made */
+    /* Mapper used on the buttons on the table (to know from which row is the
+    call being made) and the fingreprinter's handleResults (to pass a couple of variables)*/
     QSignalMapper ButtonSignalMapper;
+    QSignalMapper fingreprinterMapper; //TODO: this may not be needed
 
 private slots:
     void close() Q_DECL_OVERRIDE;
@@ -154,7 +155,7 @@ private slots:
 
     void fingerprintTable(bool fast);
     void fingerprintItem(input_item_t *p_item, bool fast);
-    void handleResults(/*bool last*/); //TODO: clean this one
+    void handleResults(/*int row, bool isLast, input_item_t *p_item*/);
 
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
