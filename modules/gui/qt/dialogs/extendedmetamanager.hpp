@@ -157,11 +157,13 @@ private slots:
     void addTableEntry(input_item_t *p_item);
     void updateTableEntry(input_item_t *p_item, int row);
     bool rowIsSelected(int row);
+    bool isClearSelected();
     void updateArtwork(int row, int column);
     void changeArtwork(int row);
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
     bool isAudioFile(const char* uri);
+    bool checkRepeatedItem(input_item_t *new_item);
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
