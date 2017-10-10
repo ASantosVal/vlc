@@ -279,7 +279,7 @@ void ExtMetaManagerDialog::getFromFolder()
     {
         /* Select the first cell and update artwork label */
         ui.tableWidget_metadata->setCurrentCell(0,COL_TITLE);
-        updateArtwork(0,0);
+        //updateArtwork(0,0); //TODO: this creates seg. fault
     }
 
     /* We have finished, so we unlock all the table's signals. */
@@ -607,8 +607,6 @@ void ExtMetaManagerDialog::previewItem(int item_index){
     playlist_Clear( THEPL, false ); //Clear playlist
     playlist_AddInput( THEPL, p_item, true, true ); //Add our item
     THEMIM->play(); //Start playback
-
-    //TODO: this process creates a seg. fault if playlist is loaded after ejecuting this method
 }
 
 /*----------------------------------------------------------------------------*/
