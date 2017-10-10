@@ -209,7 +209,7 @@ void ExtMetaManagerDialog::getFromPlaylist()
         {
             /* Select the first cell and update artwork label */
             ui.tableWidget_metadata->setCurrentCell(0,COL_TITLE);
-            updateArtwork(0, 0); //TODO: segfault here?
+            // updateArtwork(0, 0); //TODO: segfault here?
         }
     }
 
