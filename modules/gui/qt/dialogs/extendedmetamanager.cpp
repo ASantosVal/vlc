@@ -349,7 +349,10 @@ void ExtMetaManagerDialog::restoreAll()
 
     clearTable();
 
-    // input_item_t *p_item; // This is where the current working item will be
+    // Some variables for later
+    char * uri_text;
+    input_item_t * p_item_old;
+    input_item_t * p_item_new;
 
     /* Iterate over all the items in the workspace */
     int arraySize = vlc_array_count(workspace);
@@ -358,10 +361,10 @@ void ExtMetaManagerDialog::restoreAll()
         /* Get one item from the "workspace", get it's URI, create a new
         input_item_t and add it to the table (we do this because we want to
         fetch the original metadata again)*/
-
-        input_item_t *p_item_old = (input_item_t*)vlc_array_item_at_index(workspace, i);
-        char *uri_text = input_item_GetURI(p_item_old);
-        input_item_t *p_item_new = getItemFromURI(uri_text);
+        p_item_old = (input_item_t*)vlc_array_item_at_index(workspace, i);
+        vlc_array_remove(workspace, i); //We do this to avoid bugs when reloading table
+        uri_text = input_item_GetURI(p_item_old);
+        p_item_new = getItemFromURI(uri_text);
 
         addTableEntry(p_item_new);
     }
@@ -627,11 +630,8 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
     /* Now that we have the row ready, we load the metadata using "updateTableEntry" */
     updateTableEntry(p_item,rowToAdd);
 
-    /*Now we get the size of the table and store the item on that position
-    on the workspace array, so item at row X on the table is also stored at
-    array position X*/
-    int lastRow = ui.tableWidget_metadata->rowCount();
-    vlc_array_insert(workspace, p_item, lastRow-1);
+    /* Now we append file to our "workspace" */
+    vlc_array_append(workspace, p_item);
 
 }
 
@@ -672,7 +672,7 @@ bool ExtMetaManagerDialog::rowIsSelected(int row)
     return checkbox->isChecked();
 }
 
-/* Deletes all entries from the table (still can be recovered with restoreAll) */
+/* Deletes all entries from the table */
 void ExtMetaManagerDialog::clearTable()
 {
     msg_Dbg( p_intf, "[EMM_Dialog] clearTable" );
