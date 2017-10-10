@@ -120,7 +120,7 @@ private:
     QString disableFastSearch_tip = qtr("With this option selected, instead of "
     "choosing automatically the \"best\" option, a window will show asking you "
     "to choose which entry is the correct.");
-    QString previewButton_tip = qtr("Play this song.");
+    QString previewButton_tip = qtr("Play this song. PLAYLIST WILL BE DISCARDED.");
 
     /* Declarations for the fingerprinter */
     Chromaprint *t;
