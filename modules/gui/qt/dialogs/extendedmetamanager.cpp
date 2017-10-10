@@ -185,6 +185,8 @@ void ExtMetaManagerDialog::getFromPlaylist()
     if( sizeOfPlaylist !=0 )
     {
         input_item_t *p_item;  //This is where each item will be stored
+        char *uri_text; //This is where each item's URI will be stored
+        input_item_t *p_item_duplicate; //This is where duplicated items will be stored
 
         /* Go through the playlist */
         for(int i = whereTheLoadedItemsStart;  i < whereTheLoadedItemsFinish; i++)
@@ -195,9 +197,12 @@ void ExtMetaManagerDialog::getFromPlaylist()
             /* Evaluate if it's an audio file */
             if (isAudioFile(input_item_GetURI(p_item)))
             {
-                //TODO: add a duplicate (not the original) to avoid loosing object on preview
+                //Create a duplicate to avoid loosing object when playlist is cleared
+                uri_text = input_item_GetURI(p_item);
+                p_item_duplicate = getItemFromURI(uri_text);
+
                 /* Add item to the table */
-                addTableEntry(p_item);
+                addTableEntry(p_item_duplicate);
 
                 itemsWereLoaded = true;
             }
@@ -361,7 +366,6 @@ void ExtMetaManagerDialog::restoreAll()
         /* Get one item from the "workspace", get it's URI, create a new
         input_item_t and add it to the table (we do this because we want to
         fetch the original metadata again)*/
-
         input_item_t *p_item_old = (input_item_t*)vlc_array_item_at_index(workspace, i);
         char *uri_text = input_item_GetURI(p_item_old);
         input_item_t *p_item_new = getItemFromURI(uri_text);
@@ -580,6 +584,8 @@ void ExtMetaManagerDialog::previewItem(int item_index){
     playlist_Clear( THEPL, false ); //Clear playlist
     playlist_AddInput( THEPL, p_item, true, true ); //Add our item
     THEMIM->play(); //Start playback
+
+    //TODO: this process creates a seg. fault if playlist is loaded after ejecuting this method
 }
 
 /*----------------------------------------------------------------------------*/
