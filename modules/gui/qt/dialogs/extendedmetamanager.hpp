@@ -98,8 +98,8 @@ private:
     "current playlist.");
 
     /* Text for the "tips" */
-    QString getFromPlaylist_tip = qtr("Load files into the table from the current playlist.ONLY THE AUDIO FILES.");
-    QString getFromFolder_tip = qtr("Load files into the table from a file/folder. ONLY THE AUDIO FILES.");
+    QString getFromPlaylist_tip = qtr("Load files into the table from the current playlist.ONLY THE AUDIO FILES. Repeated files won't be loaded.");
+    QString getFromFolder_tip = qtr("Load files into the table from a file/folder. ONLY THE AUDIO FILES. Repeated files won't be loaded.");
     QString help_tip = qtr("Launch the help window.");
     QString about_tip = qtr("Learn more about this window and it's creator.");
     QString searchNow_tip = qtr("Start the automatic search of the selected item's information.");
