@@ -208,8 +208,8 @@ void ExtMetaManagerDialog::getFromPlaylist()
         if (ui.tableWidget_metadata->rowCount()>0)
         {
             /* Select the first cell and update artwork label */
-            ui.tableWidget_metadata->setCurrentCell(0,1);
-            updateArtwork(0,0);
+            ui.tableWidget_metadata->setCurrentCell(0,COL_TITLE);
+            updateArtwork(0, 0); //TODO: segfault here?
         }
     }
 
@@ -270,7 +270,7 @@ void ExtMetaManagerDialog::getFromFolder()
     if (ui.tableWidget_metadata->rowCount()>0)
     {
         /* Select the first cell and update artwork label */
-        ui.tableWidget_metadata->setCurrentCell(0,1);
+        ui.tableWidget_metadata->setCurrentCell(0,COL_TITLE);
         updateArtwork(0,0);
     }
 
@@ -726,7 +726,7 @@ void ExtMetaManagerDialog::changeArtwork(int row)
 
     /* Fix to select the row is the button being clicked and select it's cover */
     ui.tableWidget_metadata->setCurrentCell(row, COL_ARTWORK);
-    updateArtwork(row, COL_ARTWORK);
+    updateArtwork(0, 0);
 
     art_cover->setArtFromFile();
 }
