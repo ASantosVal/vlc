@@ -179,7 +179,6 @@ void ExtMetaManagerDialog::getFromPlaylist()
     if( size !=0 )
     {
         input_item_t *p_item;  //This is where each item will be stored
-        int row; //This is where each item's position will be stored
 
         for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
         {
@@ -188,12 +187,6 @@ void ExtMetaManagerDialog::getFromPlaylist()
             if (isAudioFile(input_item_GetURI(p_item)))
             {
                 addTableEntry(p_item); //add item to the table
-
-                /*Now we get the size of the table and store the item on that position
-                on the workspace array, so item at row X on the table is also stored at
-                array position X*/
-                row = ui.tableWidget_metadata->rowCount();
-                vlc_array_insert(workspace, p_item, row-1);
                 itemsWereLoaded = true;
             }
         }
@@ -249,8 +242,6 @@ void ExtMetaManagerDialog::getFromFolder()
     its signals (this is caused because we edited "multipleItemsChanged"). */
     ui.tableWidget_metadata->blockSignals(true);
 
-    int row; //This is where each item's position will be stored
-
     foreach( const QString &uri, uris )
     {
         if (isAudioFile(uri.toLatin1().constData()))
@@ -259,12 +250,6 @@ void ExtMetaManagerDialog::getFromFolder()
             input_item_t *p_item = getItemFromURI(uri.toLatin1().constData());
 
             addTableEntry(p_item); //Add the item to the table
-
-            /*Now we get the size of the table and store the item on that position
-            on the workspace array, so item at row X on the table is also stored at
-            array position X*/
-            row = ui.tableWidget_metadata->rowCount();
-            vlc_array_insert(workspace, p_item, row-1);
         }
     }
 
@@ -295,11 +280,6 @@ void ExtMetaManagerDialog::searchNow()
     {
         fingerprintTable(true);
     }
-    // if (ui.checkBox_filenameAnalysis->isChecked()) //TODO: implement this
-    // {
-    //     msg_Dbg( p_intf, "[EMM_Dialog] filenameAnalysis checked" );
-    //
-    // }
 }
 
 /* Saves changes permanently*/
@@ -598,32 +578,46 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item)
 {
     msg_Dbg( p_intf, "[EMM_Dialog] addTableEntry" );
 
-    /* Add one row to the table Initilize */
-    int row = ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
-    ui.tableWidget_metadata->insertRow(row);
 
-    /* Create checkbox for the first column and set it as checked(and set it's tip). */
+    //Check if item is already on the table
+    if (checkRepeatedItem(p_item)){
+        return; //Item was already loaded
+    }
+
+    /* Add one row to the table Initilize */
+    int rowToAdd = ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
+    ui.tableWidget_metadata->insertRow(rowToAdd);
+
+    /* Create checkbox for the first column and set it as checked (and set it's tip). */
     QCheckBox *checkbox = new QCheckBox ();
     checkbox->setChecked(1);
     checkbox->setToolTip(checkbox_tip);
     /* Insert the checkbox in the cell */
-    ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
+    ui.tableWidget_metadata->setCellWidget(rowToAdd, COL_CHECKBOX, checkbox );
 
     /* Create button for the artwork update (and set it's tip). We don't add
     it to the UI yet, it will be added in each row later */
     QPushButton *button_changeArtwork = new QPushButton( qtr("Change"), this);
     button_changeArtwork->setToolTip(artworkButton_tip);
 
-    /* Prepare the mapping with the row and connect teh button to it.
+    /* Prepare the mapping with the row and connect the button to it.
     The mapper is used to be able to know from which row is the button is
     being clicked */
-    ButtonSignalMapper.setMapping(button_changeArtwork, row);
+    ButtonSignalMapper.setMapping(button_changeArtwork, rowToAdd);
     connect(button_changeArtwork, SIGNAL(clicked()), &ButtonSignalMapper, SLOT(map()));
 
     /* Insert the button in the cell (we have created it on the constructor) */
-    ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, button_changeArtwork );
+    ui.tableWidget_metadata->setCellWidget(rowToAdd, COL_ARTWORK, button_changeArtwork );
 
-    updateTableEntry(p_item,row);
+    /* Now that we have the row ready, we load the metadata using "updateTableEntry" */
+    updateTableEntry(p_item,rowToAdd);
+
+    /*Now we get the size of the table and store the item on that position
+    on the workspace array, so item at row X on the table is also stored at
+    array position X*/
+    int lastRow = ui.tableWidget_metadata->rowCount();
+    vlc_array_insert(workspace, p_item, lastRow-1);
+
 }
 
 /* Updates/Writes a (given) row on the table with one itme's metadata */
@@ -751,4 +745,33 @@ void ExtMetaManagerDialog::emptyPlaylistDialog()
 bool ExtMetaManagerDialog::isClearSelected()
 {
     return ui.checkBox_cleaTable->isChecked();
+}
+
+//TODO: this code may be repeated on other branches
+bool ExtMetaManagerDialog::checkRepeatedItem(input_item_t *new_item){
+    msg_Dbg( p_intf, "[EMM_Dialog] checkRepeatedItem" );
+
+    /* Get uri from that "new_item" */
+    char * wantedUri = input_item_GetURI(new_item);
+
+    input_item_t *p_item;
+    char * temp_uri;
+
+    int arraySize = vlc_array_count(workspace);
+    for(int i = 0; i < arraySize; i++)
+    {
+        /* Get item on position "i" */
+        p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
+
+        /* Get uri from that item */
+        temp_uri = input_item_GetURI(p_item);
+
+        /* Compare it to "wantedUri". If true, means it's que item is repeated, so return true. */
+        if (strcmp(temp_uri,wantedUri) == 0){
+            msg_Dbg( p_intf, "[EMM_Dialog] repeated item found, ignoring it." );
+            return true;
+        }
+
+    }
+    return false; //No matches found, so item is not already loaded.
 }

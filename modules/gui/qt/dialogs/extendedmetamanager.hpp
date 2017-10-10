@@ -163,6 +163,7 @@ private slots:
     input_item_t* getItemFromRow(int row);
     input_item_t* getItemFromURI(const char* uri);
     bool isAudioFile(const char* uri);
+    bool checkRepeatedItem(input_item_t *new_item);
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
