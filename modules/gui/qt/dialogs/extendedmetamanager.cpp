@@ -162,30 +162,30 @@ void ExtMetaManagerDialog::getFromPlaylist()
     /* Lock the playlist so we can work with it */
     playlist_Lock(THEPL);
 
-    /* Get the size of the playlist and if no files selected, finish */
-    int size = playlist_CurrentSize(THEPL);
-    // int size = THEPL->items.i_size;
-    char str[12];
-    sprintf(str, "%d", size);
-    msg_Dbg( p_intf, str );
-    // printf("%d", size);
+    /* NOTE: Since the playlist usage is confusing, here is what I understood:
+    --The number of elements playing is THEPL->items.i_size-5
+    --Items currently playing start on position 8 and finish at sizeOfPlaylist+8 ('playlist_CurrentSize(THEPL)' only returns 0 or 1) */
+    int sizeOfPlaylist = THEPL->items.i_size - 5;
+    int whereTheLoadedItemsStart = 8;
+    int whereTheLoadedItemsFinish = sizeOfPlaylist + 8;
 
     /* If the playlist is NOT empty, load it's info */
-    if( size !=0 )
+    if( sizeOfPlaylist !=0 )
     {
         input_item_t *p_item;  //This is where each item will be stored
         int row; //This is where each item's position will be stored
 
-        for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
+        /* Go through the playlist */
+        for(int i = whereTheLoadedItemsStart;  i < whereTheLoadedItemsFinish; i++)
         {
-            msg_Dbg( p_intf, "[EMM_Dialog] ITEM" );
-            p_item = playlist_ItemGetById(THEPL, i)->p_input; // Get the playlist_item's input_item_t
-            msg_Dbg( p_intf, "[EMM_Dialog] p_item" );
+            /* Get the current playlist_item's input_item_t */
+            p_item = playlist_ItemGetById(THEPL, i)->p_input;
 
+            /* Evaluate if it's an audio file */
             if (isAudioFile(input_item_GetURI(p_item)))
             {
-                addTableEntry(p_item); //Add item to the table
-                msg_Dbg( p_intf, "[EMM_Dialog] addTableEntry" );
+                /* Add item to the table */
+                addTableEntry(p_item);
 
                 /*Now we get the size of the table and store the item on that position
                 on the workspace array, so item at row X on the table is also stored at
