@@ -603,6 +603,7 @@ void ExtMetaManagerDialog::previewItem(int item_index){
     msg_Dbg( p_intf, "[EMM_Dialog] previewItem" );
     input_item_t *p_item = getItemFromRow(item_index);
 
+    //TODO: this creates seg. fault when loading playlist after using this method
     playlist_Clear( THEPL, false ); //Clear playlist
     playlist_AddInput( THEPL, p_item, true, true ); //Add our item
     THEMIM->play(); //Start playback
