@@ -98,7 +98,7 @@ Decoder:
  * Support VPX high bit depth support
  * Extend MicroDVD support with color, fontname, size, position extensions
  * BluRay text subtitles are now decoded
- * Improve Closed Captions detection
+ * Improved Closed Captions detection and optional CEA-708 decoder
 
 Demuxers:
  * Support HD-DVD .evo (H.264, VC-1, MPEG-2, PCM, AC-3, E-AC3, MLP, DTS)
@@ -308,6 +308,7 @@ Removed modules
  * Audioqueue: use audiounit
  * SDL video output module
  * DirectFB video output module
+ * RAOP stream output module
 
 
 Changes between 2.2.5 and 2.2.5.1:
