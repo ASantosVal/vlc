@@ -53,7 +53,8 @@ private:
     virtual ~ExtMetaManagerDialog();
 
     /* Help and About windows' text (HTML) */
-    QString help_text = qtr("This window is designed to help you <b>manage "
+    QString help_dialog_title = qtr("Help - Extended Metadata Manager");
+    QString help_dialog_text = qtr("This window is designed to help you <b>manage "
     "your music's metadata/tags</b>."
     "<br><br>"
     "You can put the mouse over an item to see tips and aditional help info."
@@ -78,7 +79,8 @@ private:
     "<br><br>"
     "To <b>exit</b>, click the <i>Cancel</i> button or just close the window.");
 
-    QString about_text = qtr("<big>Extended Metadata Manager</big> <br><br>"
+    QString about_dialog_title = qtr("About - Extended Metadata Manager");
+    QString about_dialog_text = qtr("<big>Extended Metadata Manager</big> <br><br>"
     "This module has been created by <b>Asier Santos Valcárcel</b> as the final project "
     "for his Computer Science Engineering degree at <i>University of the "
     "Basque Country (UPV/EHU)</i>."
@@ -94,7 +96,8 @@ private:
     "<b>GitHub for the project:</b> "
     "<a href=\"https://github.com/ASantosVal/vlc-extension-trials\">Repository</a></a><br>");
 
-    QString emptyPlaylist_text = qtr("There were no items to be loaded on the "
+    QString emptyPlaylist_dialog_title = qtr("Playlist empty! - Extended Metadata Manager");
+    QString emptyPlaylist_dialog_text = qtr("There were no items to be loaded on the "
     "current playlist.");
 
     /* Text for the "tips" */
@@ -138,30 +141,78 @@ private:
     QSignalMapper ButtonSignalMapper;
 
 private slots:
-    void close() Q_DECL_OVERRIDE;
     void closeEvent(QCloseEvent *event);
 
+/*----------------------------------------------------------------------------*/
+/*-----------------------------Main use cases---------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+    void close() Q_DECL_OVERRIDE;
     void getFromPlaylist();
     void getFromFolder();
-    void searchNow();
-    void saveAll();
+    void initiateMetadataSearch();
+    void saveChanges();
+    void discardUnsavedChanges();
+
+
+/*----------------------------------------------------------------------------*/
+/*---------------------------Fingerpinting------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
     void fingerprintTable(bool fast);
-    void fingerprint(input_item_t *p_item, bool fast);
-    void restoreAll();
-    void cleanUp();
-    void helpDialog();
-    void aboutDialog();
-    void emptyPlaylistDialog();
-    void clearTable();
+    void fingerprintItem(input_item_t *p_item, bool fast);
+
+/*----------------------------------------------------------------------------*/
+/*------------------------------Item management-------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+    input_item_t* recoverItemFromRow(int row);
+    input_item_t* createItemFromURI(const char* uri);
+    bool isAudioFile(const char* uri);
+    void saveItemChanges( input_item_t *p_item, int rowFrom);
+
+/*----------------------------------------------------------------------------*/
+/*--------------------------Table management----------------------------------*/
+/*----------------------------------------------------------------------------*/
+
     void multipleItemsChanged( QTableWidgetItem *item );
     void addTableEntry(input_item_t *p_item);
     void updateTableEntry(input_item_t *p_item, int row);
-    bool rowIsSelected(int row);
+    bool isRowSelected(int row);
+    void clearTable();
+
+/*----------------------------------------------------------------------------*/
+/*----------------------------Artwork management------------------------------*/
+/*----------------------------------------------------------------------------*/
+
     void updateArtwork(int row, int column);
     void changeArtwork(int row);
-    input_item_t* getItemFromRow(int row);
-    input_item_t* getItemFromURI(const char* uri);
-    bool isAudioFile(const char* uri);
+
+/*----------------------------------------------------------------------------*/
+/*------------------------- UI configuration ---------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+    void configureWindow();
+    void configureBasicUI();
+    void configureTable();
+    void configureButtons();
+    void configureArtworkLabel();
+    void configureProgressBar();
+    void setTableEvents();
+    void setColumnSizes();
+    void setButtonIcons();
+    void setButtonBindings();
+    void setToolTips();
+
+/*----------------------------------------------------------------------------*/
+/*-------------------------------Others---------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+    void cleanUp();
+    void initializeWorkspace();
+    void launchHelpDialog();
+    void launchAboutDialog();
+    void launchEmptyPlaylistDialog();
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
