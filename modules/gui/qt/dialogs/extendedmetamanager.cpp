@@ -64,21 +64,17 @@ void ExtMetaManagerDialog::toggleVisible() { //TODO: clean this method
 /*-----------------------------Main use cases---------------------------------*/
 /*----------------------------------------------------------------------------*/
 
-/* Just closes the window (and the module itself) */
-void ExtMetaManagerDialog::close() { //TODO: clean this method
+// Closes the window (and the module itself)
+void ExtMetaManagerDialog::close() {
     toggleVisible();
-
-    /* Clean before closing */
-    cleanUp();
-
+    resetEnvironment();
     msg_Dbg( p_intf, "[EMM_Dialog] Closing" );
 }
 
 /* Loads files into the table from the current playlist */
 void ExtMetaManagerDialog::getFromPlaylist() { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] getFromPlaylist" );
-    /* Clean before changing the workspace */
-    cleanUp();
+    resetEnvironment();
 
     /* Lock the playlist so we can work with it */
     playlist_Lock(THEPL);
@@ -113,7 +109,7 @@ void ExtMetaManagerDialog::getFromPlaylist() { //TODO: clean this method
         {
             /* Select the first cell and update artwork label */
             ui.tableWidget_metadata->setCurrentCell(0,1);
-            updateArtwork(0,0);
+            updateArtworkInUI(0,0);
         }
     }
 
@@ -145,8 +141,7 @@ void ExtMetaManagerDialog::getFromFolder() { //TODO: clean this method
     /* If no files selected, finish */
     if( uris.isEmpty() ) return;
 
-    /* Clean before changing the workspace */
-    cleanUp();
+    resetEnvironment();
 
     int row; //This is where each item's position will be stored
 
@@ -171,7 +166,7 @@ void ExtMetaManagerDialog::getFromFolder() { //TODO: clean this method
     {
         /* Select the first cell and update artwork label */
         ui.tableWidget_metadata->setCurrentCell(0,1);
-        updateArtwork(0,0);
+        updateArtworkInUI(0,0);
     }
 }
 
@@ -223,27 +218,18 @@ entry is applied automatically */
 void ExtMetaManagerDialog::fingerprintTable( bool fast ) { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] fingerprintTable" );
 
-    input_item_t *p_item; // This is where the current working item will be
+    input_item_t *temp_item; // This is where the current working item will be
 
-    /* Get the number of items we'll be working with and if there are no
-    items, finish */
-    int rows = ui.tableWidget_metadata->rowCount();
-    int selectedRowsCount=0;
+    int totalRowAmount = ui.tableWidget_metadata->rowCount();
+    int selectedRowsAmount = countSelectedRows();
 
-    for(int row = 0;  row < rows; row++) //Iterate over table
-    {
-        /* Check if the row is checked/selected and ignore if not */
-        if (isRowSelected(row)){
-            selectedRowsCount++;
-        }
-    }
-    if (selectedRowsCount == 0)
+    if (selectedRowsAmount == 0)
         return;
 
     /* Calculate how much the progress bar will advance each step (progressBar
     goes from 0 to 100). Then progress variable is set to 0 and the widget is
     updated */
-    int progress_unit= 100/selectedRowsCount;
+    int progress_unit= 100/selectedRowsAmount;
     int progress=0;
     ui.progressBar_search->setValue(progress);
 
@@ -262,19 +248,19 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast ) { //TODO: clean this me
     }
 
     /* Iterate the table */
-    for(int row = 0; row < rows; row++)
+    for(int row = 0; row < totalRowAmount; row++)
     {
         /* Check if the row is checked/selected and ignore if not */
         if (isRowSelected(row))
         {
             /* Get the item from the current row */
-            p_item = recoverItemFromRow(row);
+            temp_item = recoverItemFromRow(row);
 
             /* Fingerprint the item and wait for results */
-            fingerprintItem(p_item, fast);
+            fingerprintItem(temp_item, fast);
 
             /* Update the table with the new info */
-            updateTableEntry(p_item, row);
+            updateTableEntry(temp_item, row);
 
             /* Update the progress bar */
             progress=progress+progress_unit; // Increase the progress
@@ -333,19 +319,19 @@ void ExtMetaManagerDialog::fingerprintItem(input_item_t *p_item, bool fast) { //
 /*------------------------------Item management-------------------------------*/
 /*----------------------------------------------------------------------------*/
 
-input_item_t* ExtMetaManagerDialog::recoverItemFromRow(int row) { //TODO: clean this method
-    /* Item at row X is stored at workspace postion X */
+input_item_t* ExtMetaManagerDialog::recoverItemFromRow(int row) {
+    // Item at row X is stored at workspace postion X
     input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workspace, row);
     return p_item;
 }
 
 /* Gets an item from an URI and preparses it (gets it's metadata) */
-input_item_t* ExtMetaManagerDialog::createItemFromURI(const char* uri) { //TODO: clean this method
+input_item_t* ExtMetaManagerDialog::createItemFromURI(const char* uri) {
     msg_Dbg( p_intf, "[EMM_Dialog] createItemFromURI" );
 
     input_item_t *p_item = input_item_New( uri, "" ); //The name is not relevant
 
-    /* Preparse the item (get the metadata ) */
+    // Preparse the item (get the metadata)
     libvlc_MetadataRequest(THEPL->obj.libvlc, p_item, META_REQUEST_OPTION_SCOPE_ANY,-1, NULL );
     while (!input_item_IsPreparsed(p_item)) ;
 
@@ -447,7 +433,7 @@ void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item ) { //TO
     ui.tableWidget_metadata->blockSignals(false);
 }
 
-/* Adds a row on the table with the metadata from a given item */
+// Adds a row on the table with the metadata from a given item
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item) { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] addTableEntry" );
 
@@ -479,7 +465,7 @@ void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item) { //TODO: clean t
     updateTableEntry(p_item,row);
 }
 
-// Updates/Writes a (given) row on the table with one item's metadata
+// Updates/Writes a row on the table with one item's metadata
 void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row) {
     msg_Dbg( p_intf, "[EMM_Dialog] updateTableEntry" );
 
@@ -510,13 +496,24 @@ bool ExtMetaManagerDialog::isRowSelected(int row) {
     return checkbox->isChecked();
 }
 
-/* Deletes all entries from the table (still can be recovered with discardUnsavedChanges) */
-void ExtMetaManagerDialog::clearTable() { //TODO: clean this method
+void ExtMetaManagerDialog::clearTable() {
     msg_Dbg( p_intf, "[EMM_Dialog] clearTable" );
 
     ui.tableWidget_metadata->clearContents();
     ui.tableWidget_metadata->setRowCount(0);
     art_cover->clear();
+}
+
+int ExtMetaManagerDialog::countSelectedRows() {
+    int totalRowAmount = ui.tableWidget_metadata->rowCount();
+    int selectedRowsCount=0;
+
+    for(int row = 0;  row < totalRowAmount; row++) {
+        if (isRowSelected(row)){
+            selectedRowsCount++;
+        }
+    }
+    return selectedRowsCount;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -525,21 +522,18 @@ void ExtMetaManagerDialog::clearTable() { //TODO: clean this method
 
 /* When a cell on the table is selected, this function changes the Artwork
 label's content to the selected item's artwork */
-void ExtMetaManagerDialog::updateArtwork(int row, int column) { //TODO: clean this method
-    msg_Dbg( p_intf, "[EMM_Dialog] updateArtwork" );
-
+void ExtMetaManagerDialog::updateArtworkInUI(int row, int column) {
+    msg_Dbg( p_intf, "[EMM_Dialog] updateArtworkInUI" );
     UNUSED(column); //FIXME: delete this
-    /* Get the item form the row, decode it's Artwork and update it in the UI */
     art_cover->showArtUpdate( recoverItemFromRow(row) );
 }
 
-/* Change the artwork of the currently selected item */
-void ExtMetaManagerDialog::changeArtwork(int row) { //TODO: clean this method
+void ExtMetaManagerDialog::changeArtwork(int row) {
     msg_Dbg( p_intf, "[EMM_Dialog] changeArtwork" );
 
-    /* Fix to select the row is the button being clicked and select it's cover */
+    /* Fix to select the row the button is being clicked from and select it's cover */
     ui.tableWidget_metadata->setCurrentCell(row, COL_ARTWORK);
-    updateArtwork(row, COL_ARTWORK);
+    updateArtworkInUI(row, COL_ARTWORK);
 
     art_cover->setArtFromFile();
 }
@@ -590,7 +584,7 @@ void ExtMetaManagerDialog::configureProgressBar() {
 }
 
 void ExtMetaManagerDialog::setTableEvents() {
-    CONNECT( ui.tableWidget_metadata, cellClicked(int, int), this, updateArtwork(int, int) );
+    CONNECT( ui.tableWidget_metadata, cellClicked(int, int), this, updateArtworkInUI(int, int) );
     CONNECT( ui.tableWidget_metadata,  itemChanged(QTableWidgetItem*), this,  multipleItemsChanged(QTableWidgetItem*));
 }
 
@@ -608,7 +602,6 @@ void ExtMetaManagerDialog::setColumnSizes() {
 }
 
 void ExtMetaManagerDialog::setButtonIcons() {
-    // Set icons
     ui.pushButton_getFromPlaylist->setIcon(QIcon(QPixmap (":/toolbar/playlist") ) );
     ui.pushButton_getFromFolder->setIcon(QIcon(QPixmap (":/type/folder-grey") ) );
     ui.pushButton_help->setIcon(QIcon(QPixmap (":/menu/help") ) );
@@ -628,7 +621,7 @@ void ExtMetaManagerDialog::setButtonBindings() {
     BUTTONACT( ui.pushButton_searchNow, initiateMetadataSearch() );
     BUTTONACT( ui.pushButton_saveAll, saveChanges() );
     BUTTONACT( ui.pushButton_restoreAll, discardUnsavedChanges() );
-    BUTTONACT( ui.pushButton_clearTable, cleanUp() );
+    BUTTONACT( ui.pushButton_clearTable, resetEnvironment() );
     BUTTONACT( ui.pushButton_cancel, close() );
 }
 
@@ -651,12 +644,10 @@ void ExtMetaManagerDialog::setToolTips() {
 /*-------------------------------Others---------------------------------------*/
 /*----------------------------------------------------------------------------*/
 
-// Cleans the playlist, clears the table, empties workspace
-void ExtMetaManagerDialog::cleanUp() { //TODO: clean this method
-    msg_Dbg( p_intf, "[EMM_Dialog] cleanUp" );
-
+void ExtMetaManagerDialog::resetEnvironment() {
+    msg_Dbg( p_intf, "[EMM_Dialog] resetEnvironment" );
     clearTable();
-    vlc_array_clear(workspace); // This last or the previous ones won't work
+    vlc_array_clear(workspace);
 }
 
 void ExtMetaManagerDialog::initializeWorkspace(){

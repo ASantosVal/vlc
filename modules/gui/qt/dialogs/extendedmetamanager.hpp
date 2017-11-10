@@ -154,7 +154,6 @@ private slots:
     void saveChanges();
     void discardUnsavedChanges();
 
-
 /*----------------------------------------------------------------------------*/
 /*---------------------------Fingerpinting------------------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -180,12 +179,13 @@ private slots:
     void updateTableEntry(input_item_t *p_item, int row);
     bool isRowSelected(int row);
     void clearTable();
+    int countSelectedRows();
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------Artwork management------------------------------*/
 /*----------------------------------------------------------------------------*/
 
-    void updateArtwork(int row, int column);
+    void updateArtworkInUI(int row, int column);
     void changeArtwork(int row);
 
 /*----------------------------------------------------------------------------*/
@@ -208,11 +208,12 @@ private slots:
 /*-------------------------------Others---------------------------------------*/
 /*----------------------------------------------------------------------------*/
 
-    void cleanUp();
+    void resetEnvironment();
     void initializeWorkspace();
     void launchHelpDialog();
     void launchAboutDialog();
     void launchEmptyPlaylistDialog();
+
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
