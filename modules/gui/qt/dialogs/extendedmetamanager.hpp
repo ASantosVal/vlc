@@ -176,11 +176,14 @@ private slots:
 
     void multipleItemsChanged( QTableWidgetItem *item );
     void addTableEntry(input_item_t *p_item);
-    void updateTableEntry(input_item_t *p_item, int row);
-    bool isRowSelected(int row);
+    void fillRowWithMetadata(input_item_t *p_item, int row);
     void clearTable();
     int countSelectedRows();
     bool isTableEmpty();
+    bool isRowSelected(int row);
+    void createCheckboxOnRow(int row);
+    int addNewRow();
+    void createChangeartworkButtonOnRow(int row);
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------Artwork management------------------------------*/

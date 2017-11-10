@@ -46,17 +46,17 @@ ExtMetaManagerDialog::~ExtMetaManagerDialog() {
 }
 
 /* Override the closing (click X) event*/
-void ExtMetaManagerDialog::closeEvent(QCloseEvent *event) { //TODO: clean this method
+void ExtMetaManagerDialog::closeEvent(QCloseEvent *event) {
     msg_Dbg( p_intf, "[EMM_Dialog] Close event" );
     UNUSED(event); //FIXME: delete this
     close();
 }
 
-/* Show/hide */
-void ExtMetaManagerDialog::toggleVisible() { //TODO: clean this method
+// Show/hide window
+void ExtMetaManagerDialog::toggleVisible() {
     msg_Dbg( p_intf, "[EMM_Dialog] toggleVisible" );
     QVLCDialog::toggleVisible();
-    if(isVisible()) //If changed to shown
+    if(isVisible())
         activateWindow();
 }
 
@@ -256,7 +256,7 @@ void ExtMetaManagerDialog::fingerprintTable( bool isFastSearch ) { //TODO: clean
             fingerprintItem(temp_item, isFastSearch);
 
             /* Update the table with the new info */
-            updateTableEntry(temp_item, row);
+            fillRowWithMetadata(temp_item, row);
 
             /* Update the progress bar */
             progress=progress+progress_unit; // Increase the progress
@@ -366,7 +366,7 @@ bool ExtMetaManagerDialog::isAudioFile(const char* uri) { //TODO: clean this met
             /* Reset "temp" */
             memset(temp, 0, sizeof temp);
         }
-        /* If charater is found (not separator), add it to the current extension */
+        // If charater is found (not separator), add it to the current extension
         else if (EXTENSIONS_AUDIO[i] != '*' && EXTENSIONS_AUDIO[i] != ';')
         {
             int len = strlen(temp);
@@ -429,41 +429,20 @@ void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item ) {
     ui.tableWidget_metadata->blockSignals(false);
 }
 
-// Adds a row on the table with the metadata from a given item
-void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item) { //TODO: clean this method
+void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item) {
     msg_Dbg( p_intf, "[EMM_Dialog] addTableEntry" );
 
-    /* Add one row to the table Initilize */
-    int row = ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
-    ui.tableWidget_metadata->insertRow(row);
+    int newRowNumber = addNewRow();
 
-    /* Create checkbox for the first column and set it as checked(and set it's tip). */
-    QCheckBox *checkbox = new QCheckBox ();
-    checkbox->setChecked(1);
-    checkbox->setToolTip(checkbox_tip);
-    /* Insert the checkbox in the cell */
-    ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox );
+    createCheckboxOnRow(newRowNumber);
 
-    /* Create button for the artwork update (and set it's tip). We don't add
-    it to the UI yet, it will be added in each row later */
-    QPushButton *button_changeArtwork = new QPushButton( qtr("Change"), this);
-    button_changeArtwork->setToolTip(artworkButton_tip);
+    createChangeartworkButtonOnRow(newRowNumber);
 
-    /* Prepare the mapping with the row and connect the button to it.
-    The mapper is used to be able to know from which row is the button is
-    being clicked */
-    ButtonSignalMapper.setMapping(button_changeArtwork, row);
-    connect(button_changeArtwork, SIGNAL(clicked()), &ButtonSignalMapper, SLOT(map()));
-
-    /* Insert the button in the cell (we have created it on the constructor) */
-    ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, button_changeArtwork );
-
-    updateTableEntry(p_item,row);
+    fillRowWithMetadata(p_item, newRowNumber);
 }
 
-// Updates/Writes a row on the table with one item's metadata
-void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row) {
-    msg_Dbg( p_intf, "[EMM_Dialog] updateTableEntry" );
+void ExtMetaManagerDialog::fillRowWithMetadata(input_item_t *p_item, int row) {
+    msg_Dbg( p_intf, "[EMM_Dialog] fillRowWithMetadata" );
 
     // Get metadata information from item
     char *title_text = input_item_GetTitle(p_item);
@@ -485,11 +464,6 @@ void ExtMetaManagerDialog::updateTableEntry(input_item_t *p_item, int row) {
     ui.tableWidget_metadata->setItem(row, COL_COPYRIGHT, new QTableWidgetItem( copyright_text ));
     ui.tableWidget_metadata->setItem(row, COL_PATH, new QTableWidgetItem( uri_text ));
     ui.tableWidget_metadata->item(row, COL_PATH)->setFlags(0); // Make the path not selectable/editable
-}
-
-bool ExtMetaManagerDialog::isRowSelected(int row) {
-    QCheckBox *checkbox = (QCheckBox*) ui.tableWidget_metadata->cellWidget(row,COL_CHECKBOX);
-    return checkbox->isChecked();
 }
 
 void ExtMetaManagerDialog::clearTable() {
@@ -516,6 +490,37 @@ bool ExtMetaManagerDialog::isTableEmpty() {
     return (ui.tableWidget_metadata->rowCount()>0);
 }
 
+bool ExtMetaManagerDialog::isRowSelected(int row) {
+    QCheckBox *checkbox = (QCheckBox*) ui.tableWidget_metadata->cellWidget(row,COL_CHECKBOX);
+    return checkbox->isChecked();
+}
+
+void ExtMetaManagerDialog::createCheckboxOnRow(int row) {
+    QCheckBox *checkbox = new QCheckBox ();
+    checkbox->setChecked(true);
+    checkbox->setToolTip(checkbox_tip);
+    ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox);
+}
+
+int ExtMetaManagerDialog::addNewRow() {
+    int newRowNumber = ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
+    ui.tableWidget_metadata->insertRow(newRowNumber);
+    return newRowNumber;
+}
+
+void ExtMetaManagerDialog::createChangeartworkButtonOnRow(int row) {
+    QPushButton *button_changeArtwork = new QPushButton( qtr("Change"), this);
+    button_changeArtwork->setToolTip(artworkButton_tip);
+
+    /* Prepare the mapper to be able to know from which row is the button is
+    being clicked */
+    ButtonSignalMapper.setMapping(button_changeArtwork, row);
+    connect(button_changeArtwork, SIGNAL(clicked()), &ButtonSignalMapper, SLOT(map()));
+
+    // Insert the button in the cell
+    ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, button_changeArtwork );
+}
+
 /*----------------------------------------------------------------------------*/
 /*----------------------------Artwork management------------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -531,7 +536,7 @@ void ExtMetaManagerDialog::updateArtworkInUI(int row, int column) {
 void ExtMetaManagerDialog::changeArtwork(int row) {
     msg_Dbg( p_intf, "[EMM_Dialog] changeArtwork" );
 
-    /* Fix to select the row the button is being clicked from and select it's cover */
+    // Fix to know the row the button is being clicked from and show it's cover
     ui.tableWidget_metadata->setCurrentCell(row, COL_ARTWORK);
     updateArtworkInUI(row, COL_ARTWORK);
 
@@ -552,7 +557,7 @@ void ExtMetaManagerDialog::configureWindow(){
 }
 
 void ExtMetaManagerDialog::configureBasicUI() {
-    ui.setupUi( this ); //setup the UI from de compiled (.h) version of de QT ui (.ui)
+    ui.setupUi( this ); //from de compiled (.h) version of de QT ui (.ui) file
     setWindowFlags( Qt::Tool );
     setWindowRole( "vlc-ext-meta-manager" );
     setWindowTitle( qtr( "Extended Metadata Manager" ) );
