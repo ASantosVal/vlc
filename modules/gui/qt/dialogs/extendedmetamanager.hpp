@@ -158,8 +158,8 @@ private slots:
 /*---------------------------Fingerpinting------------------------------------*/
 /*----------------------------------------------------------------------------*/
 
-    void fingerprintTable(bool fast);
-    void fingerprintItem(input_item_t *p_item, bool fast);
+    void fingerprintTable(bool isFastSearch);
+    void fingerprintItem(input_item_t *p_item, bool isFastSearch);
 
 /*----------------------------------------------------------------------------*/
 /*------------------------------Item management-------------------------------*/
@@ -180,6 +180,7 @@ private slots:
     bool isRowSelected(int row);
     void clearTable();
     int countSelectedRows();
+    bool isTableEmpty();
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------Artwork management------------------------------*/

@@ -82,40 +82,36 @@ void ExtMetaManagerDialog::getFromPlaylist() { //TODO: clean this method
     /* Get the size of the playlist and if no files selected, finish */
     int size = THEPL->items.i_size;
 
-    /* If the playlist is NOT empty, load it's info */
-    if( size !=0 )
+    if( size ==0 ) {
+        playlist_Unlock(THEPL);
+        return;
+    }
+
+    input_item_t *p_item;  //This is where each item will be stored
+    int row; //This is where each item's position will be stored
+
+    for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
     {
-        input_item_t *p_item;  //This is where each item will be stored
-        int row; //This is where each item's position will be stored
+        p_item = playlist_ItemGetById(THEPL, i)->p_input; // Get the playlist_item's input_item_t
 
-        for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
+        if (isAudioFile(input_item_GetURI(p_item)))
         {
-            p_item = playlist_ItemGetById(THEPL, i)->p_input; // Get the playlist_item's input_item_t
+            addTableEntry(p_item); //add item to the table
 
-            if (isAudioFile(input_item_GetURI(p_item)))
-            {
-                addTableEntry(p_item); //add item to the table
-
-                /*Now we get the size of the table and store the item on that position
-                on the workspace array, so item at row X on the table is also stored at
-                array position X*/
-                row = ui.tableWidget_metadata->rowCount();
-                vlc_array_insert(workspace, p_item, row-1);
-            }
-        }
-
-        /* If table is not empty, prepare it */
-        if (ui.tableWidget_metadata->rowCount()>0)
-        {
-            /* Select the first cell and update artwork label */
-            ui.tableWidget_metadata->setCurrentCell(0,1);
-            updateArtworkInUI(0,0);
+            /*Now we get the size of the table and store the item on that position
+            on the workspace array, so item at row X on the table is also stored at
+            array position X*/
+            row = ui.tableWidget_metadata->rowCount();
+            vlc_array_insert(workspace, p_item, row-1);
         }
     }
 
-    /* If table is empty, show warning */
-    if (ui.tableWidget_metadata->rowCount()<1){
+
+    if (isTableEmpty()) {
         launchEmptyPlaylistDialog();
+    } else {
+        ui.tableWidget_metadata->setCurrentCell(0,1);
+        updateArtworkInUI(0,0);
     }
 
     /* Always unlock the playlist */
@@ -215,7 +211,7 @@ void ExtMetaManagerDialog::discardUnsavedChanges() {
 
 /* Initiates the fingerprint process for all the table. If "fast" is true, 1st
 entry is applied automatically */
-void ExtMetaManagerDialog::fingerprintTable( bool fast ) { //TODO: clean this method
+void ExtMetaManagerDialog::fingerprintTable( bool isFastSearch ) { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] fingerprintTable" );
 
     input_item_t *temp_item; // This is where the current working item will be
@@ -238,7 +234,7 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast ) { //TODO: clean this me
     ui.tableWidget_metadata->blockSignals(true);
 
     /* if fast search is activated, initilize custom fingerprinter */
-    if (fast)
+    if (isFastSearch)
     {
         t = new (std::nothrow) Chromaprint( p_intf );
         if ( !t )
@@ -257,7 +253,7 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast ) { //TODO: clean this me
             temp_item = recoverItemFromRow(row);
 
             /* Fingerprint the item and wait for results */
-            fingerprintItem(temp_item, fast);
+            fingerprintItem(temp_item, isFastSearch);
 
             /* Update the table with the new info */
             updateTableEntry(temp_item, row);
@@ -274,7 +270,7 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast ) { //TODO: clean this me
     ui.progressBar_search->setEnabled(false);
 
     /* If fast search is activated, delete the custom fingerprinter */
-    if (fast)
+    if (isFastSearch)
     {
         if ( t ) delete t;
         if ( p_r ) fingerprint_request_Delete( p_r );
@@ -286,10 +282,10 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast ) { //TODO: clean this me
 
 /* Initiates the fingerprint process just for one item. If "fast" is true, 1st
 entry is applied automatically */
-void ExtMetaManagerDialog::fingerprintItem(input_item_t *p_item, bool fast) { //TODO: clean this method
+void ExtMetaManagerDialog::fingerprintItem(input_item_t *p_item, bool isFastSearch) { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] fingerprint" );
 
-    if (fast)
+    if (isFastSearch)
     {
         /* Add the item to the finperprinter's queue */
         if ( t )
@@ -421,9 +417,9 @@ void ExtMetaManagerDialog::saveItemChanges( input_item_t *p_item, int rowFrom) {
 /*--------------------------Table management----------------------------------*/
 /*----------------------------------------------------------------------------*/
 
-/* Modify the table's behavior so multiple items can be edited at the same time
-when more than one cell is selected. */
-void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item ) { //TODO: clean this method
+/* Modify the table's behavior so when multiple cells are selected, their text
+ is changed all at once */
+void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item ) {
     ui.tableWidget_metadata->blockSignals(true);
     QList<QTableWidgetItem*> selectedItems = ui.tableWidget_metadata->selectedItems();
     foreach(QTableWidgetItem* selectItem, selectedItems)
@@ -514,6 +510,10 @@ int ExtMetaManagerDialog::countSelectedRows() {
         }
     }
     return selectedRowsCount;
+}
+
+bool ExtMetaManagerDialog::isTableEmpty() {
+    return (ui.tableWidget_metadata->rowCount()>0);
 }
 
 /*----------------------------------------------------------------------------*/
