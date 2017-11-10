@@ -29,7 +29,7 @@
 
 #include <QMessageBox> /* for the Help and About popups */
 
-#define UNUSED(x) (void)(x) //FIXME: delete this. Unused variable warning removal
+#define UNUSED(x) (void)(x) //FIXME: delete this, just avoids a warning
 
 /* Constructor */
 ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
@@ -130,7 +130,7 @@ ExtMetaManagerDialog::~ExtMetaManagerDialog()
 void ExtMetaManagerDialog::closeEvent(QCloseEvent *event)
 {
     msg_Dbg( p_intf, "[EMM_Dialog] Close event" );
-    UNUSED(event); //FIXME: delete this
+    UNUSED(event); //FIXME: delete this, just avoids a warning
     close();
 }
 
@@ -215,9 +215,7 @@ void ExtMetaManagerDialog::getFromPlaylist()
         /* If table is not empty, prepare it */
         if (ui.tableWidget_metadata->rowCount()>0)
         {
-            /* Select the first cell and update artwork label */
-            ui.tableWidget_metadata->setCurrentCell(0,COL_TITLE);
-            //updateArtwork(0,0); //TODO: this creates seg. fault
+            ui.tableWidget_metadata->clearSelection();
         }
     }
 
@@ -277,9 +275,7 @@ void ExtMetaManagerDialog::getFromFolder()
     /* If table is not empty, prepare it */
     if (ui.tableWidget_metadata->rowCount()>0)
     {
-        /* Select the first cell and update artwork label */
-        ui.tableWidget_metadata->setCurrentCell(0,COL_TITLE);
-        //updateArtwork(0,0); //TODO: this creates seg. fault
+        ui.tableWidget_metadata->clearSelection();
     }
 
     /* We have finished, so we unlock all the table's signals. */
@@ -504,9 +500,12 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
 input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 {
     msg_Dbg( p_intf, "[EMM_Dialog] getItemFromRow" );
+    msg_Err( p_intf, "[EMM_Dialog] getItemFromRow" ); //TODO: delete this
+    printf("ROW: %d\n", row); //TODO: delete this
 
-    /* Retrieve URI from the wanted row */
+    /* Retrieve URI from the wanted row */ //FIXME: here there is a seg.fault quen tableSorting+loadPL
     const char * wantedUri = ui.tableWidget_metadata->item(row,COL_PATH)->text().toLocal8Bit().constData();
+    printf("wantedUri:%s\n", wantedUri); //TODO: delete this
 
     /* Get size of "workspace" and travel through it */
     int arraySize = vlc_array_count(workspace);
@@ -517,15 +516,20 @@ input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 
         /* Get uri from that item */
         char * temp_uri = input_item_GetURI(p_item);
+        printf("temp_uri: %s\n", temp_uri); //TODO: delete this
 
         /* Compare it to "wantedUri". If true, means it's que item we wanted, so return it. */
-        if (strcmp(temp_uri,wantedUri) == 0){
+        if (strcmp(temp_uri,wantedUri) == 0){ //TODO: for some reason this sometimes randomly doesn't work
+            msg_Err( p_intf, "[EMM_Dialog] getItemFromRow - FOUND" );
+
             return p_item;
         }
-
+        msg_Dbg( p_intf, "NOT FOUND" );
     }
 
+    msg_Err( p_intf, "[EMM_Dialog] getItemFromRow - ITEM WAS NOT FOUND" );
     //TODO: return error
+
 }
 
 /* Gets an item from an URI and preparses it (gets it's metadata) */
@@ -604,9 +608,14 @@ void ExtMetaManagerDialog::previewItem(int item_index){
     input_item_t *p_item = getItemFromRow(item_index);
 
     //TODO: this creates seg. fault when loading playlist after using this method
-    playlist_Clear( THEPL, false ); //Clear playlist
+
+    playlist_Lock(THEPL);//TODO: this is just a test, may not work
+    playlist_Clear( THEPL, true ); //Clear playlist
+    playlist_Unlock(THEPL); //TODO: this is just a test, may not work
     playlist_AddInput( THEPL, p_item, true, true ); //Add our item
     THEMIM->play(); //Start playback
+
+
 }
 
 /*----------------------------------------------------------------------------*/
@@ -743,7 +752,8 @@ void ExtMetaManagerDialog::updateArtwork(int row, int column)
 {
     msg_Dbg( p_intf, "[EMM_Dialog] updateArtwork" );
 
-    UNUSED(column); //FIXME: delete this, jus avoids a warning
+    UNUSED(column); //FIXME: delete this, just avoids a warning
+
     /* Get the item form the row, decode it's Artwork and update it in the UI */
     art_cover->showArtUpdate( getItemFromRow(row) );
 }
