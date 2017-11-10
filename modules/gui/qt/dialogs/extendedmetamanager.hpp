@@ -160,6 +160,7 @@ private slots:
 
     void fingerprintTable(bool isFastSearch);
     void fingerprintItem(input_item_t *p_item, bool isFastSearch);
+    void launchFingerprinterDialog(input_item_t *p_item);
 
 /*----------------------------------------------------------------------------*/
 /*------------------------------Item management-------------------------------*/
@@ -179,7 +180,7 @@ private slots:
     void fillRowWithMetadata(input_item_t *p_item, int row);
     void clearTable();
     int countSelectedRows();
-    bool isTableEmpty();
+    bool tableIsEmpty();
     bool isRowSelected(int row);
     void createCheckboxOnRow(int row);
     int addNewRow();
@@ -217,6 +218,7 @@ private slots:
     void launchHelpDialog();
     void launchAboutDialog();
     void launchEmptyPlaylistDialog();
+    QStringList launchAudioFileSelector();
 
 
     friend class    Singleton<ExtMetaManagerDialog>;

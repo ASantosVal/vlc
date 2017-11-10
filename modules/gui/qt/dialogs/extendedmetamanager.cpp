@@ -107,7 +107,7 @@ void ExtMetaManagerDialog::getFromPlaylist() { //TODO: clean this method
     }
 
 
-    if (isTableEmpty()) {
+    if (tableIsEmpty()) {
         launchEmptyPlaylistDialog();
     } else {
         ui.tableWidget_metadata->setCurrentCell(0,1);
@@ -122,17 +122,7 @@ void ExtMetaManagerDialog::getFromPlaylist() { //TODO: clean this method
 void ExtMetaManagerDialog::getFromFolder() { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] getFromFolder" );
 
-    /* Hide */
-    toggleVisible();
-
-    /* Open a file explorer just with audio files */
-    QStringList uris = THEDP->showSimpleOpen(
-        qtr("Open audio files to manage"),
-        EXT_FILTER_AUDIO,
-        p_intf->p_sys->filepath );
-
-    /* Show again */
-    toggleVisible();
+    QStringList uris = launchAudioFileSelector();
 
     /* If no files selected, finish */
     if( uris.isEmpty() ) return;
@@ -141,10 +131,8 @@ void ExtMetaManagerDialog::getFromFolder() { //TODO: clean this method
 
     int row; //This is where each item's position will be stored
 
-    foreach( const QString &uri, uris )
-    {
-        if (isAudioFile(uri.toLatin1().constData()))
-        {
+    foreach( const QString &uri, uris ) {
+        if (isAudioFile(uri.toLatin1().constData())) {
             // Get the item from the URI
             input_item_t *p_item = createItemFromURI(uri.toLatin1().constData());
 
@@ -157,9 +145,8 @@ void ExtMetaManagerDialog::getFromFolder() { //TODO: clean this method
             vlc_array_insert(workspace, p_item, row-1);
         }
     }
-    /* If table is not empty, prepare it */
-    if (ui.tableWidget_metadata->rowCount()>0)
-    {
+
+    if (!tableIsEmpty()) {
         /* Select the first cell and update artwork label */
         ui.tableWidget_metadata->setCurrentCell(0,1);
         updateArtworkInUI(0,0);
@@ -246,16 +233,10 @@ void ExtMetaManagerDialog::fingerprintTable( bool isFastSearch ) { //TODO: clean
     /* Iterate the table */
     for(int row = 0; row < totalRowAmount; row++)
     {
-        /* Check if the row is checked/selected and ignore if not */
         if (isRowSelected(row))
         {
-            /* Get the item from the current row */
             temp_item = recoverItemFromRow(row);
-
-            /* Fingerprint the item and wait for results */
             fingerprintItem(temp_item, isFastSearch);
-
-            /* Update the table with the new info */
             fillRowWithMetadata(temp_item, row);
 
             /* Update the progress bar */
@@ -302,15 +283,16 @@ void ExtMetaManagerDialog::fingerprintItem(input_item_t *p_item, bool isFastSear
 
         /* Apply first option */
         t->apply( p_r, 0 );
-    }
-    else
-    {
-        //Create a fingerprint dialog and wait until it's closed
-        FingerprintDialog dialog(this, p_intf, p_item);
-        dialog.exec();
+    } else {
+        launchFingerprinterDialog(p_item);
     }
 }
 
+
+void ExtMetaManagerDialog::launchFingerprinterDialog(input_item_t *p_item) {
+    FingerprintDialog dialog(this, p_intf, p_item);
+    dialog.exec();
+}
 /*----------------------------------------------------------------------------*/
 /*------------------------------Item management-------------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -486,7 +468,7 @@ int ExtMetaManagerDialog::countSelectedRows() {
     return selectedRowsCount;
 }
 
-bool ExtMetaManagerDialog::isTableEmpty() {
+bool ExtMetaManagerDialog::tableIsEmpty() {
     return (ui.tableWidget_metadata->rowCount()>0);
 }
 
@@ -679,4 +661,14 @@ void ExtMetaManagerDialog::launchEmptyPlaylistDialog() {
       this,
       emptyPlaylist_dialog_title,
       emptyPlaylist_dialog_text );
+}
+
+QStringList ExtMetaManagerDialog::launchAudioFileSelector(){
+    toggleVisible(); // Hide window
+    QStringList uris = THEDP->showSimpleOpen(
+        qtr("Open audio files to manage"),
+        EXT_FILTER_AUDIO,
+        p_intf->p_sys->filepath );
+    toggleVisible();// Show window again
+    return uris;
 }
