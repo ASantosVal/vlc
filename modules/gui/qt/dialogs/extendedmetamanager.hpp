@@ -219,6 +219,8 @@ private slots:
     void launchAboutDialog();
     void launchEmptyPlaylistDialog();
     QStringList launchAudioFileSelector();
+    bool itemAlreadyOnLoaded(input_item_t *new_item);
+    bool isClearSelected();
 
 
     friend class    Singleton<ExtMetaManagerDialog>;

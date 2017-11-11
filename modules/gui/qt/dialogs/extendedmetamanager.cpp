@@ -74,45 +74,62 @@ void ExtMetaManagerDialog::close() {
 /* Loads files into the table from the current playlist */
 void ExtMetaManagerDialog::getFromPlaylist() { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] getFromPlaylist" );
-    resetEnvironment();
+
+    if (isClearSelected()){
+        resetEnvironment();
+    }
+
+    /* We dont want the table to mess things while we update it, so que block
+    its signals (this is caused because we edited "multipleItemsChanged"). */
+    ui.tableWidget_metadata->blockSignals(true);
 
     /* Lock the playlist so we can work with it */
     playlist_Lock(THEPL);
 
-    /* Get the size of the playlist and if no files selected, finish */
-    int size = THEPL->items.i_size;
+    /* NOTE: Since the playlist usage is confusing, here is what I understood:
+    --The number of elements playing is THEPL->items.i_size-5
+    --Items currently playing start on position 8 and finish at sizeOfPlaylist+8 ('playlist_CurrentSize(THEPL)' only returns 0 or 1) */
+    int sizeOfPlaylist = THEPL->items.i_size - 5;
+    int whereTheLoadedItemsStart = 8;
+    int whereTheLoadedItemsFinish = sizeOfPlaylist + 8;
 
-    if( size ==0 ) {
+    /* This will be used to show a warning if nothing is loaded */
+    bool itemsWereLoaded = false;
+
+    if( sizeOfPlaylist ==0 ) {
         playlist_Unlock(THEPL);
         return;
     }
 
     input_item_t *p_item;  //This is where each item will be stored
-    int row; //This is where each item's position will be stored
 
-    for(int i = 4;  i <= size+3; i++) //the list starts at 4 because the first 3 are not files
+    /* Go through the playlist */
+    for(int i = whereTheLoadedItemsStart;  i < whereTheLoadedItemsFinish; i++)
     {
-        p_item = playlist_ItemGetById(THEPL, i)->p_input; // Get the playlist_item's input_item_t
+        /* Get the current playlist_item's input_item_t */
+        p_item = playlist_ItemGetById(THEPL, i)->p_input;
 
+        /* Evaluate if it's an audio file */
         if (isAudioFile(input_item_GetURI(p_item)))
         {
-            addTableEntry(p_item); //add item to the table
+            /* Add item to the table */
+            addTableEntry(p_item);
 
-            /*Now we get the size of the table and store the item on that position
-            on the workspace array, so item at row X on the table is also stored at
-            array position X*/
-            row = ui.tableWidget_metadata->rowCount();
-            vlc_array_insert(workspace, p_item, row-1);
+            itemsWereLoaded = true;
         }
     }
 
-
-    if (tableIsEmpty()) {
+    /* If playlist was empty, show warning */
+    if (!itemsWereLoaded)
+    {
         launchEmptyPlaylistDialog();
     } else {
         ui.tableWidget_metadata->setCurrentCell(0,1);
         updateArtworkInUI(0,0);
     }
+
+    /* We have finished, so we unlock all the table's signals. */
+    ui.tableWidget_metadata->blockSignals(false);
 
     /* Always unlock the playlist */
     playlist_Unlock(THEPL);
@@ -127,9 +144,14 @@ void ExtMetaManagerDialog::getFromFolder() { //TODO: clean this method
     /* If no files selected, finish */
     if( uris.isEmpty() ) return;
 
-    resetEnvironment();
+    /* Clean before changing the workspace */
+    if (isClearSelected()){
+        resetEnvironment();
+    }
 
-    int row; //This is where each item's position will be stored
+    /* We dont want the table to mess things while we update it, so que block
+    its signals (this is caused because we edited "multipleItemsChanged"). */
+    ui.tableWidget_metadata->blockSignals(true);
 
     foreach( const QString &uri, uris ) {
         if (isAudioFile(uri.toLatin1().constData())) {
@@ -137,12 +159,6 @@ void ExtMetaManagerDialog::getFromFolder() { //TODO: clean this method
             input_item_t *p_item = createItemFromURI(uri.toLatin1().constData());
 
             addTableEntry(p_item); //Add the item to the table
-
-            /*Now we get the size of the table and store the item on that position
-            on the workspace array, so item at row X on the table is also stored at
-            array position X*/
-            row = ui.tableWidget_metadata->rowCount();
-            vlc_array_insert(workspace, p_item, row-1);
         }
     }
 
@@ -151,6 +167,9 @@ void ExtMetaManagerDialog::getFromFolder() { //TODO: clean this method
         ui.tableWidget_metadata->setCurrentCell(0,1);
         updateArtworkInUI(0,0);
     }
+
+    /* We have finished, so we unlock all the table's signals. */
+    ui.tableWidget_metadata->blockSignals(false);
 }
 
 void ExtMetaManagerDialog::initiateMetadataSearch() {
@@ -177,18 +196,27 @@ void ExtMetaManagerDialog::saveChanges() {
     }
 }
 
-void ExtMetaManagerDialog::discardUnsavedChanges() {
+void ExtMetaManagerDialog::discardUnsavedChanges() { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] discardUnsavedChanges" );
 
     clearTable();
 
-    input_item_t *temp_item;
+    char * uri_text;
+    input_item_t * p_item_old;
+    input_item_t * p_item_reloaded;
 
     int workspaceSize = vlc_array_count(workspace);
     for(int i = 0; i < workspaceSize; i++)
     {
-        temp_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
-        addTableEntry(temp_item);
+        /* Get one item from the "workspace", get it's URI, create a new
+        input_item_t and add it to the table (we do this because we want to
+        fetch the original metadata again)*/
+        p_item_old = (input_item_t*)vlc_array_item_at_index(workspace, i);
+        vlc_array_remove(workspace, i); //We do this to avoid bugs when reloading table
+        uri_text = input_item_GetURI(p_item_old);
+        p_item_reloaded = createItemFromURI(uri_text);
+
+        addTableEntry(p_item_reloaded);
     }
 }
 
@@ -293,6 +321,7 @@ void ExtMetaManagerDialog::launchFingerprinterDialog(input_item_t *p_item) {
     FingerprintDialog dialog(this, p_intf, p_item);
     dialog.exec();
 }
+
 /*----------------------------------------------------------------------------*/
 /*------------------------------Item management-------------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -414,13 +443,19 @@ void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item ) {
 void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item) {
     msg_Dbg( p_intf, "[EMM_Dialog] addTableEntry" );
 
+
+    if (itemAlreadyOnLoaded(p_item)){
+        return;
+    }
+
     int newRowNumber = addNewRow();
-
     createCheckboxOnRow(newRowNumber);
-
     createChangeartworkButtonOnRow(newRowNumber);
-
     fillRowWithMetadata(p_item, newRowNumber);
+
+    /* Now we append file to our "workspace" */
+    vlc_array_append(workspace, p_item); //TODO: clean this
+
 }
 
 void ExtMetaManagerDialog::fillRowWithMetadata(input_item_t *p_item, int row) {
@@ -511,7 +546,7 @@ void ExtMetaManagerDialog::createChangeartworkButtonOnRow(int row) {
 label's content to the selected item's artwork */
 void ExtMetaManagerDialog::updateArtworkInUI(int row, int column) {
     msg_Dbg( p_intf, "[EMM_Dialog] updateArtworkInUI" );
-    UNUSED(column); //FIXME: delete this
+    UNUSED(column); //FIXME: delete this, just avoids a warning
     art_cover->showArtUpdate( recoverItemFromRow(row) );
 }
 
@@ -663,7 +698,7 @@ void ExtMetaManagerDialog::launchEmptyPlaylistDialog() {
       emptyPlaylist_dialog_text );
 }
 
-QStringList ExtMetaManagerDialog::launchAudioFileSelector(){
+QStringList ExtMetaManagerDialog::launchAudioFileSelector() {
     toggleVisible(); // Hide window
     QStringList uris = THEDP->showSimpleOpen(
         qtr("Open audio files to manage"),
@@ -671,4 +706,37 @@ QStringList ExtMetaManagerDialog::launchAudioFileSelector(){
         p_intf->p_sys->filepath );
     toggleVisible();// Show window again
     return uris;
+}
+
+bool ExtMetaManagerDialog::isClearSelected() {
+    return ui.checkBox_cleaTable->isChecked();
+}
+
+//TODO: this code may be repeated on other branches
+bool ExtMetaManagerDialog::itemAlreadyOnLoaded(input_item_t *new_item) { //TODO: clean this method
+    msg_Dbg( p_intf, "[EMM_Dialog] itemAlreadyOnLoaded" );
+
+    /* Get uri from that "new_item" */
+    char * wantedUri = input_item_GetURI(new_item);
+
+    input_item_t *p_item;
+    char * temp_uri;
+
+    int arraySize = vlc_array_count(workspace);
+    for(int i = 0; i < arraySize; i++)
+    {
+        /* Get item on position "i" */
+        p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
+
+        /* Get uri from that item */
+        temp_uri = input_item_GetURI(p_item);
+
+        /* Compare it to "wantedUri". If true, means it's que item is repeated, so return true. */
+        if (strcmp(temp_uri,wantedUri) == 0){
+            msg_Dbg( p_intf, "[EMM_Dialog] repeated item found, ignoring it." );
+            return true;
+        }
+
+    }
+    return false; //No matches found, so item is not already loaded.
 }
