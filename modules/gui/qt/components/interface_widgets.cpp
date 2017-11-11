@@ -903,8 +903,14 @@ void CoverArtLabelExt::setItem( input_item_t *_p_item )
     msg_Dbg( p_intf, "[CoverArtLabelExt] setItem" );
 
     if ( p_item ) input_item_Release( p_item );
+    //msg_Err( p_intf, "[CoverArtLabelExt]1" );//TODO: delete this
+
     p_item = _p_item;
+    //msg_Err( p_intf, "[CoverArtLabelExt]2" );//TODO: delete this
+
     if ( p_item ) input_item_Hold( p_item );
+    //msg_Err( p_intf, "[CoverArtLabelExt]3" );//TODO: delete this
+
 }
 
 void CoverArtLabelExt::showArtUpdate( const QString& url )
@@ -925,7 +931,7 @@ void CoverArtLabelExt::showArtUpdate( const QString& url )
     setPixmap( pix );
 }
 
-// Show new artork and update teh working item
+// Show new artork and update the working item
 void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
 {
     msg_Dbg( p_intf, "[CoverArtLabelExt] showArtUpdate (from item)" );
@@ -935,8 +941,8 @@ void CoverArtLabelExt::showArtUpdate( input_item_t *_p_item )
     {
         setItem(_p_item);
         url = THEMIM->getIM()->decodeArtURL( _p_item );
+        showArtUpdate( url );
     }
-    showArtUpdate( url );
 }
 
 void CoverArtLabelExt::setArtFromFile()

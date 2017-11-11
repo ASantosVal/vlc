@@ -29,14 +29,16 @@
 
 #include <QMessageBox>
 
-#define UNUSED(x) (void)(x) //FIXME: delete this. Unused variable warning removal
+#define UNUSED(x) (void)(x) //FIXME: delete this, just avoids a warning
 
 ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
                : QVLCDialog( (QWidget*)_p_intf->p_sys->p_mi, _p_intf )
 {
     msg_Dbg( p_intf, "[EMM_Dialog] Initializing" );
+
     configureWindow();
     initializeWorkspace();
+
     QVLCTools::restoreWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
 
@@ -45,10 +47,10 @@ ExtMetaManagerDialog::~ExtMetaManagerDialog() {
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
 
-/* Override the closing (click X) event*/
+// Override the closing (click X) event
 void ExtMetaManagerDialog::closeEvent(QCloseEvent *event) {
     msg_Dbg( p_intf, "[EMM_Dialog] Close event" );
-    UNUSED(event); //FIXME: delete this
+    UNUSED(event); //FIXME: delete this, just avoids a warning
     close();
 }
 
@@ -75,35 +77,35 @@ void ExtMetaManagerDialog::close() {
 void ExtMetaManagerDialog::getFromPlaylist() { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] getFromPlaylist" );
 
-    if (isClearSelected()){
+    if (isClearTableSelected()){
         resetEnvironment();
+    }
+
+    /* NOTE: Since the playlist usage is confusing, here is what I understood:
+    --The number of elements playing is THEPL->items.i_size-5
+    --Items currently playing start on position 8 and finish at
+         sizeOfPlaylist+8 ('playlist_CurrentSize(THEPL)' only returns 0 or 1) */
+    int sizeOfPlaylist = THEPL->items.i_size - 5;
+    int whereTheLoadedItemsStart = 8;
+    int whereTheLoadedItemsFinish = sizeOfPlaylist + 8;
+
+    bool itemsWereLoaded = false;
+
+    if( sizeOfPlaylist ==0 ) {
+        launchEmptyPlaylistDialog();
+        return;
     }
 
     /* We dont want the table to mess things while we update it, so que block
     its signals (this is caused because we edited "multipleItemsChanged"). */
     ui.tableWidget_metadata->blockSignals(true);
-
     /* Lock the playlist so we can work with it */
     playlist_Lock(THEPL);
 
-    /* NOTE: Since the playlist usage is confusing, here is what I understood:
-    --The number of elements playing is THEPL->items.i_size-5
-    --Items currently playing start on position 8 and finish at sizeOfPlaylist+8 ('playlist_CurrentSize(THEPL)' only returns 0 or 1) */
-    int sizeOfPlaylist = THEPL->items.i_size - 5;
-    int whereTheLoadedItemsStart = 8;
-    int whereTheLoadedItemsFinish = sizeOfPlaylist + 8;
-
-    /* This will be used to show a warning if nothing is loaded */
-    bool itemsWereLoaded = false;
-
-    if( sizeOfPlaylist ==0 ) {
-        playlist_Unlock(THEPL);
-        return;
-    }
-
     input_item_t *p_item;  //This is where each item will be stored
+    char *uri_text; //This is where each item's URI will be stored
+    input_item_t *p_item_duplicate; //This is where duplicated items will be stored
 
-    /* Go through the playlist */
     for(int i = whereTheLoadedItemsStart;  i < whereTheLoadedItemsFinish; i++)
     {
         /* Get the current playlist_item's input_item_t */
@@ -112,27 +114,24 @@ void ExtMetaManagerDialog::getFromPlaylist() { //TODO: clean this method
         /* Evaluate if it's an audio file */
         if (isAudioFile(input_item_GetURI(p_item)))
         {
-            /* Add item to the table */
-            addTableEntry(p_item);
+            //Create a duplicate to avoid loosing object when playlist is cleared
+            uri_text = input_item_GetURI(p_item);
+            p_item_duplicate = createItemFromURI(uri_text);
 
-            itemsWereLoaded = true;
+            itemsWereLoaded = addTableEntry(p_item_duplicate);
         }
     }
 
-    /* If playlist was empty, show warning */
-    if (!itemsWereLoaded)
-    {
-        launchEmptyPlaylistDialog();
-    } else {
-        ui.tableWidget_metadata->setCurrentCell(0,1);
-        updateArtworkInUI(0,0);
-    }
-
+    /* Always unlock the playlist */
+    playlist_Unlock(THEPL);
     /* We have finished, so we unlock all the table's signals. */
     ui.tableWidget_metadata->blockSignals(false);
 
-    /* Always unlock the playlist */
-    playlist_Unlock(THEPL);
+    ui.tableWidget_metadata->clearSelection();
+
+    if (!itemsWereLoaded)
+        launchNoFilesLoadedDialog();
+
 }
 
 /* Loads files into the table from a file explorer window */
@@ -145,9 +144,11 @@ void ExtMetaManagerDialog::getFromFolder() { //TODO: clean this method
     if( uris.isEmpty() ) return;
 
     /* Clean before changing the workspace */
-    if (isClearSelected()){
+    if (isClearTableSelected()){
         resetEnvironment();
     }
+
+    bool itemsWereLoaded = false;
 
     /* We dont want the table to mess things while we update it, so que block
     its signals (this is caused because we edited "multipleItemsChanged"). */
@@ -158,15 +159,15 @@ void ExtMetaManagerDialog::getFromFolder() { //TODO: clean this method
             // Get the item from the URI
             input_item_t *p_item = createItemFromURI(uri.toLatin1().constData());
 
-            addTableEntry(p_item); //Add the item to the table
+            itemsWereLoaded = addTableEntry(p_item);
         }
     }
 
-    if (!tableIsEmpty()) {
-        /* Select the first cell and update artwork label */
-        ui.tableWidget_metadata->setCurrentCell(0,1);
-        updateArtworkInUI(0,0);
+    if (!itemsWereLoaded)
+    {
+        launchNoFilesLoadedDialog();
     }
+    ui.tableWidget_metadata->clearSelection();
 
     /* We have finished, so we unlock all the table's signals. */
     ui.tableWidget_metadata->blockSignals(false);
@@ -201,22 +202,21 @@ void ExtMetaManagerDialog::discardUnsavedChanges() { //TODO: clean this method
 
     clearTable();
 
-    char * uri_text;
-    input_item_t * p_item_old;
-    input_item_t * p_item_reloaded;
-
     int workspaceSize = vlc_array_count(workspace);
     for(int i = 0; i < workspaceSize; i++)
     {
-        /* Get one item from the "workspace", get it's URI, create a new
+        /* Get one item from the "workspace", get it's URI, create a NEW
         input_item_t and add it to the table (we do this because we want to
         fetch the original metadata again)*/
-        p_item_old = (input_item_t*)vlc_array_item_at_index(workspace, i);
-        vlc_array_remove(workspace, i); //We do this to avoid bugs when reloading table
-        uri_text = input_item_GetURI(p_item_old);
-        p_item_reloaded = createItemFromURI(uri_text);
+        input_item_t *p_item_old = (input_item_t*)vlc_array_item_at_index(workspace, i);
+        char *uri_text = input_item_GetURI(p_item_old);
+        input_item_t *p_item_reloaded = createItemFromURI(uri_text);
 
-        addTableEntry(p_item_reloaded);
+        //put the reloaded item on the same position in the workspace
+        vlc_array_remove(workspace, i);
+        vlc_array_insert(workspace, p_item_reloaded, i);
+
+        forceAddTableEntry(p_item_reloaded);
     }
 }
 
@@ -326,13 +326,42 @@ void ExtMetaManagerDialog::launchFingerprinterDialog(input_item_t *p_item) {
 /*------------------------------Item management-------------------------------*/
 /*----------------------------------------------------------------------------*/
 
-input_item_t* ExtMetaManagerDialog::recoverItemFromRow(int row) {
-    // Item at row X is stored at workspace postion X
-    input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workspace, row);
-    return p_item;
+input_item_t* ExtMetaManagerDialog::recoverItemFromRow(int row) { //TODO: clean this method
+    msg_Dbg( p_intf, "[EMM_Dialog] recoverItemFromRow" );
+    msg_Err( p_intf, "[EMM_Dialog] recoverItemFromRow" ); //TODO: delete this
+    printf("ROW: %d\n", row); //TODO: delete this
+
+    /* Retrieve URI from the wanted row */
+    //FIXME: here there is a seg.fault wuen tableSorting+loadPL because wantedUri changes
+    const char * wantedUri = ui.tableWidget_metadata->item(row,COL_PATH)->text().toLocal8Bit().constData();
+    printf("wantedUri:%s\n", wantedUri); //TODO: delete this
+
+    /* Get size of "workspace" and travel through it */
+    int arraySize = vlc_array_count(workspace);
+    for(int i = 0; i < arraySize; i++)
+    {
+        /* Get item on position "i" */
+        input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
+
+        /* Get uri from that item */
+        char * temp_uri = input_item_GetURI(p_item);
+
+        printf("wantedUri: %s\n", wantedUri); //TODO: delete this
+        printf("temp_uri:  %s\n", temp_uri); //TODO: delete this
+
+        /* Compare it to "wantedUri". If true, means it's que item we wanted, so return it. */
+        if (strcmp(temp_uri,wantedUri) == 0){
+            msg_Err( p_intf, "ITEM FOUND" );
+
+            return p_item;
+        }
+    }
+
+    msg_Err( p_intf, "ITEM WAS NOT FOUND" ); //TODO: delete this
+    //TODO: return error
 }
 
-/* Gets an item from an URI and preparses it (gets it's metadata) */
+// Gets an item from an URI and preparses it (gets it's metadata)
 input_item_t* ExtMetaManagerDialog::createItemFromURI(const char* uri) {
     msg_Dbg( p_intf, "[EMM_Dialog] createItemFromURI" );
 
@@ -424,6 +453,48 @@ void ExtMetaManagerDialog::saveItemChanges( input_item_t *p_item, int rowFrom) {
     input_item_WriteMeta( VLC_OBJECT(THEPL), p_item );
 }
 
+void ExtMetaManagerDialog::previewItem(int item_index) { //TODO: clean this method
+    msg_Dbg( p_intf, "[EMM_Dialog] previewItem" );
+    input_item_t *p_item = recoverItemFromRow(item_index);
+
+    //TODO: this creates seg. fault when loading playlist after using this method
+
+    playlist_Lock(THEPL);//TODO: this is just a test, may not work
+    playlist_Clear( THEPL, true ); //Clear playlist
+    playlist_Unlock(THEPL); //TODO: this is just a test, may not work
+    playlist_AddInput( THEPL, p_item, true, true ); //Add our item
+    THEMIM->play(); //Start playback
+}
+
+bool ExtMetaManagerDialog::checkRepeatedItem(input_item_t *new_item){ //TODO: clean this code
+    msg_Dbg( p_intf, "[EMM_Dialog] checkRepeatedItem" );
+
+    /* Get uri from that "new_item" */
+    char * wantedUri = input_item_GetURI(new_item);
+
+    input_item_t *p_item;
+    char * temp_uri;
+
+    int arraySize = vlc_array_count(workspace);
+    for(int i = 0; i < arraySize; i++)
+    {
+        /* Get item on position "i" */
+        p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
+
+        /* Get uri from that item */
+        temp_uri = input_item_GetURI(p_item);
+
+        /* Compare it to "wantedUri". If true, means it's que item is repeated, so return true. */
+        if (strcmp(temp_uri,wantedUri) == 0){
+            msg_Dbg( p_intf, "[EMM_Dialog] repeated item found, ignoring it." );
+            return true;
+        }
+
+    }
+    return false; //No matches found, so item is not already loaded.
+}
+
+
 /*----------------------------------------------------------------------------*/
 /*--------------------------Table management----------------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -440,22 +511,28 @@ void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item ) {
     ui.tableWidget_metadata->blockSignals(false);
 }
 
-void ExtMetaManagerDialog::addTableEntry(input_item_t *p_item) {
-    msg_Dbg( p_intf, "[EMM_Dialog] addTableEntry" );
-
-
-    if (itemAlreadyOnLoaded(p_item)){
-        return;
-    }
+bool ExtMetaManagerDialog::forceAddTableEntry(input_item_t *p_item) { //TODO: clean this method
+    msg_Dbg( p_intf, "[EMM_Dialog] forceAddTableEntry" );
 
     int newRowNumber = addNewRow();
     createCheckboxOnRow(newRowNumber);
     createChangeartworkButtonOnRow(newRowNumber);
+    createPreviewButtonOnRow(newRowNumber);
     fillRowWithMetadata(p_item, newRowNumber);
+}
 
-    /* Now we append file to our "workspace" */
-    vlc_array_append(workspace, p_item); //TODO: clean this
+bool ExtMetaManagerDialog::addTableEntry(input_item_t *p_item) { //TODO: clean this method
+    msg_Dbg( p_intf, "[EMM_Dialog] addTableEntry" );
 
+    if (itemAlreadyOnLoaded(p_item)){
+        return false;
+    }
+
+    forceAddTableEntry(p_item);
+
+    vlc_array_append(workspace, p_item);
+
+    return true;
 }
 
 void ExtMetaManagerDialog::fillRowWithMetadata(input_item_t *p_item, int row) {
@@ -512,13 +589,6 @@ bool ExtMetaManagerDialog::isRowSelected(int row) {
     return checkbox->isChecked();
 }
 
-void ExtMetaManagerDialog::createCheckboxOnRow(int row) {
-    QCheckBox *checkbox = new QCheckBox ();
-    checkbox->setChecked(true);
-    checkbox->setToolTip(checkbox_tip);
-    ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox);
-}
-
 int ExtMetaManagerDialog::addNewRow() {
     int newRowNumber = ui.tableWidget_metadata->rowCount(); //Last row is always rowCount-1
     ui.tableWidget_metadata->insertRow(newRowNumber);
@@ -531,12 +601,34 @@ void ExtMetaManagerDialog::createChangeartworkButtonOnRow(int row) {
 
     /* Prepare the mapper to be able to know from which row is the button is
     being clicked */
-    ButtonSignalMapper.setMapping(button_changeArtwork, row);
-    connect(button_changeArtwork, SIGNAL(clicked()), &ButtonSignalMapper, SLOT(map()));
+    changeArtwork_SignalMapper.setMapping(button_changeArtwork, row);
+    connect(button_changeArtwork, SIGNAL(clicked()), &changeArtwork_SignalMapper, SLOT(map()));
 
     // Insert the button in the cell
     ui.tableWidget_metadata->setCellWidget(row, COL_ARTWORK, button_changeArtwork );
 }
+
+void ExtMetaManagerDialog::createPreviewButtonOnRow(int row) {
+    QPushButton *button_previewItem = new QPushButton( qtr("Preview"), this);
+    button_previewItem->setToolTip(previewButton_tip);
+
+    /* Prepare the mapper to be able to know from which row is the button is
+    being clicked */
+    preview_SignalMapper.setMapping(button_previewItem, row);
+    connect(button_previewItem, SIGNAL(clicked()), &preview_SignalMapper, SLOT(map()));
+
+    // Insert the button in the cell (we have created it on the constructor)
+    ui.tableWidget_metadata->setCellWidget(row, COL_PREVIEW, button_previewItem );
+}
+
+void ExtMetaManagerDialog::createCheckboxOnRow(int row) {
+    QCheckBox *checkbox = new QCheckBox ();
+    checkbox->setChecked(true);
+    checkbox->setToolTip(checkbox_tip);
+    ui.tableWidget_metadata->setCellWidget(row, COL_CHECKBOX, checkbox);
+}
+
+
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------Artwork management------------------------------*/
@@ -555,7 +647,7 @@ void ExtMetaManagerDialog::changeArtwork(int row) {
 
     // Fix to know the row the button is being clicked from and show it's cover
     ui.tableWidget_metadata->setCurrentCell(row, COL_ARTWORK);
-    updateArtworkInUI(row, COL_ARTWORK);
+    updateArtworkInUI(row, COL_ARTWORK); //TODO: on other bhanches is (0,0)
 
     art_cover->setArtFromFile();
 }
@@ -584,10 +676,15 @@ void ExtMetaManagerDialog::configureTable() {
     setTableEvents();
     setColumnSizes();
 
+    // Make table columns able to change order
+    ui.tableWidget_metadata->horizontalHeader()->setSectionsMovable(true);
+    //TODO: the above only works on Qt5.x (on Qt4.x it's "ui->tableView->horizontalHeader()->setMovable(true);")
+
     /* Set the mapper's connection to changeArtwork. This is used to be able
     to know from which row the button (added later on each row) it's being
     clicked */
-    connect(&ButtonSignalMapper, SIGNAL(mapped(int)), this, SLOT(changeArtwork(int)));
+    connect(&changeArtwork_SignalMapper, SIGNAL(mapped(int)), this, SLOT(changeArtwork(int)));
+    connect(&preview_SignalMapper, SIGNAL(mapped(int)), this, SLOT(previewItem(int)));
 
 }
 
@@ -612,14 +709,15 @@ void ExtMetaManagerDialog::setTableEvents() {
 
 void ExtMetaManagerDialog::setColumnSizes() {
     ui.tableWidget_metadata->setColumnWidth(COL_CHECKBOX, 30);
+    ui.tableWidget_metadata->setColumnWidth(COL_PREVIEW, 70);
     ui.tableWidget_metadata->setColumnWidth(COL_TITLE, 200);
     ui.tableWidget_metadata->setColumnWidth(COL_ARTIST, 200);
     ui.tableWidget_metadata->setColumnWidth(COL_ALBUM, 200);
     ui.tableWidget_metadata->setColumnWidth(COL_GENRE, 120);
-    ui.tableWidget_metadata->setColumnWidth(COL_TRACKNUM, 70);
+    ui.tableWidget_metadata->setColumnWidth(COL_TRACKNUM, 80);
     ui.tableWidget_metadata->setColumnWidth(COL_PUBLISHER, 120);
     ui.tableWidget_metadata->setColumnWidth(COL_COPYRIGHT, 120);
-    ui.tableWidget_metadata->setColumnWidth(COL_ARTWORK, 70);
+    ui.tableWidget_metadata->setColumnWidth(COL_ARTWORK, 80);
     ui.tableWidget_metadata->setColumnWidth(COL_PATH, 50);
 }
 
@@ -698,6 +796,13 @@ void ExtMetaManagerDialog::launchEmptyPlaylistDialog() {
       emptyPlaylist_dialog_text );
 }
 
+void ExtMetaManagerDialog::launchNoFilesLoadedDialog() {
+    QMessageBox::information(
+      this,
+      noFilesLoaded_dialog_title,
+      noFilesLoaded_dialog_text );
+}
+
 QStringList ExtMetaManagerDialog::launchAudioFileSelector() {
     toggleVisible(); // Hide window
     QStringList uris = THEDP->showSimpleOpen(
@@ -708,11 +813,6 @@ QStringList ExtMetaManagerDialog::launchAudioFileSelector() {
     return uris;
 }
 
-bool ExtMetaManagerDialog::isClearSelected() {
-    return ui.checkBox_cleaTable->isChecked();
-}
-
-//TODO: this code may be repeated on other branches
 bool ExtMetaManagerDialog::itemAlreadyOnLoaded(input_item_t *new_item) { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] itemAlreadyOnLoaded" );
 
@@ -739,4 +839,8 @@ bool ExtMetaManagerDialog::itemAlreadyOnLoaded(input_item_t *new_item) { //TODO:
 
     }
     return false; //No matches found, so item is not already loaded.
+}
+
+bool ExtMetaManagerDialog::isClearTableSelected() {
+    return ui.checkBox_cleaTable->isChecked();
 }

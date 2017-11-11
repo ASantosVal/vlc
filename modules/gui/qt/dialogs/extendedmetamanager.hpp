@@ -23,15 +23,16 @@
 
 //aliases for the table's columns' name
 #define COL_CHECKBOX 0
-#define COL_TITLE 1
-#define COL_ARTIST 2
-#define COL_ALBUM 3
-#define COL_GENRE 4
-#define COL_TRACKNUM 5
-#define COL_PUBLISHER 6
-#define COL_COPYRIGHT 7
-#define COL_ARTWORK 8
-#define COL_PATH 9
+#define COL_PREVIEW 1
+#define COL_TITLE 2
+#define COL_ARTIST 3
+#define COL_ALBUM 4
+#define COL_GENRE 5
+#define COL_TRACKNUM 6
+#define COL_PUBLISHER 7
+#define COL_COPYRIGHT 8
+#define COL_ARTWORK 9
+#define COL_PATH 10
 
 #include "util/qvlcframe.hpp"
 #include "util/singleton.hpp"
@@ -97,12 +98,14 @@ private:
     "<a href=\"https://github.com/ASantosVal/vlc-extension-trials\">Repository</a></a><br>");
 
     QString emptyPlaylist_dialog_title = qtr("Playlist empty! - Extended Metadata Manager");
-    QString emptyPlaylist_dialog_text = qtr("There were no items to be loaded on the "
-    "current playlist.");
+    QString emptyPlaylist_dialog_text = qtr("The playlist is empty.");
+
+    QString noFilesLoaded_dialog_title = qtr("No files were loaded! - Extended Metadata Manager");
+    QString noFilesLoaded_dialog_text = qtr("No files were loaded because they were already on the table.");
 
     /* Text for the "tips" */
-    QString getFromPlaylist_tip = qtr("Load files into the table from the current playlist.ONLY THE AUDIO FILES.");
-    QString getFromFolder_tip = qtr("Load files into the table from a file/folder. ONLY THE AUDIO FILES.");
+    QString getFromPlaylist_tip = qtr("Load files into the table from the current playlist.ONLY THE AUDIO FILES. Repeated files won't be loaded.");
+    QString getFromFolder_tip = qtr("Load files into the table from a file/folder. ONLY THE AUDIO FILES. Repeated files won't be loaded.");
     QString help_tip = qtr("Launch the help window.");
     QString about_tip = qtr("Learn more about this window and it's creator.");
     QString searchNow_tip = qtr("Start the automatic search of the selected item's information.");
@@ -122,6 +125,7 @@ private:
     QString disableFastSearch_tip = qtr("With this option selected, instead of "
     "choosing automatically the \"best\" option, a window will show asking you "
     "to choose which entry is the correct.");
+    QString previewButton_tip = qtr("Play this song. PLAYLIST WILL BE DISCARDED.");
 
     /* Declarations for the fingerprinter */
     Chromaprint *t;
@@ -136,9 +140,10 @@ private:
     /* The User interface (UI) made in QT */
     Ui::ExtMetaManagerWidget ui;
 
-    /* Mapper used on the buttons on the table to know from which row is the
+    /* Mappers used on the buttons on the table to know from which row is the
     call being made */
-    QSignalMapper ButtonSignalMapper;
+    QSignalMapper changeArtwork_SignalMapper;
+    QSignalMapper preview_SignalMapper;
 
 private slots:
     void closeEvent(QCloseEvent *event);
@@ -170,21 +175,25 @@ private slots:
     input_item_t* createItemFromURI(const char* uri);
     bool isAudioFile(const char* uri);
     void saveItemChanges( input_item_t *p_item, int rowFrom);
+    void previewItem(int); //TODO: new, reorganice in cpp
+    bool checkRepeatedItem(input_item_t *new_item); //TODO: new, reorganice in cpp
 
 /*----------------------------------------------------------------------------*/
 /*--------------------------Table management----------------------------------*/
 /*----------------------------------------------------------------------------*/
 
     void multipleItemsChanged( QTableWidgetItem *item );
-    void addTableEntry(input_item_t *p_item);
+    bool forceAddTableEntry(input_item_t *p_item);
+    bool addTableEntry(input_item_t *p_item);
     void fillRowWithMetadata(input_item_t *p_item, int row);
     void clearTable();
     int countSelectedRows();
     bool tableIsEmpty();
     bool isRowSelected(int row);
-    void createCheckboxOnRow(int row);
     int addNewRow();
     void createChangeartworkButtonOnRow(int row);
+    void createPreviewButtonOnRow(int row);
+    void createCheckboxOnRow(int row);
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------Artwork management------------------------------*/
@@ -218,9 +227,10 @@ private slots:
     void launchHelpDialog();
     void launchAboutDialog();
     void launchEmptyPlaylistDialog();
+    void launchNoFilesLoadedDialog();
     QStringList launchAudioFileSelector();
     bool itemAlreadyOnLoaded(input_item_t *new_item);
-    bool isClearSelected();
+    bool isClearTableSelected();
 
 
     friend class    Singleton<ExtMetaManagerDialog>;
