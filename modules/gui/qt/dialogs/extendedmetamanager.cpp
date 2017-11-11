@@ -81,6 +81,10 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     ui.tableWidget_metadata->setColumnWidth(COL_ARTWORK, 70);
     ui.tableWidget_metadata->setColumnWidth(COL_PATH, 50);
 
+    /* Make table columns able to change order */
+    ui.tableWidget_metadata->horizontalHeader()->setSectionsMovable(true);
+    //TODO: the above only works on Qt5.x (on Qt4.x it's "ui->tableView->horizontalHeader()->setMovable(true);")
+
     /* Add the Artwork label */
     art_cover = new CoverArtLabelExt( this, p_intf );
     ui.gridLayout_artwork->layout()->addWidget(art_cover);
@@ -103,6 +107,7 @@ ExtMetaManagerDialog::ExtMetaManagerDialog( intf_thread_t *_p_intf)
     to know from which row the button (added later on each row) it's being
     clicked */
     connect(&ButtonSignalMapper, SIGNAL(mapped(int)), this, SLOT(changeArtwork(int)));
+    connect(&fingreprinterMapper, SIGNAL(mapped(int, bool, input_item_t)), this, SLOT(handleResults(int, bool, input_item_t))); //TODO:This may not be needed
 
     /* Initilize the array for the currently working items */
     workspace = new vlc_array_t();
@@ -120,7 +125,7 @@ ExtMetaManagerDialog::~ExtMetaManagerDialog()
     QVLCTools::saveWidgetPosition( p_intf, "ExtMetaManagerDialog", this );
 }
 
-/* Override the closing (click X) event*/
+/* Override the closing (click X) event */
 void ExtMetaManagerDialog::closeEvent(QCloseEvent *event)
 {
     msg_Dbg( p_intf, "[EMM_Dialog] Close event" );
@@ -277,7 +282,7 @@ void ExtMetaManagerDialog::searchNow()
     // }
 }
 
-/* Saves changes permanently*/
+/* Saves changes permanently */
 void ExtMetaManagerDialog::saveAll()
 {
     msg_Dbg( p_intf, "[EMM_Dialog] saveAll" );
@@ -335,15 +340,21 @@ void ExtMetaManagerDialog::restoreAll()
 
     clearTable();
 
-    input_item_t *p_item; // This is where the current working item will be
+    // input_item_t *p_item; // This is where the current working item will be
 
     /* Iterate over all the items in the workspace */
     int arraySize = vlc_array_count(workspace);
     for(int i = 0; i < arraySize; i++)
     {
-        /* Get one item form the list and add it to the table */
-        p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
-        addTableEntry(p_item);
+        /* Get one item from the "workspace", get it's URI, create a new
+        input_item_t and add it to the table (we do this because we want to
+        fetch the original metadata again)*/
+
+        input_item_t *p_item_old = (input_item_t*)vlc_array_item_at_index(workspace, i);
+        char *uri_text = input_item_GetURI(p_item_old);
+        input_item_t *p_item_new = getItemFromURI(uri_text);
+
+        addTableEntry(p_item_new);
     }
 }
 
@@ -377,23 +388,13 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
     /* Calculate how much the progress bar will advance each step (progressBar
     goes from 0 to 100). Then progress variable is set to 0 and the widget is
     updated */
-    int progress_unit= 100/selectedRowsCount;
-    int progress=0;
+    progress_unit = 100 / selectedRowsCount;
+    progress = 100 % selectedRowsCount; //Start with the mod, so it adds 100 at the end
     ui.progressBar_search->setValue(progress);
 
-    /* We dont want the table to mess things while we update it, so que block
-    its signals (this is caused because we edited "multipleItemsChanged"). */
+    /* We don't want the table to mess things while we update it, so que block
+    it's signals (this is caused because we edited "multipleItemsChanged"). */
     ui.tableWidget_metadata->blockSignals(true);
-
-    /* if fast search is activated, initilize custom fingerprinter */
-    if (fast)
-    {
-        t = new (std::nothrow) Chromaprint( p_intf );
-        if ( !t )
-        {
-            return; // Error
-        }
-    }
 
     /* Iterate the table */
     for(int row = 0; row < rows; row++)
@@ -405,27 +406,8 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
             p_item = getItemFromRow(row);
 
             /* Fingerprint the item and wait for results */
-            fingerprint(p_item, fast);
-
-            /* Update the table with the new info */
-            updateTableEntry(p_item, row);
-
-            /* Update the progress bar */
-            progress=progress+progress_unit; // Increase the progress
-            ui.progressBar_search->setValue(progress); // Update the progressBar
+            fingerprintItem(p_item, fast);
         }
-    }
-
-    /* Lost decimals can cause the progress bar to not reach 100, so here is
-    the fix */
-    ui.progressBar_search->setValue(100); //
-    ui.progressBar_search->setEnabled(false);
-
-    /* If fast search is activated, delete the custom fingerprinter */
-    if (fast)
-    {
-        if ( t ) delete t;
-        if ( p_r ) fingerprint_request_Delete( p_r );
     }
 
     /* We have finished, so we unlock all the table's signals. */
@@ -434,27 +416,33 @@ void ExtMetaManagerDialog::fingerprintTable( bool fast )
 
 /* Initiates the fingerprint process just for one item. If "fast" is true, 1st
 entry is applied automatically */
-void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
+void ExtMetaManagerDialog::fingerprintItem(input_item_t *p_item, bool fast)
 {
-    msg_Dbg( p_intf, "[EMM_Dialog] fingerprint" );
+    msg_Dbg( p_intf, "[EMM_Dialog] fingerprintItem" );
 
+    /* If "fast" activated, create fingerprinter */
     if (fast)
     {
+        //TODO: this creates a new fingerprinter each time, but may not work ( due to reference to items lost/changed)
+        t = new (std::nothrow) Chromaprint( p_intf );
+        if ( !t )
+        {
+            return; // Error
+        }
+
+        //TODO: this doesn't work
+        // /* Prepare the mapping with the row and connect teh button to it.
+        // The mapper is used to be able to know from which row is the button is
+        // being clicked */
+        // fingreprinterMapper.setMapping(t, 1); //TODO: give real values
+        // fingreprinterMapper.setMapping(t, "p_item"); //TODO: give real values
+        // fingreprinterMapper.setMapping(t, false);  //TODO: give real values
+        // CONNECT(t, finished(), this, fingreprinterMapper.map(int, bool, input_item_t *));
+        CONNECT(t, finished(), this, handleResults());
+
         /* Add the item to the finperprinter's queue */
         if ( t )
             t->enqueue( p_item );
-
-        /* Wait for results */
-        p_r = t->fetchResults();
-        while (!p_r)
-            p_r = t->fetchResults();
-
-        /* Check if metadata was found and if not, exit */
-        if ( vlc_array_count( & p_r->results.metas_array ) == 0 )
-            return;
-
-        /* Apply first option */
-        t->apply( p_r, 0 );
     }
     else
     {
@@ -462,6 +450,46 @@ void ExtMetaManagerDialog::fingerprint(input_item_t *p_item, bool fast)
         FingerprintDialog dialog(this, p_intf, p_item);
         dialog.exec();
     }
+}
+
+/* When fingerprinter has finished, this method is triggered. It applies the
+found metadata and updates the entry on the table */
+void ExtMetaManagerDialog::handleResults(/*int row, bool isLast, input_item_t *p_item*/)
+{
+    msg_Err( p_intf, "[EMM_Dialog] handleResults" ); //TODO: delete this or change it to 'debug'
+
+    /* Update the progress bar */
+    progress=progress+progress_unit; // Increase the progress
+    ui.progressBar_search->setValue(progress); // Update the progressBar
+
+    //TODO: Due to reference loss, the following will give segmentation fault
+    // p_r = t->fetchResults();
+    //
+    // if ( ! p_r )
+    // {
+    //     return;
+    // }
+    //
+    // if ( vlc_array_count( & p_r->results.metas_array ) == 0 )
+    // {
+    //     fingerprint_request_Delete( p_r );
+    //     p_r = NULL;
+    //     return;
+    // }
+
+    // /* Apply first option */
+    // t->apply( p_r, 0 );
+
+    //TODO:fix this
+    /* Update the table with the new info */
+    // updateTableEntry(p_item, row);
+
+    //TODO:fix this (when should I delete it? Am I deleting the correct fingerprinter?)
+    // if (isLast){
+    //     /* Delete the fingerprinter */
+    //     if ( t ) delete t;
+    //     if ( p_r ) fingerprint_request_Delete( p_r );
+    // }
 
 }
 
@@ -474,9 +502,26 @@ input_item_t* ExtMetaManagerDialog::getItemFromRow(int row)
 {
     msg_Dbg( p_intf, "[EMM_Dialog] getItemFromRow" );
 
-    /* Item at row X is stored at workspace postion X */
-    input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workspace, row);
-    return p_item;
+    /* Retrieve URI from the wanted row */
+    const char * wantedUri = ui.tableWidget_metadata->item(row,COL_PATH)->text().toLocal8Bit().constData();
+
+    /* Get size of "workspace" and travel through it */
+    int arraySize = vlc_array_count(workspace);
+    for(int i = 0; i < arraySize; i++)
+    {
+        /* Get item on position "i" */
+        input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
+
+        /* Get uri from that item */
+        char * temp_uri = input_item_GetURI(p_item);
+
+        /* Compare it to "wantedUri". If true, means it's que item we wanted, so return it. */
+        if (strcmp(temp_uri,wantedUri) == 0){
+            return p_item;
+        }
+    }
+
+    //TODO: return error
 }
 
 /* Gets an item from an URI and preparses it (gets it's metadata) */
@@ -554,7 +599,7 @@ bool ExtMetaManagerDialog::isAudioFile(const char* uri)
 /*----------------------------------------------------------------------------*/
 
 /* Modify the table's behavior so multiple items can be edited at the same time
-when more than one cell is selected. */
+when more than one cell is selected */
 void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item )
 {
     // msg_Dbg( p_intf, "[EMM_Dialog] multipleItemsChanged" ); //Too many messages on the console

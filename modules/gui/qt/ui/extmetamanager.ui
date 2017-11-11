@@ -28,6 +28,9 @@
      <layout class="QHBoxLayout" name="horizontalLayout_2">
       <item>
        <widget class="QTableWidget" name="tableWidget_metadata">
+        <property name="sortingEnabled">
+         <bool>true</bool>
+        </property>
         <column>
          <property name="text">
           <string notr="true"/>
