@@ -328,31 +328,24 @@ void ExtMetaManagerDialog::launchFingerprinterDialog(input_item_t *p_item) {
 
 input_item_t* ExtMetaManagerDialog::recoverItemFromRow(int row) { //TODO: clean this method
     msg_Dbg( p_intf, "[EMM_Dialog] recoverItemFromRow" );
-    msg_Err( p_intf, "[EMM_Dialog] recoverItemFromRow" ); //TODO: delete this
-    printf("ROW: %d\n", row); //TODO: delete this
 
     /* Retrieve URI from the wanted row */
-    //FIXME: here there is a seg.fault wuen tableSorting+loadPL because wantedUri changes
+    //FIXME: wantedUri changes and creates seg.fault on other methods
     const char * wantedUri = ui.tableWidget_metadata->item(row,COL_PATH)->text().toLocal8Bit().constData();
     printf("wantedUri:%s\n", wantedUri); //TODO: delete this
 
-    /* Get size of "workspace" and travel through it */
     int arraySize = vlc_array_count(workspace);
     for(int i = 0; i < arraySize; i++)
     {
-        /* Get item on position "i" */
         input_item_t *p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
-
-        /* Get uri from that item */
         char * temp_uri = input_item_GetURI(p_item);
 
         printf("wantedUri: %s\n", wantedUri); //TODO: delete this
-        printf("temp_uri:  %s\n", temp_uri); //TODO: delete this
+        printf("temp_uri:  %s\n", temp_uri);  //TODO: delete this
 
         /* Compare it to "wantedUri". If true, means it's que item we wanted, so return it. */
         if (strcmp(temp_uri,wantedUri) == 0){
-            msg_Err( p_intf, "ITEM FOUND" );
-
+            msg_Dbg( p_intf, "ITEM FOUND" ); //TODO: delete this
             return p_item;
         }
     }
@@ -469,7 +462,6 @@ void ExtMetaManagerDialog::previewItem(int item_index) { //TODO: clean this meth
 bool ExtMetaManagerDialog::checkRepeatedItem(input_item_t *new_item){ //TODO: clean this code
     msg_Dbg( p_intf, "[EMM_Dialog] checkRepeatedItem" );
 
-    /* Get uri from that "new_item" */
     char * wantedUri = input_item_GetURI(new_item);
 
     input_item_t *p_item;
@@ -478,10 +470,8 @@ bool ExtMetaManagerDialog::checkRepeatedItem(input_item_t *new_item){ //TODO: cl
     int arraySize = vlc_array_count(workspace);
     for(int i = 0; i < arraySize; i++)
     {
-        /* Get item on position "i" */
         p_item = (input_item_t*)vlc_array_item_at_index(workspace, i);
 
-        /* Get uri from that item */
         temp_uri = input_item_GetURI(p_item);
 
         /* Compare it to "wantedUri". If true, means it's que item is repeated, so return true. */
@@ -511,7 +501,7 @@ void ExtMetaManagerDialog::multipleItemsChanged( QTableWidgetItem *item ) {
     ui.tableWidget_metadata->blockSignals(false);
 }
 
-bool ExtMetaManagerDialog::forceAddTableEntry(input_item_t *p_item) { //TODO: clean this method
+bool ExtMetaManagerDialog::forceAddTableEntry(input_item_t *p_item) {
     msg_Dbg( p_intf, "[EMM_Dialog] forceAddTableEntry" );
 
     int newRowNumber = addNewRow();

@@ -176,7 +176,7 @@ private slots:
     bool isAudioFile(const char* uri);
     void saveItemChanges( input_item_t *p_item, int rowFrom);
     void previewItem(int); //TODO: new, reorganice in cpp
-    bool checkRepeatedItem(input_item_t *new_item); //TODO: new, reorganice in cpp
+    bool checkRepeatedItem(input_item_t *new_item);
 
 /*----------------------------------------------------------------------------*/
 /*--------------------------Table management----------------------------------*/
