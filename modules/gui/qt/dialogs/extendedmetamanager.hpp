@@ -21,7 +21,7 @@
 #ifndef QVLC_EXTMETAMANAGER_DIALOG_H_
 #define QVLC_EXTMETAMANAGER_DIALOG_H_ 1
 
-//aliases for the table's columns' name
+// Aliases for the table's columns' name
 #define COL_CHECKBOX 0
 #define COL_TITLE 1
 #define COL_ARTIST 2
@@ -40,7 +40,7 @@
 
 #include "ui/extmetamanager.h" // Include the precompiled version of extmetamanager.ui
 
-#include <QSignalMapper> /* for the Help and About popups */
+#include <QSignalMapper>
 
 class CoverArtLabelExt;
 class Chromaprint;
@@ -136,9 +136,14 @@ private:
     /* The User interface (UI) made in QT */
     Ui::ExtMetaManagerWidget ui;
 
-    /* Mapper used on the buttons on the table to know from which row is the
-    call being made */
+    /* Integers used for the progress bar */
+    int progress_unit;
+    int progress;
+
+    /* Mapper used on the buttons on the table (to know from which row is the
+    call being made) and the fingreprinter's handleResults (to pass a couple of variables)*/
     QSignalMapper ButtonSignalMapper;
+    QSignalMapper fingreprinterMapper; //TODO: this may not be needed
 
 private slots:
     void closeEvent(QCloseEvent *event);
@@ -161,6 +166,7 @@ private slots:
     void fingerprintTable(bool isFastSearch);
     void fingerprintItem(input_item_t *p_item, bool isFastSearch);
     void launchFingerprinterDialog(input_item_t *p_item);
+    void handleResults(/*int row, bool isLast, input_item_t *p_item*/);
 
 /*----------------------------------------------------------------------------*/
 /*------------------------------Item management-------------------------------*/
@@ -221,7 +227,6 @@ private slots:
     QStringList launchAudioFileSelector();
     bool itemAlreadyOnLoaded(input_item_t *new_item);
     bool isClearSelected();
-
 
     friend class    Singleton<ExtMetaManagerDialog>;
 public:
