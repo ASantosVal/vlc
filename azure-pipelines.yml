@@ -1,0 +1,26 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- script: sudo apt-get install git build-essential pkg-config libtool automake autopoint gettext
+  displayName: 'Install basics'
+- script: sudo apt-get build-dep vlc
+  displayName: 'Install dev basics'
+- script: ./configure --help
+  displayName: './configure --help'
+- script: make
+  displayName: 'make'
+  
+
+- script: |
+    echo Add other tasks to build, test, and deploy your project.
+    echo See https://aka.ms/yaml
+  displayName: 'Run a multi-line script'
