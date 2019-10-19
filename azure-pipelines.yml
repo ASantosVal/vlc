@@ -10,10 +10,10 @@ pool:
   vmImage: 'ubuntu-latest'
 
 steps:
-- script: sudo apt-get install git build-essential pkg-config libtool automake autopoint gettext
+- script: sudo apt-get install git build-essential pkg-config libtool automake autopoint gettext subversion yasm cvs cmake ragel
   displayName: 'Install basics'
-- script: sudo apt-get build-dep vlc
-  displayName: 'Install dev basics'
+- script: cd contrib && $ mkdir native && cd native && ../bootstrap && make && cd ../..
+  displayName: 'Compile dev basics'
 - script: ./configure --help
   displayName: './configure --help'
 - script: make
